@@ -140,7 +140,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    console.log('🛒 Adding to cart:', { productId, quantity, userId: user.id });
 
     try {
       // Get user's cart
@@ -150,18 +149,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', user.id)
         .single();
 
-      console.log('📦 Cart query result:', { cart, cartError });
 
       if (cartError && cartError.code === 'PGRST116') {
         // Create cart if it doesn't exist
-        console.log('🆕 Creating new cart...');
         const { data: newCart, error: createError } = await supabase
           .from('carts')
           .insert({ user_id: user.id })
           .select('id')
           .single();
-
-        console.log('🆕 New cart result:', { newCart, createError });
 
         if (createError) {
           console.error('Error creating cart:', createError);
@@ -186,7 +181,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      console.log('✅ Cart found:', cart.id);
 
       // Check if item already exists in cart
       const { data: existingItem, error: existingError } = await supabase
@@ -196,17 +190,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('product_id', productId)
         .single();
 
-      console.log('🔍 Existing item check:', { existingItem, existingError });
 
       if (existingItem) {
         // Update existing item quantity
-        console.log('🔄 Updating existing item quantity...');
         const { error: updateError } = await supabase
           .from('cart_items')
           .update({ quantity: existingItem.quantity + quantity })
           .eq('id', existingItem.id);
 
-        console.log('🔄 Update result:', { updateError });
 
         if (updateError) {
           console.error('Error updating cart item:', updateError);
@@ -214,7 +205,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       } else {
         // Add new item to cart
-        console.log('➕ Adding new item to cart...');
         const { error: insertError } = await supabase
           .from('cart_items')
           .insert({
@@ -223,7 +213,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             quantity: quantity
           });
 
-        console.log('➕ Insert result:', { insertError });
 
         if (insertError) {
           console.error('Error adding to cart:', insertError);
@@ -231,7 +220,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      console.log('✅ Successfully added to cart, refreshing...');
       // Refresh cart items
       await fetchCartItems();
     } catch (error) {

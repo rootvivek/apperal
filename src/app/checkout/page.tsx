@@ -108,7 +108,6 @@ export default function CheckoutPage() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Handle checkout logic here
-    console.log('Checkout data:', formData);
     setIsProcessing(false);
   };
 

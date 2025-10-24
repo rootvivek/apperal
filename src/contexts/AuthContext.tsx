@@ -34,21 +34,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Check if we manually signed out (persisted in localStorage)
     const wasManualSignOut = localStorage.getItem('manual-sign-out') === 'true';
-    console.log('🔍 Initial load check:', { wasManualSignOut, manualSignOutRef: manualSignOutRef.current });
     
     if (wasManualSignOut) {
-      console.log('🚫 Manual sign out detected, clearing auth state and skipping ALL auth setup');
       setSession(null);
       setUser(null);
       setLoading(false);
       manualSignOutRef.current = true;
-      // Clear the flag immediately but keep the ref for longer to prevent auto-login
       localStorage.removeItem('manual-sign-out');
       setTimeout(() => {
         manualSignOutRef.current = false;
-        console.log('🔄 Manual sign out ref cleared');
-      }, 3000); // Increased to 3000ms to prevent INITIAL_SESSION from logging back in
-      // Return early to skip ALL auth listener setup
+      }, 3000);
       return;
     }
 
@@ -58,7 +53,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       setLoading(false);
       isInitialized = true;
-      // Reset manual sign out flag on fresh page load
       manualSignOutRef.current = false;
     });
 
@@ -66,33 +60,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('🔄 AUTH STATE CHANGE:', { 
-        event, 
-        hasSession: !!session, 
-        isInitialized, 
-        manualSignOut: manualSignOutRef.current,
-        signingOut: signingOutRef.current,
-        userEmail: session?.user?.email || 'null'
-      });
-      
       // If we manually signed out, ignore ALL auth state changes
       if (manualSignOutRef.current) {
-        console.log('🚫 BLOCKING: Ignoring auth state change due to manual sign out');
         return;
       }
       
       // Additional check: if we're in the process of signing out, ignore everything
       if (signingOutRef.current) {
-        console.log('🚫 BLOCKING: Ignoring auth state change - currently signing out');
         return;
       }
       
-      console.log('✅ PROCESSING: Auth state change allowed, updating state...');
       setSession(session);
       setUser(session?.user ?? null);
       setLoading(false);
-      
-      // Note: Redirect is now handled directly in signOut function
     });
 
     // Store subscription reference for potential cleanup
@@ -103,7 +83,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, userData?: any) => {
     try {
-      // Clear manual sign out flag when user tries to sign up
       localStorage.removeItem('manual-sign-out');
       manualSignOutRef.current = false;
       
@@ -125,7 +104,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = async (email: string, password: string) => {
     try {
-      // Clear manual sign out flag when user tries to login
       localStorage.removeItem('manual-sign-out');
       manualSignOutRef.current = false;
       
@@ -143,19 +121,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('🚪 ===== SIGN OUT STARTED =====');
       setSigningOut(true);
       signingOutRef.current = true;
       manualSignOutRef.current = true;
       
       // Clear local state immediately
-      console.log('🚪 Clearing local state...');
       setUser(null);
       setSession(null);
       setLoading(false);
       
       // Clear localStorage FIRST
-      console.log('💾 Setting manual-sign-out flag and clearing storage...');
       localStorage.setItem('manual-sign-out', 'true');
       
       // Clear all Supabase auth tokens
@@ -171,11 +146,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       });
       
-      console.log('🧹 Storage cleared');
-      
       // Unsubscribe from auth listener
       if (authSubscriptionRef.current) {
-        console.log('🔌 Unsubscribing from auth listener...');
         authSubscriptionRef.current.unsubscribe();
         authSubscriptionRef.current = null;
       }
@@ -183,17 +155,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Try Supabase sign out (non-blocking)
       try {
         await supabase.auth.signOut();
-        console.log('✅ Supabase sign out completed');
       } catch (e) {
-        console.warn('⚠️ Supabase sign out failed (continuing anyway):', e);
+        // Continue even if Supabase sign out fails
       }
       
       // Force redirect immediately
-      console.log('🏠 Redirecting to home page...');
       window.location.replace('/');
       
     } catch (error) {
-      console.error('❌ Sign out error:', error);
       // Force logout even if there's an error
       setUser(null);
       setSession(null);
@@ -203,7 +172,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    // Clear manual sign out flag when user tries to login with Google
     localStorage.removeItem('manual-sign-out');
     manualSignOutRef.current = false;
     
@@ -216,7 +184,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithFacebook = async () => {
-    // Clear manual sign out flag when user tries to login with Facebook
     localStorage.removeItem('manual-sign-out');
     manualSignOutRef.current = false;
     

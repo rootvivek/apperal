@@ -25,6 +25,19 @@ export function createClient() {
 function createMockClient() {
   let authStateCallback: ((event: string, session: any) => void) | null = null;
   
+  // Create a chainable query builder
+  const createQueryBuilder = () => {
+    const builder = {
+      eq: () => builder,
+      order: () => builder,
+      limit: () => builder,
+      is: () => builder,
+      in: () => builder,
+      select: () => builder,
+    };
+    return builder;
+  };
+  
   return {
     auth: {
       getSession: () => Promise.resolve({ data: { session: null }, error: null }),
@@ -60,8 +73,23 @@ function createMockClient() {
     },
     from: () => ({
       select: () => ({
-        eq: () => Promise.resolve({ data: [], error: null }),
-        order: () => Promise.resolve({ data: [], error: null }),
+        eq: () => ({
+          eq: () => ({
+            order: () => ({
+              limit: () => Promise.resolve({ data: [], error: null }),
+            }),
+          }),
+          order: () => ({
+            limit: () => Promise.resolve({ data: [], error: null }),
+          }),
+        }),
+        order: () => ({
+          limit: () => Promise.resolve({ data: [], error: null }),
+        }),
+        limit: () => Promise.resolve({ data: [], error: null }),
+        is: () => ({
+          order: () => Promise.resolve({ data: [], error: null }),
+        }),
       }),
       insert: () => Promise.resolve({ data: null, error: null }),
       update: () => Promise.resolve({ data: null, error: null }),

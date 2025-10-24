@@ -5,7 +5,8 @@ interface Category {
   name: string;
   slug: string;
   description: string;
-  image_url: string;
+  image_url?: string;
+  image?: string;
 }
 
 interface CategoryGridProps {
@@ -23,9 +24,13 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
         >
           <div className="aspect-square overflow-hidden">
             <img
-              src={category.image_url || '/placeholder-category.jpg'}
+              src={category.image_url || category.image || '/images/categories/placeholder.svg'}
               alt={category.name}
               className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/images/categories/placeholder.svg';
+              }}
             />
           </div>
           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />

@@ -10,6 +10,8 @@ interface Product {
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
 interface ProductCardProps {
@@ -54,7 +56,7 @@ export default function ProductCard({ product }: ProductCardProps) {
           </div>
         </div>
 
-        {/* Category Badge */}
+        {/* Subcategory Badge */}
         <div className="mt-2">
           <span className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
             {product.subcategory}
