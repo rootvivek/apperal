@@ -37,17 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('🔍 Initial load check:', { wasManualSignOut, manualSignOutRef: manualSignOutRef.current });
     
     if (wasManualSignOut) {
-      console.log('🚫 Manual sign out detected, clearing auth state and skipping listener');
+      console.log('🚫 Manual sign out detected, clearing auth state and skipping ALL auth setup');
       setSession(null);
       setUser(null);
       setLoading(false);
       manualSignOutRef.current = true;
-      // Clear the flag immediately but keep the ref for a short time
+      // Clear the flag immediately but keep the ref for longer to prevent auto-login
       localStorage.removeItem('manual-sign-out');
       setTimeout(() => {
         manualSignOutRef.current = false;
         console.log('🔄 Manual sign out ref cleared');
-      }, 500); // Reduced from 1000ms to 500ms
+      }, 3000); // Increased to 3000ms to prevent INITIAL_SESSION from logging back in
+      // Return early to skip ALL auth listener setup
       return;
     }
 
@@ -142,84 +143,62 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      console.log('🚪 SIGN OUT START - Setting flags...');
+      console.log('🚪 ===== SIGN OUT STARTED =====');
       setSigningOut(true);
       signingOutRef.current = true;
-      manualSignOutRef.current = true; // Set flag to prevent re-login
-      console.log('🚪 Flags set - signingOut:', signingOutRef.current, 'manualSignOut:', manualSignOutRef.current);
+      manualSignOutRef.current = true;
       
-      // Clear local state first
+      // Clear local state immediately
       console.log('🚪 Clearing local state...');
       setUser(null);
       setSession(null);
-      console.log('🚪 Local state cleared');
+      setLoading(false);
       
-      // Unsubscribe from auth changes to prevent re-login
+      // Clear localStorage FIRST
+      console.log('💾 Setting manual-sign-out flag and clearing storage...');
+      localStorage.setItem('manual-sign-out', 'true');
+      
+      // Clear all Supabase auth tokens
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.includes('auth')) {
+          localStorage.removeItem(key);
+        }
+      });
+      
+      Object.keys(sessionStorage).forEach(key => {
+        if (key.startsWith('sb-') && key.includes('auth')) {
+          sessionStorage.removeItem(key);
+        }
+      });
+      
+      console.log('🧹 Storage cleared');
+      
+      // Unsubscribe from auth listener
       if (authSubscriptionRef.current) {
-        console.log('🔌 Unsubscribing from auth changes...');
+        console.log('🔌 Unsubscribing from auth listener...');
         authSubscriptionRef.current.unsubscribe();
         authSubscriptionRef.current = null;
-        console.log('🔌 Unsubscribed successfully');
       }
       
-      // Completely disable the supabase client
-      console.log('🚫 Disabling Supabase client...');
-      supabaseRef.current = null as any;
-      
-      // Force immediate redirect to prevent any auth state changes
-      console.log('🏠 Redirecting immediately to prevent re-login...');
-      
-      // Use replace instead of assign to prevent back button issues
-      window.location.replace('/');
-      console.log('🏠 Redirect initiated');
-      
-      // Clear localStorage to ensure clean state
+      // Try Supabase sign out (non-blocking)
       try {
-        // Set manual sign out flag to persist across page loads
-        console.log('💾 Setting manual-sign-out flag in localStorage');
-        localStorage.setItem('manual-sign-out', 'true');
-        
-        // Clear all Supabase auth-related localStorage items
-        Object.keys(localStorage).forEach(key => {
-          if (key.startsWith('sb-') && key.includes('auth')) {
-            localStorage.removeItem(key);
-          }
-        });
-        // Also clear any session storage
-        Object.keys(sessionStorage).forEach(key => {
-          if (key.startsWith('sb-') && key.includes('auth')) {
-            sessionStorage.removeItem(key);
-          }
-        });
-        console.log('🧹 Storage cleared, manual-sign-out flag set');
+        await supabase.auth.signOut();
+        console.log('✅ Supabase sign out completed');
       } catch (e) {
-        console.warn('Could not clear storage:', e);
+        console.warn('⚠️ Supabase sign out failed (continuing anyway):', e);
       }
       
-      // Try to sign out from Supabase (but don't fail if it doesn't work)
-      try {
-        const { error } = await supabase.auth.signOut();
-        
-        if (error) {
-          console.warn('⚠️ Supabase sign out error (but continuing):', error.message);
-        } else {
-          console.log('✅ Supabase sign out successful');
-        }
-      } catch (supabaseError) {
-        console.warn('⚠️ Supabase sign out failed (but continuing):', supabaseError);
-      }
+      // Force redirect immediately
+      console.log('🏠 Redirecting to home page...');
+      window.location.replace('/');
       
     } catch (error) {
       console.error('❌ Sign out error:', error);
-      // Even if there's an error, clear local state and redirect
+      // Force logout even if there's an error
       setUser(null);
       setSession(null);
-      manualSignOutRef.current = true;
       localStorage.setItem('manual-sign-out', 'true');
       window.location.replace('/');
-    } finally {
-      setSigningOut(false);
-      signingOutRef.current = false;
     }
   };
 

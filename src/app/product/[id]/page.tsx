@@ -76,13 +76,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const handleAddToCart = async () => {
     if (!product) return;
     
-    // Check if user is authenticated
-    if (!user) {
-      const currentUrl = window.location.pathname;
-      window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
-      return;
-    }
-    
     await addToCart(product.id, quantity);
     setIsAddedToCart(true);
     setTimeout(() => setIsAddedToCart(false), 2000);
@@ -91,7 +84,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const handleBuyNow = () => {
     if (!product) return;
     
-    // Check if user is authenticated
+    // Check if user is authenticated for checkout
     if (!user) {
       const currentUrl = window.location.pathname;
       window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
@@ -216,15 +209,15 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
               {/* Login Required Message */}
               {!user && (
-                <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-yellow-800 text-sm">
-                    <span className="font-medium">Login required:</span> Please sign in to add items to cart or make a purchase.
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-blue-800 text-sm">
+                    <span className="font-medium">💡 Tip:</span> You can add items to cart, but you'll need to login to complete your purchase.
                   </p>
                   <Link 
                     href="/login" 
                     className="inline-block mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
                   >
-                    Click here to login →
+                    Login to save your cart →
                   </Link>
                 </div>
               )}
@@ -237,8 +230,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 >
                   <CartIcon className="w-5 h-5 flex-shrink-0" />
                   <span>
-                    {!user ? 'Login to Add to Cart' : 
-                     isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
+                    {isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
                   </span>
                 </button>
                 <button
@@ -246,7 +238,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   disabled={product.stock_quantity === 0}
                   className="flex-1 bg-gray-900 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {!user ? 'Login to Buy' : 'Buy Now'}
+                  Buy Now
                 </button>
               </div>
 

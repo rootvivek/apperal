@@ -135,9 +135,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const addToCart = async (productId: string, quantity: number = 1) => {
     if (!user) {
-      // Redirect to login with current page as redirect parameter
-      const currentUrl = window.location.pathname;
-      window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
+      // Show a simple alert instead of redirecting
+      alert('Please login to add items to cart');
       return;
     }
 
