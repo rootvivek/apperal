@@ -4,9 +4,15 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
-import ImageUpload from '@/components/ImageUpload';
+import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
-import { uploadImageToSupabase } from '@/utils/imageUpload';
+
+interface ProductImage {
+  id?: string;
+  image_url: string;
+  alt_text?: string;
+  display_order: number;
+}
 
 interface ProductFormData {
   name: string;
@@ -17,6 +23,7 @@ interface ProductFormData {
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
+  images: ProductImage[];
 }
 
 const categories = [
@@ -43,6 +50,7 @@ export default function NewProductPage() {
     image_url: '',
     stock_quantity: '',
     is_active: true,
+    images: [],
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
@@ -55,27 +63,13 @@ export default function NewProductPage() {
       .replace(/^-+|-+$/g, '');
   };
 
-  // Handle image upload
-  const handleImageUpload = async (file: File) => {
-    setUploadingImage(true);
-    setError(null);
-    
-    try {
-      const result = await uploadImageToSupabase(file, 'product-images', 'products');
-      
-      if (result.success && result.url) {
-        setFormData(prev => ({
-          ...prev,
-          image_url: result.url!
-        }));
-      } else {
-        setError(result.error || 'Failed to upload image');
-      }
-    } catch (err: any) {
-      setError('Failed to upload image: ' + err.message);
-    } finally {
-      setUploadingImage(false);
-    }
+  // Handle multiple images change
+  const handleImagesChange = (images: ProductImage[]) => {
+    setFormData(prev => ({
+      ...prev,
+      images: images,
+      image_url: images.length > 0 ? images[0].image_url : '' // Set first image as main image
+    }));
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -135,7 +129,8 @@ export default function NewProductPage() {
     setError(null);
 
     try {
-      const { data, error } = await supabase
+      // First, create the product
+      const { data: productData, error: productError } = await supabase
         .from('products')
         .insert([{
           name: formData.name.trim(),
@@ -147,9 +142,30 @@ export default function NewProductPage() {
           image_url: formData.image_url.trim() || null,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
-        }]);
+        }])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (productError) throw productError;
+
+      // Then, insert product images if any
+      if (formData.images.length > 0) {
+        const imageInserts = formData.images.map(image => ({
+          product_id: productData.id,
+          image_url: image.image_url,
+          alt_text: image.alt_text || '',
+          display_order: image.display_order
+        }));
+
+        const { error: imagesError } = await supabase
+          .from('product_images')
+          .insert(imageInserts);
+
+        if (imagesError) {
+          console.error('Error inserting product images:', imagesError);
+          // Don't throw here, product was created successfully
+        }
+      }
 
       setSuccess(true);
       setTimeout(() => {
@@ -214,7 +230,7 @@ export default function NewProductPage() {
         {/* Product Form */}
         <div className="bg-white shadow rounded-lg">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {/* Product Name */}
               <div className="sm:col-span-2">
                 <label htmlFor="name" className="block text-sm font-medium text-gray-700">
@@ -355,22 +371,19 @@ export default function NewProductPage() {
                 )}
               </div>
 
-              {/* Image Upload */}
+              {/* Multiple Images Upload */}
               <div className="sm:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Image
+                  Product Images
                 </label>
-                <ImageUpload
-                  onImageUpload={handleImageUpload}
-                  currentImageUrl={formData.image_url}
-                  placeholder="Upload product image"
+                <MultiImageUpload
+                  onImagesChange={handleImagesChange}
+                  currentImages={formData.images}
+                  maxImages={5}
                   className="w-full"
                 />
-                {uploadingImage && (
-                  <p className="mt-2 text-sm text-blue-600">Uploading image...</p>
-                )}
                 <p className="mt-2 text-sm text-gray-500">
-                  Upload an image from your computer or drag and drop it here.
+                  Upload multiple images for your product. The first image will be used as the main product image.
                 </p>
               </div>
 

@@ -4,9 +4,15 @@ import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
-import ImageUpload from '@/components/ImageUpload';
+import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
-import { uploadImageToSupabase } from '@/utils/imageUpload';
+
+interface ProductImage {
+  id?: string;
+  image_url: string;
+  alt_text?: string;
+  display_order: number;
+}
 
 interface ProductFormData {
   name: string;
@@ -17,6 +23,7 @@ interface ProductFormData {
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
+  images: ProductImage[];
 }
 
 const categories = [
@@ -47,6 +54,7 @@ export default function EditProductPage() {
     image_url: '',
     stock_quantity: '',
     is_active: true,
+    images: [],
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
@@ -66,16 +74,29 @@ export default function EditProductPage() {
     const loadProduct = async () => {
       try {
         setInitialLoading(true);
-        const { data: product, error } = await supabase
+        
+        // Load product data
+        const { data: product, error: productError } = await supabase
           .from('products')
           .select('*')
           .eq('id', productId)
           .single();
 
-        if (error) {
-          console.error('Error loading product:', error);
+        if (productError) {
+          console.error('Error loading product:', productError);
           setError('Failed to load product data');
           return;
+        }
+
+        // Load product images
+        const { data: images, error: imagesError } = await supabase
+          .from('product_images')
+          .select('*')
+          .eq('product_id', productId)
+          .order('display_order', { ascending: true });
+
+        if (imagesError) {
+          console.error('Error loading product images:', imagesError);
         }
 
         if (product) {
@@ -88,6 +109,7 @@ export default function EditProductPage() {
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity?.toString() || '',
             is_active: product.is_active ?? true,
+            images: images || [],
           });
         }
       } catch (error) {
@@ -119,24 +141,13 @@ export default function EditProductPage() {
     }
   };
 
-  const handleImageUpload = async (file: File) => {
-    try {
-      setUploadingImage(true);
-      setError(null);
-      
-      const result = await uploadImageToSupabase(file, 'product-images', 'products');
-      
-      if (result.success && result.url) {
-        setFormData(prev => ({ ...prev, image_url: result.url! }));
-      } else {
-        setError(result.error || 'Failed to upload image');
-      }
-    } catch (error) {
-      console.error('Image upload error:', error);
-      setError('Failed to upload image');
-    } finally {
-      setUploadingImage(false);
-    }
+  // Handle multiple images change
+  const handleImagesChange = (images: ProductImage[]) => {
+    setFormData(prev => ({
+      ...prev,
+      images: images,
+      image_url: images.length > 0 ? images[0].image_url : '' // Set first image as main image
+    }));
   };
 
   const validateForm = (): boolean => {
@@ -183,7 +194,8 @@ export default function EditProductPage() {
 
       const slug = generateSlug(formData.name);
 
-      const { error } = await supabase
+      // Update product
+      const { error: productError } = await supabase
         .from('products')
         .update({
           name: formData.name.trim(),
@@ -199,10 +211,40 @@ export default function EditProductPage() {
         })
         .eq('id', productId);
 
-      if (error) {
-        console.error('Error updating product:', error);
+      if (productError) {
+        console.error('Error updating product:', productError);
         setError('Failed to update product. Please try again.');
         return;
+      }
+
+      // Update product images
+      // First, delete existing images
+      const { error: deleteError } = await supabase
+        .from('product_images')
+        .delete()
+        .eq('product_id', productId);
+
+      if (deleteError) {
+        console.error('Error deleting existing images:', deleteError);
+      }
+
+      // Then, insert new images
+      if (formData.images.length > 0) {
+        const imageInserts = formData.images.map(image => ({
+          product_id: productId,
+          image_url: image.image_url,
+          alt_text: image.alt_text || '',
+          display_order: image.display_order
+        }));
+
+        const { error: imagesError } = await supabase
+          .from('product_images')
+          .insert(imageInserts);
+
+        if (imagesError) {
+          console.error('Error inserting product images:', imagesError);
+          // Don't throw here, product was updated successfully
+        }
       }
 
       setSuccess(true);
@@ -255,7 +297,7 @@ export default function EditProductPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
               {/* Left Column */}
               <div className="space-y-6">
                 {/* Product Name */}
@@ -397,20 +439,20 @@ export default function EditProductPage() {
 
               {/* Right Column */}
               <div className="space-y-6">
-                {/* Product Image */}
+                {/* Product Images */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Image
+                    Product Images
                   </label>
-                  <ImageUpload
-                    onImageUpload={handleImageUpload}
-                    currentImageUrl={formData.image_url}
-                    placeholder="Upload product image"
+                  <MultiImageUpload
+                    onImagesChange={handleImagesChange}
+                    currentImages={formData.images}
+                    maxImages={5}
                     className="w-full"
                   />
-                  {uploadingImage && (
-                    <p className="mt-2 text-sm text-blue-600">Uploading image...</p>
-                  )}
+                  <p className="mt-2 text-sm text-gray-500">
+                    Upload multiple images for your product. The first image will be used as the main product image.
+                  </p>
                 </div>
 
                 {/* Description */}

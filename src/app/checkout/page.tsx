@@ -402,7 +402,7 @@ export default function CheckoutPage() {
                         <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
                       </div>
                       <span className="text-sm font-medium">
-                        ${(item.product.price * item.quantity).toFixed(2)}
+                        ₹{(item.product.price * item.quantity).toFixed(2)}
                       </span>
                     </div>
                   ))
@@ -412,25 +412,25 @@ export default function CheckoutPage() {
               <div className="space-y-3 border-t border-gray-200 pt-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${getSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
                 </div>
                 
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">
-                    {getShipping() === 0 ? 'Free' : `$${getShipping().toFixed(2)}`}
+                    {getShipping() === 0 ? 'Free' : `₹${getShipping().toFixed(2)}`}
                   </span>
                 </div>
                 
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Tax</span>
-                  <span className="font-medium">$0.00</span>
+                  <span className="font-medium">₹0.00</span>
                 </div>
                 
                 <div className="border-t border-gray-200 pt-3">
                   <div className="flex justify-between text-lg font-semibold">
                     <span>Total</span>
-                    <span>${getTotal().toFixed(2)}</span>
+                    <span>₹{getTotal().toFixed(2)}</span>
                   </div>
                 </div>
               </div>

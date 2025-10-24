@@ -7,17 +7,24 @@ import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import CartIcon from '@/components/CartIcon';
+import ProductCard from '@/components/ProductCard';
 
-interface Product {
+interface ProductCardProduct {
   id: string;
   name: string;
   description: string;
   price: number;
-  category: string;
+  category: string | { id: string; name: string; slug: string; description: string; image: string; subcategories: any[] };
   subcategory: string;
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
 }
 
 interface ProductDetailPageProps {
@@ -27,8 +34,10 @@ interface ProductDetailPageProps {
 }
 
 export default function ProductDetailPage({ params }: ProductDetailPageProps) {
-  const [product, setProduct] = useState<Product | null>(null);
+  const [product, setProduct] = useState<ProductCardProduct | null>(null);
+  const [relatedProducts, setRelatedProducts] = useState<ProductCardProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [relatedLoading, setRelatedLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { addToCart } = useCart();
   const { user } = useAuth();
@@ -38,25 +47,125 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [quantity, setQuantity] = useState(1);
   const [isAddedToCart, setIsAddedToCart] = useState(false);
 
+  const fetchRelatedProducts = async (category: string, currentProductId: string) => {
+    try {
+      setRelatedLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('category', category)
+        .neq('id', currentProductId)
+        .eq('is_active', true)
+        .limit(4)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching related products:', error);
+        return;
+      }
+
+      if (data) {
+        // Fetch images for each related product
+        const productsWithImages = await Promise.all(
+          data.map(async (product) => {
+            const { data: images } = await supabase
+              .from('product_images')
+              .select('*')
+              .eq('product_id', product.id)
+              .order('display_order', { ascending: true });
+            
+            const productWithImages = {
+              ...product,
+              images: images || []
+            };
+            
+            // If no images from product_images table, but product has image_url, create a fake image entry
+            if ((!images || images.length === 0) && product.image_url) {
+              productWithImages.images = [{
+                id: 'main-image',
+                image_url: product.image_url,
+                alt_text: product.name,
+                display_order: 0
+              }];
+            }
+            
+            return productWithImages;
+          })
+        );
+        
+        setRelatedProducts(productsWithImages as ProductCardProduct[]);
+      }
+    } catch (err) {
+      console.error('Error fetching related products:', err);
+    } finally {
+      setRelatedLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        const { data, error } = await supabase
+        // Load product data
+        const { data: product, error: productError } = await supabase
           .from('products')
           .select('*')
           .eq('id', params.id)
           .eq('is_active', true)
           .single();
 
-        if (error) {
-          console.error('Error fetching product:', error);
+        if (productError) {
+          console.error('Error fetching product:', productError);
           setError('Product not found');
           return;
         }
 
-        if (data) {
-          setProduct(data);
+        // Load product images (temporarily disabled until table is created)
+        let images = null;
+        let imagesError = null;
+        
+        try {
+          const result = await supabase
+            .from('product_images')
+            .select('*')
+            .eq('product_id', params.id)
+            .order('display_order', { ascending: true });
+          
+          images = result.data;
+          imagesError = result.error;
+        } catch (err) {
+          console.log('product_images table not found, using fallback');
+          images = null;
+          imagesError = null;
+        }
+
+        if (imagesError) {
+          console.error('Error fetching product images:', imagesError);
+          // If the table doesn't exist, just continue with empty images array
+        }
+
+        if (product) {
+          const productWithImages = {
+            ...product,
+            images: images || []
+          };
+          
+          // If no images from product_images table, but product has image_url, create a fake image entry
+          if ((!images || images.length === 0) && product.image_url) {
+            productWithImages.images = [{
+              id: 'main-image',
+              image_url: product.image_url,
+              alt_text: product.name,
+              display_order: 0
+            }];
+          }
+          
+          setProduct(productWithImages as ProductCardProduct);
+          // Fetch related products based on category
+          const categoryName = typeof product.category === 'string' ? product.category : product.category?.name;
+          if (categoryName) {
+            fetchRelatedProducts(categoryName, product.id);
+          }
         } else {
           setError('Product not found');
         }
@@ -139,13 +248,42 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Product Images */}
           <div className="space-y-4">
+            {/* Main Image */}
             <div className="aspect-square overflow-hidden rounded-lg bg-white">
               <img
-                src={product.image_url || '/placeholder-product.jpg'}
+                src={product.images && product.images.length > 0 
+                  ? product.images[selectedImage].image_url 
+                  : product.image_url || '/placeholder-product.jpg'}
                 alt={product.name}
                 className="h-full w-full object-cover"
+                onError={(e) => {
+                  e.currentTarget.src = '/placeholder-product.jpg';
+                }}
               />
             </div>
+            
+            {/* Thumbnail Gallery */}
+            {product.images && product.images.length > 1 && (
+              <div className="grid grid-cols-4 gap-2">
+                {product.images.map((image, index) => (
+                  <button
+                    key={image.id}
+                    onClick={() => setSelectedImage(index)}
+                    className={`aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
+                      selectedImage === index 
+                        ? 'border-blue-500' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img
+                      src={image.image_url}
+                      alt={image.alt_text || `${product.name} ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Info */}
@@ -153,7 +291,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
               <div className="mt-2 flex items-center space-x-4">
-                <span className="text-3xl font-bold text-gray-900">${product.price.toFixed(2)}</span>
+                <span className="text-3xl font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
                 <span className="text-sm text-gray-500">
                   {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
                 </span>
@@ -168,7 +306,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-gray-900">Category:</span>
-                <span className="ml-2 text-gray-600">{product.category}</span>
+                <span className="ml-2 text-gray-600">
+                  {typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}
+                </span>
               </div>
               <div>
                 <span className="font-medium text-gray-900">Subcategory:</span>
@@ -255,7 +395,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <div className="space-y-2 text-sm text-gray-600">
                 <div className="flex justify-between">
                   <span>Category:</span>
-                  <span>{product.category}</span>
+                  <span>{typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Subcategory:</span>
@@ -275,6 +415,33 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </div>
           </div>
         </div>
+
+        {/* Related Products Section */}
+        {relatedProducts.length > 0 && (
+          <div className="mt-16">
+            <div className="text-center mb-8">
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Related Products</h2>
+              <p className="text-gray-600">You might also like these products</p>
+            </div>
+            
+            {relatedLoading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-gray-600">Loading related products...</span>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {relatedProducts.map((relatedProduct) => (
+                  <ProductCard 
+                    key={relatedProduct.id} 
+                    product={relatedProduct}
+                    showCategoryAndStock={false}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

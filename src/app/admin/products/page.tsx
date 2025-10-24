@@ -145,7 +145,7 @@ export default function ProductsPage() {
 
         {/* Filters */}
         <div className="bg-white shadow rounded-lg p-6">
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="search" className="block text-sm font-medium text-gray-700">
                 Search Products

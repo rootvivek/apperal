@@ -70,7 +70,7 @@ export default function AdminDashboard() {
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
               Quick Actions
             </h3>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               <Link
                 href="/admin/products/new"
                 className="relative group bg-white p-6 focus-within:ring-2 focus-within:ring-inset focus-within:ring-blue-500 rounded-lg border border-gray-200 hover:border-blue-300 transition-colors"

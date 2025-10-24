@@ -5,14 +5,39 @@
 /* Fix cart icon overlapping issues */
 .cart-icon-container {
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .cart-icon-container .cart-count-badge {
   position: absolute;
-  top: -8px;
-  right: -8px;
-  z-index: 10;
+  top: -6px;
+  right: -6px;
+  z-index: 20;
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* Wishlist icon styling to match cart icon */
+.wishlist-icon-container {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.wishlist-icon-container .wishlist-count-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  z-index: 20;
+  min-width: 18px;
+  height: 18px;
+  font-size: 10px;
+  line-height: 1;
 }
 
 /* Ensure proper spacing in navigation */
@@ -20,4 +45,28 @@
   position: relative;
   padding: 8px;
   margin: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nav-wishlist-link {
+  position: relative;
+  padding: 8px;
+  margin: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Prevent cart icon from overlapping with other elements */
+.nav-cart-link .cart-icon-container {
+  margin: 0;
+  padding: 0;
+}
+
+/* Prevent wishlist icon from overlapping with other elements */
+.nav-wishlist-link .wishlist-icon-container {
+  margin: 0;
+  padding: 0;
 }
