@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fix cart icon overlapping issues */
+.cart-icon-container {
+  position: relative;
+  display: inline-block;
+}
+
+.cart-icon-container .cart-count-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  z-index: 10;
+}
+
+/* Ensure proper spacing in navigation */
+.nav-cart-link {
+  position: relative;
+  padding: 8px;
+  margin: 0 4px;
+}
