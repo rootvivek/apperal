@@ -1,21 +1,116 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
+
+interface DashboardStats {
+  totalProducts: number;
+  totalCategories: number;
+  activeProducts: number;
+  totalRevenue: number;
+}
+
+interface RecentProduct {
+  id: string;
+  name: string;
+  price: number;
+  category: string;
+  created_at: string;
+}
 
 export default function AdminDashboard() {
-  const stats = [
-    { name: 'Total Products', value: '156', change: '+12%', changeType: 'positive' },
-    { name: 'Total Orders', value: '89', change: '+5%', changeType: 'positive' },
-    { name: 'Total Revenue', value: '$12,345', change: '+8%', changeType: 'positive' },
-    { name: 'Active Users', value: '234', change: '+3%', changeType: 'positive' },
-  ];
+  const [stats, setStats] = useState<DashboardStats>({
+    totalProducts: 0,
+    totalCategories: 0,
+    activeProducts: 0,
+    totalRevenue: 0
+  });
+  const [recentProducts, setRecentProducts] = useState<RecentProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const supabase = createClient();
 
-  const recentOrders = [
-    { id: 'ORD-001', customer: 'John Doe', amount: '$89.99', status: 'Completed', date: '2024-01-15' },
-    { id: 'ORD-002', customer: 'Jane Smith', amount: '$156.50', status: 'Processing', date: '2024-01-14' },
-    { id: 'ORD-003', customer: 'Bob Johnson', amount: '$67.25', status: 'Shipped', date: '2024-01-13' },
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch products data
+      const { data: products, error: productsError } = await supabase
+        .from('products')
+        .select('id, name, price, category, is_active, created_at');
+
+      if (productsError) throw productsError;
+
+      // Fetch categories data
+      const { data: categories, error: categoriesError } = await supabase
+        .from('categories')
+        .select('id');
+
+      if (categoriesError) throw categoriesError;
+
+      // Calculate stats
+      const totalProducts = products?.length || 0;
+      const activeProducts = products?.filter(p => p.is_active).length || 0;
+      const totalCategories = categories?.length || 0;
+      const totalRevenue = products?.reduce((sum, p) => sum + (p.price || 0), 0) || 0;
+
+      setStats({
+        totalProducts,
+        totalCategories,
+        activeProducts,
+        totalRevenue
+      });
+
+      // Get recent products (last 5)
+      const recent = products
+        ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5) || [];
+
+      setRecentProducts(recent);
+
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const statsData = [
+    { 
+      name: 'Total Products', 
+      value: stats.totalProducts.toString(), 
+      change: '+12%', 
+      changeType: 'positive' as const,
+      icon: '📦'
+    },
+    { 
+      name: 'Active Products', 
+      value: stats.activeProducts.toString(), 
+      change: '+5%', 
+      changeType: 'positive' as const,
+      icon: '✅'
+    },
+    { 
+      name: 'Total Categories', 
+      value: stats.totalCategories.toString(), 
+      change: '+3%', 
+      changeType: 'positive' as const,
+      icon: '📂'
+    },
+    { 
+      name: 'Total Value', 
+      value: `₹${stats.totalRevenue.toFixed(2)}`, 
+      change: '+8%', 
+      changeType: 'positive' as const,
+      icon: '💰'
+    },
   ];
 
   return (
@@ -32,13 +127,13 @@ export default function AdminDashboard() {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-          {stats.map((stat) => (
+          {statsData.map((stat) => (
             <div key={stat.name} className="bg-white overflow-hidden shadow rounded-lg">
               <div className="p-5">
                 <div className="flex items-center">
                   <div className="flex-shrink-0">
                     <div className="w-8 h-8 bg-blue-500 rounded-md flex items-center justify-center">
-                      <span className="text-white text-sm font-medium">📊</span>
+                      <span className="text-white text-sm font-medium">{stat.icon}</span>
                     </div>
                   </div>
                   <div className="ml-5 w-0 flex-1">
@@ -134,64 +229,71 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Orders */}
+        {/* Recent Products */}
         <div className="bg-white shadow rounded-lg">
           <div className="px-4 py-5 sm:p-6">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-              Recent Orders
+              Recent Products
             </h3>
-            <div className="overflow-hidden">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Order ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Customer
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {recentOrders.map((order) => (
-                    <tr key={order.id}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {order.id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.customer}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.amount}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          order.status === 'Completed' 
-                            ? 'bg-green-100 text-green-800'
-                            : order.status === 'Processing'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {order.date}
-                      </td>
+            {loading ? (
+              <div className="flex items-center justify-center h-32">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : error ? (
+              <div className="text-center py-8">
+                <p className="text-red-600">Error loading recent products: {error}</p>
+              </div>
+            ) : recentProducts.length === 0 ? (
+              <div className="text-center py-8">
+                <div className="text-gray-400 text-4xl mb-2">📦</div>
+                <p className="text-gray-500">No products found</p>
+                <Link
+                  href="/admin/products/new"
+                  className="inline-flex items-center px-4 py-2 mt-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                >
+                  ➕ Add Your First Product
+                </Link>
+              </div>
+            ) : (
+              <div className="overflow-hidden">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Product Name
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Category
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Price
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Added Date
+                      </th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {recentProducts.map((product) => (
+                      <tr key={product.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {product.name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {product.category}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          ₹{product.price.toFixed(2)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(product.created_at).toLocaleDateString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       </div>

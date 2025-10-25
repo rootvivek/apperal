@@ -12,7 +12,7 @@ interface Product {
   description: string;
   price: number;
   category: string;
-  subcategory: string;
+  subcategories: string[]; // Updated to support multiple subcategories
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
@@ -34,13 +34,35 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch products with their subcategories
+      const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          id,
+          name,
+          description,
+          price,
+          category,
+          image_url,
+          stock_quantity,
+          is_active,
+          created_at,
+          product_subcategories (
+            subcategory_name
+          )
+        `)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setProducts(data || []);
+      if (productsError) throw productsError;
+
+      // Transform the data to include subcategories array
+      const transformedProducts = productsData?.map(product => ({
+        ...product,
+        subcategories: product.product_subcategories?.map((ps: any) => ps.subcategory_name) || []
+      })) || [];
+
+      setProducts(transformedProducts);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -229,10 +251,15 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div>{product.category}</div>
-                        <div className="text-xs text-gray-400">{product.subcategory}</div>
+                        <div className="text-xs text-gray-400">
+                          {product.subcategories.length > 0 
+                            ? product.subcategories.join(', ') 
+                            : 'No subcategories'
+                          }
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${product.price.toFixed(2)}
+                        ₹{product.price.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {product.stock_quantity}

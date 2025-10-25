@@ -35,10 +35,10 @@ export default function Navigation() {
   return (
     <nav className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex justify-between items-center h-20">
           {/* Logo */}
           <Link href="/" className="flex items-center">
-            <span className="text-2xl font-bold text-gray-900">Apperal</span>
+            <span className="text-3xl font-bold text-gray-900">Apperal</span>
           </Link>
 
           {/* Search Bar - Full Width */}
@@ -47,7 +47,7 @@ export default function Navigation() {
               <input
                 type="text"
                 placeholder="Search products..."
-                className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-gray-100 border border-gray-300 rounded-[999px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-3 pl-10 pr-4 text-gray-700 bg-gray-100 border border-gray-300 rounded-[999px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -58,7 +58,7 @@ export default function Navigation() {
           </div>
 
           {/* Right side icons */}
-          <div className="flex items-center space-x-3 h-16">
+          <div className="flex items-center space-x-3 h-20">
             {/* Wishlist Icon */}
             <Link href="/wishlist" className="text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2">
               <WishlistIcon showCount={true} count={wishlistCount} />

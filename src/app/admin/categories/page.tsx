@@ -28,6 +28,7 @@ export default function CategoriesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const supabase = createClient();
 
   const [formData, setFormData] = useState({
@@ -210,6 +211,19 @@ export default function CategoriesPage() {
     });
     setShowAddForm(false);
     setEditingCategory(null);
+  };
+
+  // Toggle category expansion
+  const toggleCategoryExpansion = (categoryId: string) => {
+    setExpandedCategories(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
   };
 
   if (loading) {
@@ -434,16 +448,33 @@ export default function CategoriesPage() {
                       {/* Main Category Header */}
                       <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
                         <div className="flex items-center justify-between">
-                          <div className="flex items-center">
+                          <div className="flex items-center flex-1">
                             <div className="flex-shrink-0 h-10 w-10">
                               <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
                                 <span className="text-blue-600 text-sm">📁</span>
                               </div>
                             </div>
-                            <div className="ml-4">
-                              <h3 className="text-lg font-medium text-gray-900">
-                                {mainCategory.name}
-                              </h3>
+                            <div className="ml-4 flex-1">
+                              <div className="flex items-center">
+                                <h3 className="text-lg font-medium text-gray-900">
+                                  {mainCategory.name}
+                                </h3>
+                                {mainCategory.subcategories.length > 0 && (
+                                  <button
+                                    onClick={() => toggleCategoryExpansion(mainCategory.id)}
+                                    className="ml-3 flex items-center text-sm text-gray-500 hover:text-gray-700"
+                                  >
+                                    <span className="mr-1">
+                                      {expandedCategories.has(mainCategory.id) ? 'Hide' : 'Show'} subcategories
+                                    </span>
+                                    <span className={`transform transition-transform duration-200 ${
+                                      expandedCategories.has(mainCategory.id) ? 'rotate-180' : ''
+                                    }`}>
+                                      ▼
+                                    </span>
+                                  </button>
+                                )}
+                              </div>
                               <p className="text-sm text-gray-500">
                                 {mainCategory.slug} • {mainCategory.subcategories.length} subcategories
                               </p>
@@ -455,13 +486,19 @@ export default function CategoriesPage() {
                             </span>
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => handleEdit(mainCategory)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEdit(mainCategory);
+                                }}
                                 className="text-blue-600 hover:text-blue-900 text-sm font-medium"
                               >
                                 Edit
                               </button>
                               <button
-                                onClick={() => handleDelete(mainCategory.id)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDelete(mainCategory.id);
+                                }}
                                 className="text-red-600 hover:text-red-900 text-sm font-medium"
                               >
                                 Delete
@@ -477,7 +514,7 @@ export default function CategoriesPage() {
                       </div>
 
                       {/* Subcategories */}
-                      {mainCategory.subcategories.length > 0 ? (
+                      {mainCategory.subcategories.length > 0 && expandedCategories.has(mainCategory.id) ? (
                         <div className="bg-white">
                           <div className="px-6 py-3 bg-gray-25 border-b border-gray-100">
                             <h4 className="text-sm font-medium text-gray-700">Subcategories</h4>
@@ -529,6 +566,12 @@ export default function CategoriesPage() {
                               </div>
                             ))}
                           </div>
+                        </div>
+                      ) : mainCategory.subcategories.length > 0 ? (
+                        <div className="px-6 py-4 text-center bg-gray-25">
+                          <p className="text-sm text-gray-500">
+                            Click "Show subcategories" to view {mainCategory.subcategories.length} subcategories
+                          </p>
                         </div>
                       ) : (
                         <div className="px-6 py-8 text-center bg-gray-25">

@@ -2,173 +2,131 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import ProductCard from './ProductCard';
+import { createClient } from '@/lib/supabase/client';
 
-interface CarouselSlide {
+interface Product {
   id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  image: string;
-  buttonText: string;
-  buttonLink: string;
-  buttonTextSecondary?: string;
-  buttonLinkSecondary?: string;
+  name: string;
+  price: number;
+  original_price?: number;
+  image_url: string;
+  category: string;
+  discount_percentage?: number;
 }
 
 export default function HeroCarousel() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [carouselSlides, setCarouselSlides] = useState<CarouselSlide[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
 
   useEffect(() => {
-    // Default fallback slides if no data is available
-    const defaultSlides: CarouselSlide[] = [
-      {
-        id: '1',
-        title: 'Welcome to Apperal',
-        subtitle: 'Fashion & Style',
-        description: 'Discover our wide range of clothing and accessories',
-        image: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        buttonText: 'Shop Now',
-        buttonLink: '/products'
-      }
-    ];
-    
-    setCarouselSlides(defaultSlides);
+    fetchFeaturedProducts();
   }, []);
 
-  useEffect(() => {
-    if (carouselSlides.length > 1) {
-      const timer = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-      }, 5000);
+  const fetchFeaturedProducts = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch 4 featured products
+      const { data, error } = await supabase
+        .from('products')
+        .select('id, name, price, original_price, image_url, category, discount_percentage')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(4);
 
-      return () => clearInterval(timer);
+      if (error) throw error;
+      
+      setProducts(data || []);
+    } catch (err: any) {
+      console.error('Error fetching featured products:', err);
+      // Fallback to placeholder products if database fails
+      setProducts([
+        {
+          id: '1',
+          name: 'Featured Product 1',
+          price: 299,
+          original_price: 499,
+          image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
+          category: 'Men\'s Clothing',
+          discount_percentage: 40
+        },
+        {
+          id: '2',
+          name: 'Featured Product 2',
+          price: 199,
+          original_price: 299,
+          image_url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
+          category: 'Women\'s Clothing',
+          discount_percentage: 33
+        },
+        {
+          id: '3',
+          name: 'Featured Product 3',
+          price: 149,
+          original_price: 199,
+          image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400',
+          category: 'Accessories',
+          discount_percentage: 25
+        },
+        {
+          id: '4',
+          name: 'Featured Product 4',
+          price: 399,
+          original_price: 599,
+          image_url: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
+          category: 'Kids\' Clothing',
+          discount_percentage: 33
+        }
+      ]);
+    } finally {
+      setLoading(false);
     }
-  }, [carouselSlides.length]);
-
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index);
   };
 
-  const nextSlide = () => {
-    if (carouselSlides.length > 1) {
-      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-    }
+  const calculateDiscountPercentage = (originalPrice: number, currentPrice: number) => {
+    return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
   };
 
-  const prevSlide = () => {
-    if (carouselSlides.length > 1) {
-      setCurrentSlide((prev) => (prev - 1 + carouselSlides.length) % carouselSlides.length);
-    }
-  };
+  if (loading) {
+    return (
+      <div className="w-full h-[70vh] flex items-center justify-center bg-gray-100">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading featured products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative w-full h-[40vh] overflow-hidden">
-      {/* Carousel Slides */}
-      <div className="relative w-full h-full">
-        {carouselSlides.map((slide, index) => (
-          <div
-            key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              index === currentSlide ? 'opacity-100' : 'opacity-0'
-            }`}
-          >
-            {/* Background Image */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{
-                backgroundImage: slide.image.startsWith('linear-gradient') 
-                  ? slide.image 
-                  : `url(${slide.image})`,
-                backgroundColor: slide.image.startsWith('linear-gradient') 
-                  ? 'transparent' 
-                  : '#1e40af' // Fallback color for images
-              }}
-            >
-              <div 
-                className="absolute inset-0 bg-black"
-                style={{
-                  opacity: slide.image.startsWith('linear-gradient') ? 0.2 : 0.4
-                }}
-              />
-            </div>
-
-            {/* Content */}
-            <div className="relative z-10 flex items-center justify-center h-full">
-              <div className="text-center text-white max-w-4xl mx-auto px-4">
-                <div className="mb-4">
-                  <span className="text-lg font-medium text-blue-200">{slide.subtitle}</span>
-                </div>
-                <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                  {slide.title}
-                </h1>
-                <p className="text-xl md:text-2xl mb-8 text-gray-200 max-w-2xl mx-auto">
-                  {slide.description}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Link
-                    href={slide.buttonLink}
-                    className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-                  >
-                    {slide.buttonText}
-                  </Link>
-                  {slide.buttonTextSecondary && slide.buttonLinkSecondary && (
-                    <Link
-                      href={slide.buttonLinkSecondary}
-                      className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
-                    >
-                      {slide.buttonTextSecondary}
-                    </Link>
-                  )}
-                </div>
+    <div className="w-full h-[70vh] bg-gray-50">
+      <div className="h-full w-full px-0 py-0">
+        {/* Product Grid - Images Only */}
+        <div className="h-full overflow-hidden">
+          <div className="flex animate-scroll h-full">
+            {/* Create enough products for seamless cycling - show 4 at a time */}
+            {[...products, ...products].map((product, index) => (
+              <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full" style={{ width: '25vw' }}>
+                <ProductCard 
+                  product={{
+                    ...product,
+                    description: '',
+                    subcategories: [],
+                    stock_quantity: 0,
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    images: [product.image_url]
+                  }} 
+                  variant="image-only"
+                />
               </div>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
-
-      {/* Navigation Arrows - Only show if multiple slides */}
-      {carouselSlides.length > 1 && (
-        <>
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"
-            aria-label="Previous slide"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"
-            aria-label="Next slide"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </>
-      )}
-
-      {/* Dots Indicator - Only show if multiple slides */}
-      {carouselSlides.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex space-x-2">
-          {carouselSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => goToSlide(index)}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === currentSlide 
-                  ? 'bg-white' 
-                  : 'bg-white bg-opacity-50 hover:bg-opacity-75'
-              }`}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }

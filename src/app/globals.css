@@ -70,3 +70,38 @@
   margin: 0;
   padding: 0;
 }
+
+/* Infinite scroll animation for hero carousel */
+@keyframes scroll {
+  0% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-25vw);
+  }
+  45% {
+    transform: translateX(-25vw);
+  }
+  50% {
+    transform: translateX(-50vw);
+  }
+  70% {
+    transform: translateX(-50vw);
+  }
+  75% {
+    transform: translateX(-75vw);
+  }
+  95% {
+    transform: translateX(-75vw);
+  }
+  100% {
+    transform: translateX(-100vw);
+  }
+}
+
+.animate-scroll {
+  animation: scroll 8s ease-in-out infinite;
+}

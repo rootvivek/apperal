@@ -29,9 +29,10 @@ interface ProductCardProduct {
 interface ProductCardProps {
   product: ProductCardProduct;
   hideStockOverlay?: boolean; // New prop to hide the stock overlay
+  variant?: 'default' | 'minimal' | 'image-only'; // New prop to control styling variant
 }
 
-export default function ProductCard({ product, hideStockOverlay = false }: ProductCardProps) {
+export default function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
 
@@ -112,10 +113,25 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
     }
   };
 
+  // Conditional styling based on variant
+  const cardClasses = variant === 'minimal' || variant === 'image-only'
+    ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100"
+    : "group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
+  
+  const imageClasses = variant === 'minimal' || variant === 'image-only'
+    ? "h-full w-full object-cover transition-transform duration-300"
+    : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
+    
+  const contentClasses = variant === 'minimal'
+    ? "px-3 py-0"
+    : variant === 'image-only'
+    ? "hidden"
+    : "p-3";
+
   return (
-    <Link href={`/product/${product.id}`} className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100">
+    <Link href={`/product/${product.id}`} className={cardClasses}>
       {/* Product Badge */}
-      {product.badge && (
+      {product.badge && variant !== 'image-only' && (
         <div className={`absolute top-3 left-3 z-10 px-2 py-1 rounded-md text-xs font-semibold ${getBadgeStyle(product.badge)}`}>
           {product.badge}
         </div>
@@ -123,33 +139,35 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
 
 
       {/* Wishlist Button */}
-      <button
-        onClick={handleWishlistToggle}
-        disabled={loading}
-        className="absolute top-3 right-3 z-10 p-2 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-        aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-      >
-        <svg 
-          className={`w-5 h-5 transition-colors duration-200 ${
-            isWishlisted 
-              ? 'text-red-500 fill-current' 
-              : 'text-gray-400 hover:text-red-500'
-          }`} 
-          fill={isWishlisted ? 'currentColor' : 'none'} 
-          stroke="currentColor" 
-          viewBox="0 0 24 24"
+      {variant !== 'image-only' && (
+        <button
+          onClick={handleWishlistToggle}
+          disabled={loading}
+          className="absolute top-3 right-3 z-10 p-2 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
-          <path 
-            strokeLinecap="round" 
-            strokeLinejoin="round" 
-            strokeWidth={2} 
-            d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
-          />
-        </svg>
-      </button>
+          <svg 
+            className={`w-5 h-5 transition-colors duration-200 ${
+              isWishlisted 
+                ? 'text-red-500 fill-current' 
+                : 'text-gray-400 hover:text-red-500'
+            }`} 
+            fill={isWishlisted ? 'currentColor' : 'none'} 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+            />
+          </svg>
+        </button>
+      )}
 
       {/* Product Image */}
-      <div className="aspect-square overflow-hidden relative">
+      <div className={variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-square overflow-hidden relative"}>
         <img
           src={(() => {
             // Handle both string array (from wishlist) and object array (from product detail)
@@ -169,7 +187,7 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
             return product.image_url || '/placeholder-product.jpg';
           })()}
           alt={product.name}
-          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+          className={imageClasses}
           onError={(e) => {
             e.currentTarget.src = '/placeholder-product.jpg';
           }}
@@ -183,7 +201,7 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
       </div>
 
       {/* Product Info */}
-      <div className="p-3">
+      <div className={contentClasses}>
         <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
           {product.name}
         </h3>
