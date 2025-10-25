@@ -137,15 +137,15 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Category Header */}
       <div className="bg-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">{category.name}</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">{category.name}</h1>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-[1450px] mx-auto w-full py-4" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Sidebar - Subcategories */}
           <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
@@ -227,7 +227,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
             </div>
 
             {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                 {filteredProducts.map((product) => (
                   <ProductCard key={product.id} product={product} />
                 ))}

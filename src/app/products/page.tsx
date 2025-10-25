@@ -45,11 +45,11 @@ export default function ProductsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white py-12">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="bg-white py-6">
+          <div className="w-full" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
             <div className="text-center">
-              <h1 className="text-4xl font-bold text-gray-900 mb-4">Our Products</h1>
-              <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">Our Products</h1>
+              <p className="text-xl text-gray-600">
                 Discover our carefully curated collection of clothing and accessories for every occasion
               </p>
             </div>
@@ -66,18 +66,18 @@ export default function ProductsPage() {
   }
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="bg-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="bg-white py-6">
+        <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '20px', paddingRight: '20px' }}>
           <div className="text-center">
-            <h1 className="text-4xl font-bold text-gray-900 mb-4">Our Products</h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Our Products</h1>
+            <p className="text-xl text-gray-600">
               Discover our carefully curated collection of clothing and accessories for every occasion
             </p>
           </div>
         </div>
       </div>
       
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-[1450px] mx-auto w-full px-5">
         <CategoryGrid categories={categories} />
       </div>
     </div>

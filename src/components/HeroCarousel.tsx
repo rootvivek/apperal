@@ -92,7 +92,7 @@ export default function HeroCarousel() {
 
   if (loading) {
     return (
-      <div className="w-full h-[70vh] flex items-center justify-center bg-gray-100">
+      <div className="w-full h-[40vh] sm:h-[70vh] flex items-center justify-center bg-gray-100">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading featured products...</p>
@@ -102,14 +102,14 @@ export default function HeroCarousel() {
   }
 
   return (
-    <div className="w-full h-[70vh] bg-gray-50 mb-0">
+    <div className="w-full h-[40vh] sm:h-[70vh] bg-gray-50 mb-0">
       <div className="h-full w-full px-0 py-0">
         {/* Product Grid - Images Only */}
         <div className="h-full overflow-hidden">
           <div className="flex animate-scroll h-full gap-2">
-            {/* Create enough products for seamless cycling - show 4 at a time */}
+            {/* Create enough products for seamless cycling - show 1 at a time */}
             {[...products, ...products].map((product, index) => (
-              <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full" style={{ width: '25vw' }}>
+              <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full w-full sm:w-1/4">
                 <ProductCard 
                   product={{
                     ...product,

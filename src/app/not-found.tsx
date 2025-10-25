@@ -12,7 +12,7 @@ export default function NotFound() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center px-4">
-      <div className="max-w-2xl mx-auto text-center">
+      <div className="mx-auto text-center">
         {/* Animated 404 */}
         <div className={`transition-all duration-1000 ${mounted ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>
           <div className="relative mb-8">

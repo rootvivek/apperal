@@ -12,7 +12,7 @@ export default function WishlistPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">My Wishlist</h1>
           <p className="text-gray-600">
@@ -38,7 +38,7 @@ export default function WishlistPage() {
             </a>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
             {wishlist.map((product) => (
               <ProductCard 
                 key={product.id} 

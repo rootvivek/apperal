@@ -122,16 +122,16 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
     
   const contentClasses = variant === 'minimal'
-    ? "px-3 py-0"
+    ? "px-3 py-1"
     : variant === 'image-only'
     ? "hidden"
-    : "p-3";
+    : "p-2";
 
   return (
     <Link href={`/product/${product.id}`} className={`${cardClasses} relative z-0`}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
-        <div className={`absolute top-3 left-3 z-10 px-2 py-1 rounded-md text-xs font-semibold ${getBadgeStyle(product.badge)}`}>
+        <div className={`absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded text-xs font-medium ${getBadgeStyle(product.badge)}`}>
           {product.badge}
         </div>
       )}
@@ -142,11 +142,11 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
         <button
           onClick={handleWishlistToggle}
           disabled={loading}
-          className="absolute top-3 right-3 z-20 p-2 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute top-2 right-2 z-20 p-1.5 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
           <svg 
-            className={`w-5 h-5 transition-colors duration-200 ${
+            className={`w-4 h-4 transition-colors duration-200 ${
               isWishlisted 
                 ? 'text-red-500 fill-current' 
                 : 'text-gray-400 hover:text-red-500'
@@ -166,7 +166,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
       )}
 
       {/* Product Image */}
-      <div className={variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-square overflow-hidden relative"}>
+      <div className={variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[4/5] overflow-hidden relative"}>
         <img
           src={(() => {
             // Handle both string array (from wishlist) and object array (from product detail)
@@ -194,20 +194,20 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
         />
         {!product.is_active && !hideStockOverlay && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-            <span className="text-white font-semibold">Out of Stock</span>
+            <span className="text-white font-medium">Out of Stock</span>
           </div>
         )}
       </div>
 
       {/* Product Info */}
       <div className={contentClasses}>
-        <h3 className="font-medium text-gray-900 mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+        <h3 className="font-normal text-gray-900 mb-1 sm:mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors text-xs sm:text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
           {product.name}
         </h3>
         
         {/* Subcategories */}
         {product.subcategories && product.subcategories.length > 0 && (
-          <div className="mb-4">
+          <div className="mb-1 sm:mb-2">
             <div className="flex flex-wrap gap-1">
               {product.subcategories.slice(0, 3).map((subcategory, index) => (
                 <span
@@ -226,17 +226,17 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           </div>
         )}
         
-        <div className="flex items-center space-x-2">
-          <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+        <div className="flex items-center space-x-1">
+          <span className="text-sm sm:text-base font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             ₹{product.price.toFixed(2)}
           </span>
           {hasDiscount && product.original_price && (
-            <span className="text-sm text-gray-500 line-through">
+            <span className="text-xs sm:text-sm text-gray-500 line-through">
               ₹{product.original_price.toFixed(2)}
             </span>
           )}
           {hasDiscount && (
-            <span className="text-xs text-red-500 font-medium">
+            <span className="text-xs text-red-500 font-normal">
               {discountPercentage}% off
             </span>
           )}

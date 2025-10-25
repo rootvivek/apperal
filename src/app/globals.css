@@ -71,7 +71,7 @@
   padding: 0;
 }
 
-/* Infinite scroll animation for hero carousel */
+/* Infinite scroll animation for hero carousel - responsive */
 @keyframes scroll {
   0% {
     transform: translateX(0);
@@ -80,25 +80,57 @@
     transform: translateX(0);
   }
   25% {
-    transform: translateX(-25vw);
+    transform: translateX(-100%);
   }
   45% {
-    transform: translateX(-25vw);
+    transform: translateX(-100%);
   }
   50% {
-    transform: translateX(-50vw);
+    transform: translateX(-200%);
   }
   70% {
-    transform: translateX(-50vw);
+    transform: translateX(-200%);
   }
   75% {
-    transform: translateX(-75vw);
+    transform: translateX(-300%);
   }
   95% {
-    transform: translateX(-75vw);
+    transform: translateX(-300%);
   }
   100% {
-    transform: translateX(-100vw);
+    transform: translateX(-400%);
+  }
+}
+
+@media (min-width: 640px) {
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-25%);
+    }
+    45% {
+      transform: translateX(-25%);
+    }
+    50% {
+      transform: translateX(-50%);
+    }
+    70% {
+      transform: translateX(-50%);
+    }
+    75% {
+      transform: translateX(-75%);
+    }
+    95% {
+      transform: translateX(-75%);
+    }
+    100% {
+      transform: translateX(-100%);
+    }
   }
 }
 

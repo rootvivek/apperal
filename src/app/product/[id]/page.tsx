@@ -227,7 +227,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
         {/* Breadcrumb */}
         <nav className="flex mb-8" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
@@ -482,7 +482,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <span className="ml-2 text-gray-600">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {relatedProducts.map((relatedProduct) => (
                 <ProductCard 
                   key={relatedProduct.id} 

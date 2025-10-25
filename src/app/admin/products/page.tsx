@@ -243,7 +243,7 @@ export default function ProductsPage() {
                             <div className="text-sm font-medium text-gray-900">
                               {product.name}
                             </div>
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
+                            <div className="text-sm text-gray-500 truncate">
                               {product.description}
                             </div>
                           </div>

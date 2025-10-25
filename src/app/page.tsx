@@ -130,23 +130,23 @@ export default function Home() {
       <HeroCarousel />
 
       {/* Categories Section */}
-      <section className="py-20 bg-gray-50">
-        <div className="max-w-[1450px] mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-8 bg-gray-50">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">Shop by Category</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">Shop by Category</h2>
           </div>
           <CategoryGrid categories={categories} />
         </div>
       </section>
 
       {/* All Products Section */}
-      <section className="py-16 bg-white">
-        <div className="max-w-[1450px] mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-8 bg-white">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-900 mb-4">All Products</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">All Products</h2>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {allProducts.map((product) => (
                 <ProductCard key={product.id} product={product} />
               ))}
@@ -188,12 +188,12 @@ export default function Home() {
         
         return (
           <section key={section.category.id} className={`py-16 ${bgColor}`}>
-            <div className="max-w-[1450px] mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="w-full px-4 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
-                <h2 className="text-3xl font-bold text-gray-900 mb-4">{section.category.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.category.name}</h2>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                   {section.products.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}

@@ -22,16 +22,16 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   const hasMoreCategories = categories.length > maxInitialCategories;
 
   return (
-    <div className="p-6 flex justify-center">
+    <div className="p-3">
       {/* Card Grid View - Always shown initially */}
-      <div className="flex flex-wrap justify-center gap-8 max-w-6xl">
+      <div className="flex overflow-x-auto gap-4 sm:gap-10 justify-center">
         {displayedCategories.map((category) => (
           <Link
             key={category.id}
             href={`/products/${category.slug}`}
-            className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300"
+            className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300 flex-shrink-0"
           >
-            <div className="w-40 h-40 rounded-full overflow-hidden mb-4 shadow-lg">
+            <div className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 lg:w-36 lg:h-36 xl:w-40 xl:h-40 rounded-full overflow-hidden mb-4 shadow-lg">
               <img
                 src={category.image_url || category.image || '/images/categories/placeholder.svg'}
                 alt={category.name}

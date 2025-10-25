@@ -387,7 +387,7 @@ export default function EditProductPage() {
   return (
     <AdminGuard>
       <AdminLayout>
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="w-full py-6" style={{ paddingLeft: '20px', paddingRight: '20px' }}>
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900">Edit Product</h1>
             <p className="mt-2 text-gray-600">Update product information and settings</p>
