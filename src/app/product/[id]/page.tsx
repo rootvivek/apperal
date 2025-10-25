@@ -298,10 +298,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
             </div>
 
-            <div>
-              <h2 className="text-lg font-medium text-gray-900 mb-2">Description</h2>
-              <p className="text-gray-600 leading-relaxed">{product.description}</p>
-            </div>
 
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>

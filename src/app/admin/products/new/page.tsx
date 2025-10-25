@@ -26,6 +26,7 @@ interface ProductFormData {
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
+  show_in_hero: boolean;
   images: ProductImage[];
 }
 
@@ -64,6 +65,7 @@ export default function NewProductPage() {
     image_url: '',
     stock_quantity: '',
     is_active: true,
+    show_in_hero: false,
     images: [],
   });
 
@@ -304,6 +306,7 @@ export default function NewProductPage() {
           image_url: formData.image_url.trim() || null,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
+          show_in_hero: formData.show_in_hero,
         }])
         .select()
         .single();
@@ -698,6 +701,23 @@ export default function NewProductPage() {
                   />
                   <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
                     Product is active and visible to customers
+                  </label>
+                </div>
+              </div>
+
+              {/* Hero Showcase */}
+              <div className="sm:col-span-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="show_in_hero"
+                    id="show_in_hero"
+                    checked={formData.show_in_hero}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-900">
+                    Show this product in hero section carousel
                   </label>
                 </div>
               </div>

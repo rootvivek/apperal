@@ -22,30 +22,29 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   const hasMoreCategories = categories.length > maxInitialCategories;
 
   return (
-    <div className="p-6">
+    <div className="p-6 flex justify-center">
       {/* Card Grid View - Always shown initially */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+      <div className="flex flex-wrap justify-center gap-8 max-w-6xl">
         {displayedCategories.map((category) => (
           <Link
             key={category.id}
             href={`/products/${category.slug}`}
-            className="group relative overflow-hidden rounded-lg bg-white shadow-md hover:shadow-lg transition-shadow duration-300"
+            className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300"
           >
-            <div className="aspect-square overflow-hidden">
+            <div className="w-40 h-40 rounded-full overflow-hidden mb-4 shadow-lg">
               <img
                 src={category.image_url || category.image || '/images/categories/placeholder.svg'}
                 alt={category.name}
-                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                className="w-full h-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
                   target.src = '/images/categories/placeholder.svg';
                 }}
               />
             </div>
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
-              <h3 className="text-white text-lg font-semibold">{category.name}</h3>
-            </div>
+            <h3 className="text-gray-900 text-sm font-medium group-hover:text-blue-600 transition-colors">
+              {category.name}
+            </h3>
           </Link>
         ))}
       </div>

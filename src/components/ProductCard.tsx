@@ -115,7 +115,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
 
   // Conditional styling based on variant
   const cardClasses = variant === 'minimal' || variant === 'image-only'
-    ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100"
+    ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
     : "group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
   
   const imageClasses = variant === 'minimal' || variant === 'image-only'
@@ -129,7 +129,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     : "p-3";
 
   return (
-    <Link href={`/product/${product.id}`} className={cardClasses}>
+    <Link href={`/product/${product.id}`} className={`${cardClasses} relative z-0`}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
         <div className={`absolute top-3 left-3 z-10 px-2 py-1 rounded-md text-xs font-semibold ${getBadgeStyle(product.badge)}`}>
@@ -143,7 +143,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
         <button
           onClick={handleWishlistToggle}
           disabled={loading}
-          className="absolute top-3 right-3 z-10 p-2 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="absolute top-3 right-3 z-20 p-2 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
         >
           <svg 
@@ -202,13 +202,13 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
 
       {/* Product Info */}
       <div className={contentClasses}>
-        <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+        <h3 className="font-medium text-gray-900 mb-4 line-clamp-2 group-hover:text-blue-600 transition-colors text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
           {product.name}
         </h3>
         
         {/* Subcategories */}
         {product.subcategories && product.subcategories.length > 0 && (
-          <div className="mb-2">
+          <div className="mb-4">
             <div className="flex flex-wrap gap-1">
               {product.subcategories.slice(0, 3).map((subcategory, index) => (
                 <span
@@ -227,22 +227,22 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           </div>
         )}
         
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col space-y-1">
           <div className="flex items-center space-x-2">
             <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
               ₹{product.price.toFixed(2)}
             </span>
-            {hasDiscount && product.original_price && (
-              <span className="text-sm text-gray-500 line-through">
-                ₹{product.original_price.toFixed(2)}
-              </span>
-            )}
             {hasDiscount && (
               <span className="text-xs text-red-500 font-medium">
                 {discountPercentage}% off
               </span>
             )}
           </div>
+          {hasDiscount && product.original_price && (
+            <span className="text-sm text-gray-500 line-through">
+              ₹{product.original_price.toFixed(2)}
+            </span>
+          )}
         </div>
       </div>
     </Link>

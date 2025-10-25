@@ -26,6 +26,7 @@ interface ProductFormData {
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
+  show_in_hero: boolean;
   images: ProductImage[];
 }
 
@@ -67,6 +68,7 @@ export default function EditProductPage() {
     image_url: '',
     stock_quantity: '',
     is_active: true,
+    show_in_hero: false,
     images: [],
   });
 
@@ -215,6 +217,7 @@ export default function EditProductPage() {
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity?.toString() || '',
             is_active: product.is_active ?? true,
+            show_in_hero: product.show_in_hero ?? false,
             images: images || [],
           });
         }
@@ -315,6 +318,7 @@ export default function EditProductPage() {
           image_url: formData.image_url,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
+          show_in_hero: formData.show_in_hero,
           slug: slug,
           updated_at: new Date().toISOString(),
         })
@@ -612,6 +616,21 @@ export default function EditProductPage() {
                   />
                   <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700">
                     Product is active
+                  </label>
+                </div>
+
+                {/* Hero Showcase */}
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="show_in_hero"
+                    name="show_in_hero"
+                    checked={formData.show_in_hero}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-700">
+                    Show in hero section carousel
                   </label>
                 </div>
               </div>

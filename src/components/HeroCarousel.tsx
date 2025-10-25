@@ -28,13 +28,14 @@ export default function HeroCarousel() {
     try {
       setLoading(true);
       
-      // Fetch 4 featured products
+      // Fetch products that are marked to show in hero section
       const { data, error } = await supabase
         .from('products')
         .select('id, name, price, original_price, image_url, category, discount_percentage')
         .eq('is_active', true)
+        .eq('show_in_hero', true)
         .order('created_at', { ascending: false })
-        .limit(4);
+        .limit(8);
 
       if (error) throw error;
       
@@ -101,11 +102,11 @@ export default function HeroCarousel() {
   }
 
   return (
-    <div className="w-full h-[70vh] bg-gray-50">
+    <div className="w-full h-[70vh] bg-gray-50 mb-0">
       <div className="h-full w-full px-0 py-0">
         {/* Product Grid - Images Only */}
         <div className="h-full overflow-hidden">
-          <div className="flex animate-scroll h-full">
+          <div className="flex animate-scroll h-full gap-2">
             {/* Create enough products for seamless cycling - show 4 at a time */}
             {[...products, ...products].map((product, index) => (
               <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full" style={{ width: '25vw' }}>
