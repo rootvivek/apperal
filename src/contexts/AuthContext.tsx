@@ -9,8 +9,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signingOut: boolean;
-  signUp: (email: string, password: string, userData?: any) => Promise<any>;
-  signIn: (email: string, password: string) => Promise<any>;
+  sendOTP: (phone: string) => Promise<any>;
+  verifyOTP: (phone: string, token: string) => Promise<any>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
@@ -81,40 +81,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, userData?: any) => {
+  const sendOTP = async (phone: string) => {
     try {
       localStorage.removeItem('manual-sign-out');
       manualSignOutRef.current = false;
       
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
+      console.log('Sending OTP to phone:', phone);
+      
+      const { data, error } = await supabase.auth.signInWithOtp({
+        phone: phone.trim(),
         options: {
-          data: userData,
-          emailRedirectTo: `${window.location.origin}/login`,
-        },
+          channel: 'sms'
+        }
       });
+      
+      console.log('OTP response:', { data, error });
       
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
-      return { data: null, error: error.message };
+      console.error('OTP send error:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = error.message;
+      if (error.status === 422) {
+        errorMessage = 'Invalid phone number format. Please use international format (e.g., +1234567890)';
+      } else if (error.message?.includes('Invalid phone number')) {
+        errorMessage = 'Please enter a valid phone number with country code';
+      } else if (error.message?.includes('SMS')) {
+        errorMessage = 'SMS service temporarily unavailable. Please try again later.';
+      }
+      
+      return { data: null, error: errorMessage };
     }
   };
 
-  const signIn = async (email: string, password: string) => {
+  const verifyOTP = async (phone: string, token: string) => {
     try {
       localStorage.removeItem('manual-sign-out');
       manualSignOutRef.current = false;
       
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      console.log('Verifying OTP for phone:', phone, 'token:', token);
+      
+      const { data, error } = await supabase.auth.verifyOtp({
+        phone: phone.trim(),
+        token: token.trim(),
+        type: 'sms'
       });
+      
+      console.log('OTP verification response:', { data, error });
       
       if (error) throw error;
       return { data, error: null };
     } catch (error: any) {
+      console.error('OTP verification error:', error);
       return { data: null, error: error.message };
     }
   };
@@ -200,8 +220,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     loading,
     signingOut,
-    signUp,
-    signIn,
+    sendOTP,
+    verifyOTP,
     signOut,
     signInWithGoogle,
     signInWithFacebook,

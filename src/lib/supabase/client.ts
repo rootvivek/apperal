@@ -70,6 +70,18 @@ function createMockClient() {
           message: 'Please set up your Supabase project first. Visit supabase.com to create a project and update your .env.local file.' 
         } 
       }),
+      signInWithOtp: () => Promise.resolve({ 
+        data: null, 
+        error: { 
+          message: 'Please set up your Supabase project first. Visit supabase.com to create a project and update your .env.local file.' 
+        } 
+      }),
+      verifyOtp: () => Promise.resolve({ 
+        data: null, 
+        error: { 
+          message: 'Please set up your Supabase project first. Visit supabase.com to create a project and update your .env.local file.' 
+        } 
+      }),
     },
     from: () => ({
       select: () => ({

@@ -8,15 +8,17 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, signIn, signInWithGoogle, signInWithFacebook } = useAuth();
+  const { user, sendOTP, verifyOTP, signInWithGoogle, signInWithFacebook } = useAuth();
   
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    phone: '+91',
+    otp: '',
     rememberMe: false
   });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpLoading, setOtpLoading] = useState(false);
 
   // Redirect if already logged in
   useEffect(() => {
@@ -26,16 +28,64 @@ export default function LoginPage() {
     }
   }, [user, searchParams, router]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSendOTP = async () => {
+    console.log('Phone number being validated:', formData.phone);
+    console.log('Phone number length:', formData.phone.length);
+    console.log('Phone number trimmed:', formData.phone.trim());
+    console.log('Regex test result:', /^\+[1-9]\d{1,14}$/.test(formData.phone.trim()));
+    
+    if (!formData.phone.trim()) {
+      setError('Please enter your phone number');
+      return;
+    }
+
+    // Validate phone number format
+    if (!/^\+[1-9]\d{1,14}$/.test(formData.phone.trim())) {
+      // More detailed error message
+      const phone = formData.phone.trim();
+      if (!phone.startsWith('+')) {
+        setError('Phone number must start with + (e.g., +1234567890)');
+      } else if (phone.length < 8) {
+        setError('Phone number too short (minimum 8 digits including country code)');
+      } else if (phone.length > 16) {
+        setError('Phone number too long (maximum 15 digits including country code)');
+      } else if (!/^\+[1-9]\d+$/.test(phone)) {
+        setError('Phone number contains invalid characters (only digits allowed after +)');
+      } else {
+        setError('Please enter a valid phone number with country code (e.g., +1234567890)');
+      }
+      return;
+    }
+
+    setError('');
+    setOtpLoading(true);
+
+    try {
+      const { data, error: otpError } = await sendOTP(formData.phone);
+      
+      if (otpError) {
+        setError(otpError);
+        setOtpLoading(false);
+      } else {
+        setOtpSent(true);
+        setOtpLoading(false);
+      }
+    } catch (err: any) {
+      setError('Failed to send OTP. Please try again.');
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
-      const { data, error: signInError } = await signIn(formData.email, formData.password);
+      const { data, error: verifyError } = await verifyOTP(formData.phone, formData.otp);
       
-      if (signInError) {
-        setError(signInError);
+      if (verifyError) {
+        setError(verifyError);
         setLoading(false);
       } else {
         // Redirect to the intended page or home
@@ -43,7 +93,7 @@ export default function LoginPage() {
         router.push(redirectTo);
       }
     } catch (err: any) {
-      setError('Connection failed. Please check your Supabase configuration.');
+      setError('Failed to verify OTP. Please try again.');
       setLoading(false);
     }
   };
@@ -90,80 +140,97 @@ export default function LoginPage() {
             </div>
           )}
           
-          <form className="space-y-6" onSubmit={handleSubmit}>
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
-              </label>
-              <div className="mt-1">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  required
-                  value={formData.email}
-                  onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter your email"
-                />
-              </div>
-            </div>
+          <form className="space-y-6" onSubmit={otpSent ? handleVerifyOTP : undefined}>
+            {!otpSent ? (
+              <>
+                <div>
+                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+                    Phone Number
+                  </label>
+                  <div className="mt-1">
+                    <div className="relative">
+                      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span className="text-gray-500 sm:text-sm">+91</span>
+                      </div>
+                      <input
+                        id="phone"
+                        name="phone"
+                        type="tel"
+                        autoComplete="tel"
+                        required
+                        value={formData.phone.replace('+91', '')}
+                        onChange={(e) => {
+                          const value = '+91' + e.target.value;
+                          setFormData(prev => ({ ...prev, phone: value }));
+                        }}
+                        className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="8881765192"
+                      />
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Enter your mobile number
+                    </p>
+                  </div>
+                </div>
 
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="mt-1">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={formData.password}
-                  onChange={handleChange}
-                  className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter your password"
-                />
-              </div>
-            </div>
+                <button
+                  type="button"
+                  onClick={handleSendOTP}
+                  disabled={otpLoading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {otpLoading ? 'Sending OTP...' : 'Send OTP'}
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="mb-4">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm text-gray-600">
+                      OTP sent to <span className="font-medium text-gray-900">{formData.phone}</span>
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOtpSent(false);
+                        setFormData(prev => ({ ...prev, otp: '' }));
+                        setError('');
+                      }}
+                      className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+                    >
+                      Edit phone number
+                    </button>
+                  </div>
+                </div>
 
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <input
-                  id="rememberMe"
-                  name="rememberMe"
-                  type="checkbox"
-                  checked={formData.rememberMe}
-                  onChange={handleChange}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
-                  Remember me
-                </label>
-              </div>
+                <div>
+                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
+                    Enter OTP
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="otp"
+                      name="otp"
+                      type="text"
+                      maxLength={6}
+                      required
+                      value={formData.otp}
+                      onChange={handleChange}
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-center text-lg tracking-widest"
+                      placeholder="000000"
+                    />
+                  </div>
+                </div>
 
-              <div className="text-sm">
-                <Link href="/forgot-password" className="font-medium text-blue-600 hover:text-blue-500">
-                  Forgot your password?
-                </Link>
-              </div>
-            </div>
-
-            <div>
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                  loading
-                    ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-              >
-                {loading ? 'Signing in...' : 'Sign in'}
-              </button>
-            </div>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  {loading ? 'Verifying...' : 'Verify OTP'}
+                </button>
+              </>
+            )}
           </form>
 
           <div className="mt-6">
