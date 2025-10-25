@@ -2,171 +2,293 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/lib/supabase/client';
 
-interface CarouselSlide {
+interface HeroProduct {
   id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  image: string;
-  buttonText: string;
-  buttonLink: string;
-  buttonTextSecondary?: string;
-  buttonLinkSecondary?: string;
+  name: string;
+  price: number;
+  original_price?: number;
+  image_url: string;
+  slug: string;
+  category_name?: string;
+  images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
 }
 
 export default function HeroCarousel() {
-  const [currentSlide, setCurrentSlide] = useState(0);
-  const [carouselSlides, setCarouselSlides] = useState<CarouselSlide[]>([]);
+  const [allHeroProducts, setAllHeroProducts] = useState<HeroProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    // Default fallback slides if no data is available
-    const defaultSlides: CarouselSlide[] = [
-      {
-        id: '1',
-        title: 'Welcome to Apperal',
-        subtitle: 'Fashion & Style',
-        description: 'Discover our wide range of clothing and accessories',
-        image: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        buttonText: 'Shop Now',
-        buttonLink: '/products'
-      }
-    ];
-    
-    setCarouselSlides(defaultSlides);
+    fetchHeroProducts();
   }, []);
 
+  // Auto-cycle through product cards every 2 seconds (circular sliding)
   useEffect(() => {
-    if (carouselSlides.length > 1) {
-      const timer = setInterval(() => {
-        setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-      }, 5000);
+    if (allHeroProducts.length === 0) return;
 
-      return () => clearInterval(timer);
+      console.log('Hero products for circular cycling:', allHeroProducts);
+      console.log('Hero products count:', allHeroProducts.length);
+
+    const interval = setInterval(() => {
+      setCurrentIndex(prev => {
+        const nextIndex = (prev + 1) % allHeroProducts.length;
+        console.log(`HeroCarousel: circular sliding ${prev} -> ${nextIndex} (total: ${allHeroProducts.length})`);
+        return nextIndex;
+      });
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [allHeroProducts]);
+
+  const fetchHeroProducts = async () => {
+    try {
+      console.log('HeroCarousel: Starting to fetch hero products...');
+      const supabase = createClient();
+      
+      // Check if we're using mock client or if no data is returned
+      const isMockClient = !supabase.from || typeof supabase.from !== 'function';
+      if (isMockClient) {
+        console.warn('HeroCarousel: Using mock Supabase client! Using sample data.');
+        // Use sample data when mock client is detected
+        const sampleProducts: HeroProduct[] = [
+          {
+            id: 'sample-1',
+            name: 'Premium Wireless Headphones',
+            price: 2999.00,
+            original_price: 3999.00,
+            image_url: '/images/products/headphones-1.jpg',
+            slug: 'premium-wireless-headphones',
+            category_name: 'Electronics',
+            images: [{ id: '1', image_url: '/images/products/headphones-1.jpg', alt_text: 'Premium Wireless Headphones', display_order: 1 }]
+          },
+          {
+            id: 'sample-2',
+            name: 'Smart Watch Series 5',
+            price: 8999.00,
+            original_price: 11999.00,
+            image_url: '/images/products/smartwatch-1.jpg',
+            slug: 'smart-watch-series-5',
+            category_name: 'Electronics',
+            images: [{ id: '2', image_url: '/images/products/smartwatch-1.jpg', alt_text: 'Smart Watch Series 5', display_order: 1 }]
+          },
+          {
+            id: 'sample-3',
+            name: 'Bluetooth Speaker',
+            price: 1999.00,
+            original_price: 2499.00,
+            image_url: '/images/products/speaker-1.jpg',
+            slug: 'bluetooth-speaker',
+            category_name: 'Electronics',
+            images: [{ id: '3', image_url: '/images/products/speaker-1.jpg', alt_text: 'Bluetooth Speaker', display_order: 1 }]
+          },
+          {
+            id: 'sample-4',
+            name: 'Designer Sunglasses',
+            price: 1299.00,
+            original_price: 1599.00,
+            image_url: '/images/products/sunglasses-1.jpg',
+            slug: 'designer-sunglasses',
+            category_name: 'Accessories',
+            images: [{ id: '4', image_url: '/images/products/sunglasses-1.jpg', alt_text: 'Designer Sunglasses', display_order: 1 }]
+          }
+        ];
+        setAllHeroProducts(sampleProducts);
+        setLoading(false);
+        return;
+      }
+      
+      console.log('HeroCarousel: Using real Supabase client');
+      
+      // First, get products with stock > 0
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          price,
+          original_price,
+          image_url,
+          slug,
+          category_id,
+          stock_quantity
+        `)
+        .eq('show_in_hero', true)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(10); // Get more products first, then filter
+
+      console.log('HeroCarousel: Raw products data:', productsData);
+      console.log('HeroCarousel: Products error:', productsError);
+
+      if (productsError) {
+        console.error('Error fetching hero products:', productsError);
+        return;
+      }
+
+      // Filter products with stock > 0
+      const filteredProducts = (productsData || []).filter(product => product.stock_quantity > 0).slice(0, 4);
+
+      // Fetch category names and images for each product
+      const productsWithCategories = await Promise.all(
+        filteredProducts.map(async (product: any) => {
+          // Fetch category name
+          let categoryName = 'Unknown';
+          if (product.category_id) {
+            try {
+              const categoryResponse = await supabase
+                .from('categories')
+                .select('name')
+                .eq('id', product.category_id);
+              categoryName = (categoryResponse as any).data?.[0]?.name || 'Unknown';
+            } catch (error) {
+              console.error('Error fetching category:', error);
+            }
+          }
+
+          // Fetch product images
+          let images = [];
+          try {
+            const imagesResponse = await supabase
+              .from('product_images')
+              .select('id, image_url, alt_text, display_order')
+              .eq('product_id', product.id)
+              .order('display_order', { ascending: true });
+            images = (imagesResponse as any).data || [];
+          } catch (error) {
+            console.error('Error fetching images:', error);
+          }
+
+          return {
+            ...product,
+            category_name: categoryName,
+            images: images
+          };
+        })
+      );
+
+      console.log('Final products with categories:', productsWithCategories);
+      setAllHeroProducts(productsWithCategories);
+    } catch (error) {
+      console.error('Error fetching hero products:', error);
+    } finally {
+      setLoading(false);
     }
-  }, [carouselSlides.length]);
-
-  const goToSlide = (index: number) => {
-    setCurrentSlide(index);
   };
 
-  const nextSlide = () => {
-    if (carouselSlides.length > 1) {
-      setCurrentSlide((prev) => (prev + 1) % carouselSlides.length);
-    }
+  if (loading) {
+    return (
+      <div className="relative w-full h-[70vh] overflow-hidden bg-gray-100 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (allHeroProducts.length === 0) {
+    return (
+      <div className="relative w-full h-[70vh] overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+        <div className="text-center text-white">
+          <h1 className="text-4xl font-bold mb-4">Welcome to Apperal</h1>
+          <p className="text-xl">Discover amazing products</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Create circular array for smooth sliding
+  const createCircularArray = () => {
+    if (allHeroProducts.length === 0) return [];
+    
+    // Create array with 3 sets of products for smooth circular effect
+    const tripleArray = [...allHeroProducts, ...allHeroProducts, ...allHeroProducts];
+    return tripleArray;
   };
 
-  const prevSlide = () => {
-    if (carouselSlides.length > 1) {
-      setCurrentSlide((prev) => (prev - 1 + carouselSlides.length) % carouselSlides.length);
-    }
-  };
+  const circularProducts = createCircularArray();
+  const translateX = -((currentIndex + allHeroProducts.length) * (100 / 4)); // 4 cards visible
 
   return (
-    <div className="relative w-full h-[40vh] overflow-hidden">
-      {/* Carousel Slides */}
-      <div className="relative w-full h-full">
-        {carouselSlides.map((slide, index) => (
-          <div
-            key={slide.id}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              index === currentSlide ? 'opacity-100' : 'opacity-0'
-            }`}
+    <div className="relative w-full h-[70vh] overflow-hidden bg-gray-50 -mt-0">
+      {/* Circular Sliding Carousel */}
+      <div className="h-full flex items-center justify-center">
+        <div className="relative w-full h-full overflow-hidden">
+          <div 
+            className="flex transition-transform duration-1000 ease-in-out h-full"
+            style={{ 
+              transform: `translateX(${translateX}%)`,
+              width: `${(circularProducts.length / 4) * 100}%`
+            }}
           >
-            {/* Background Image */}
-            <div 
-              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-              style={{
-                backgroundImage: slide.image.startsWith('linear-gradient') 
-                  ? slide.image 
-                  : `url(${slide.image})`,
-                backgroundColor: slide.image.startsWith('linear-gradient') 
-                  ? 'transparent' 
-                  : '#1e40af' // Fallback color for images
-              }}
-            >
-              <div 
-                className="absolute inset-0 bg-black"
-                style={{
-                  opacity: slide.image.startsWith('linear-gradient') ? 0.2 : 0.4
-                }}
-              />
-            </div>
+            {circularProducts.map((product, index) => (
+              <div key={`${product.id}-${index}`} className="w-1/4 h-full px-1">
+                <Link
+                  href={`/product/${product.id}`}
+                  className="group relative bg-white shadow-sm transition-all duration-500 overflow-hidden transform hover:scale-105 block h-full"
+                >
+                  {/* Product Image Only */}
+                  <div className="h-full overflow-hidden">
+                    {(() => {
+                      // Get the first available image with fallback
+                      let imageUrl = '/placeholder-product.jpg';
+                      
+                      if (product.images && product.images.length > 0) {
+                        const firstImage = product.images[0];
+                        imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url;
+                      } else if (product.image_url) {
+                        imageUrl = product.image_url;
+                      }
+                      
+                      // Fallback to placeholder if image doesn't exist
+                      if (!imageUrl || imageUrl === '/placeholder-product.jpg') {
+                        imageUrl = '/placeholder-product.jpg';
+                      }
 
-            {/* Content */}
-            <div className="relative z-10 flex items-center justify-center h-full">
-              <div className="text-center text-white max-w-4xl mx-auto px-4">
-                <div className="mb-4">
-                  <span className="text-lg font-medium text-blue-200">{slide.subtitle}</span>
-                </div>
-                <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
-                  {slide.title}
-                </h1>
-                <p className="text-xl md:text-2xl mb-8 text-gray-200 max-w-2xl mx-auto">
-                  {slide.description}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <Link
-                    href={slide.buttonLink}
-                    className="bg-white text-blue-600 px-8 py-3 rounded-lg font-semibold hover:bg-gray-100 transition-colors"
-                  >
-                    {slide.buttonText}
-                  </Link>
-                  {slide.buttonTextSecondary && slide.buttonLinkSecondary && (
-                    <Link
-                      href={slide.buttonLinkSecondary}
-                      className="border-2 border-white text-white px-8 py-3 rounded-lg font-semibold hover:bg-white hover:text-blue-600 transition-colors"
-                    >
-                      {slide.buttonTextSecondary}
-                    </Link>
-                  )}
-                </div>
+                      console.log(`Rendering circular product card ${product.id}:`, {
+                        imageUrl,
+                        index,
+                        currentIndex,
+                        translateX
+                      });
+
+                      return (
+                        <img
+                          src={imageUrl}
+                          alt={product.name}
+                          className="h-full w-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          onError={(e) => {
+                            console.error(`Image failed to load: ${imageUrl}, falling back to placeholder`);
+                            // Only set placeholder if it's not already the placeholder to prevent infinite loop
+                            if (e.currentTarget.src !== window.location.origin + '/placeholder-product.jpg') {
+                              e.currentTarget.src = '/placeholder-product.jpg';
+                            }
+                          }}
+                          onLoad={() => {
+                            console.log(`Image loaded successfully: ${imageUrl}`);
+                          }}
+                        />
+                      );
+                    })()}
+                  </div>
+                </Link>
               </div>
-            </div>
+            ))}
           </div>
-        ))}
+        </div>
       </div>
-
-      {/* Navigation Arrows - Only show if multiple slides */}
-      {carouselSlides.length > 1 && (
-        <>
-          <button
-            onClick={prevSlide}
-            className="absolute left-4 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"
-            aria-label="Previous slide"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          
-          <button
-            onClick={nextSlide}
-            className="absolute right-4 top-1/2 transform -translate-y-1/2 z-20 bg-white bg-opacity-20 hover:bg-opacity-30 text-white p-3 rounded-full transition-all"
-            aria-label="Next slide"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </>
-      )}
-
-      {/* Dots Indicator - Only show if multiple slides */}
-      {carouselSlides.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-20 flex space-x-2">
-          {carouselSlides.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => goToSlide(index)}
-              className={`w-3 h-3 rounded-full transition-all ${
-                index === currentSlide 
-                  ? 'bg-white' 
-                  : 'bg-white bg-opacity-50 hover:bg-opacity-75'
-              }`}
-              aria-label={`Go to slide ${index + 1}`}
-            />
-          ))}
+      
+      {/* Fallback message if no products */}
+      {allHeroProducts.length === 0 && (
+        <div className="h-full flex items-center justify-center">
+          <div className="text-center text-gray-500">
+            <h2 className="text-2xl font-semibold mb-2">No Featured Products</h2>
+            <p>Select products to feature in the hero section from the admin panel.</p>
+          </div>
         </div>
       )}
     </div>

@@ -30,6 +30,12 @@ interface Product {
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  images?: (string | {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  })[];
 }
 
 interface SubcategoryPageProps {
@@ -98,7 +104,59 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
         console.error('Error fetching products:', productsError);
         setProducts([]);
       } else {
-        setProducts(productsData || []);
+        // Fetch images for each product
+        const productsWithImages = await Promise.all(
+          (productsData || []).map(async (product) => {
+            try {
+              // Try to fetch images from product_images table
+              const { data: images, error: imagesError } = await supabase
+                .from('product_images')
+                .select('*')
+                .eq('product_id', product.id)
+                .order('display_order', { ascending: true });
+
+              if (imagesError) {
+                console.log(`No images found for product ${product.id}, using fallback`);
+                // If no images from product_images table, create fallback from image_url
+                return {
+                  ...product,
+                  images: product.image_url ? [product.image_url] : []
+                };
+              }
+
+              // If images found, use them; otherwise fallback to image_url
+              if (images && images.length > 0) {
+                return {
+                  ...product,
+                  images: images.map(img => ({
+                    id: img.id,
+                    image_url: img.image_url,
+                    alt_text: img.alt_text,
+                    display_order: img.display_order
+                  }))
+                };
+              } else if (product.image_url) {
+                return {
+                  ...product,
+                  images: [product.image_url]
+                };
+              } else {
+                return {
+                  ...product,
+                  images: []
+                };
+              }
+            } catch (error) {
+              console.error(`Error fetching images for product ${product.id}:`, error);
+              return {
+                ...product,
+                images: product.image_url ? [product.image_url] : []
+              };
+            }
+          })
+        );
+
+        setProducts(productsWithImages);
       }
     } catch (error) {
       console.error('Error:', error);

@@ -51,12 +51,12 @@ export default function CartPage() {
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="max-w-custom mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
             <p className="text-lg text-gray-600 mb-8">
-              Looks like you haven't added any items to your cart yet.
+              Looks like you haven&apos;t added any items to your cart yet.
             </p>
             <Link
               href="/products"
@@ -81,7 +81,7 @@ export default function CartPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Cart Items */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-sm border">
+            <div className="bg-white rounded-sm border border-gray-200 shadow-xs">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h2 className="text-lg font-medium text-gray-900">Cart Items</h2>
               </div>
@@ -92,7 +92,7 @@ export default function CartPage() {
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         <img
-                          className="h-20 w-20 rounded-lg object-cover"
+                          className="h-20 w-20 rounded-md object-cover"
                           src={item.product.image_url || '/placeholder-product.jpg'}
                           alt={item.product.name}
                         />
@@ -108,7 +108,7 @@ export default function CartPage() {
                         </p>
                         <div className="mt-2">
                           <span className="text-lg font-semibold text-gray-900">
-                            ${item.product.price.toFixed(2)}
+                            ₹{item.product.price.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -133,7 +133,7 @@ export default function CartPage() {
                         
                         <div className="text-right">
                           <div className="text-lg font-semibold text-gray-900">
-                            ${(item.product.price * item.quantity).toFixed(2)}
+                            ₹{(item.product.price * item.quantity).toFixed(2)}
                           </div>
                         </div>
 
@@ -163,38 +163,38 @@ export default function CartPage() {
 
           {/* Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm border">
+            <div className="bg-white rounded-sm border border-gray-200 shadow-xs">
               <div className="px-6 py-4 border-b border-gray-200">
                 <h2 className="text-lg font-medium text-gray-900">Order Summary</h2>
               </div>
               <div className="px-6 py-4 space-y-4">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${getSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">
-                    {getShipping() === 0 ? 'Free' : `$${getShipping().toFixed(2)}`}
+                    {getShipping() === 0 ? 'Free' : `₹${getShipping().toFixed(2)}`}
                   </span>
                 </div>
                 {getSubtotal() < 50 && (
                   <div className="text-sm text-gray-500">
-                    Add ${(50 - getSubtotal()).toFixed(2)} more for free shipping!
+                    Add ₹{(50 - getSubtotal()).toFixed(2)} more for free shipping!
                   </div>
                 )}
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between">
                     <span className="text-lg font-medium text-gray-900">Total</span>
                     <span className="text-lg font-medium text-gray-900">
-                      ${getTotal().toFixed(2)}
+                      ₹{getTotal().toFixed(2)}
                     </span>
                   </div>
                 </div>
                 <div className="pt-4">
                   <Link
                     href="/checkout"
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block"
+                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-md font-medium hover:bg-blue-700 transition-colors text-center block"
                   >
                     Proceed to Checkout
                   </Link>

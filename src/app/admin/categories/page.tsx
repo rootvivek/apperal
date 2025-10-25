@@ -73,6 +73,15 @@ export default function CategoriesPage() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [showSubcategoryForm, setShowSubcategoryForm] = useState(false);
+  const [selectedParentCategory, setSelectedParentCategory] = useState<Category | null>(null);
+  const [subcategoryFormData, setSubcategoryFormData] = useState({
+    name: '',
+    slug: '',
+    description: '',
+    image_url: '',
+    parent_category_id: ''
+  });
   const supabase = createClient();
 
   const [formData, setFormData] = useState({
@@ -108,6 +117,11 @@ export default function CategoriesPage() {
     return name.toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+  };
+
+  // Get subcategories for a specific category
+  const getSubcategories = (categoryId: string) => {
+    return categories.filter(cat => cat.parent_category_id === categoryId);
   };
 
   // Handle image upload for categories
@@ -217,6 +231,56 @@ export default function CategoriesPage() {
     setEditingCategory(null);
   };
 
+  const resetSubcategoryForm = () => {
+    setSubcategoryFormData({
+      name: '',
+      slug: '',
+      description: '',
+      image_url: '',
+      parent_category_id: ''
+    });
+    setShowSubcategoryForm(false);
+    setSelectedParentCategory(null);
+  };
+
+  const handleAddSubcategory = (parentCategory: Category) => {
+    setSelectedParentCategory(parentCategory);
+    setSubcategoryFormData({
+      name: '',
+      slug: '',
+      description: '',
+      image_url: '',
+      parent_category_id: parentCategory.id
+    });
+    setShowSubcategoryForm(true);
+  };
+
+  const handleSubcategorySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      const subcategoryData = {
+        name: subcategoryFormData.name.trim(),
+        slug: subcategoryFormData.slug.trim() || generateSlug(subcategoryFormData.name),
+        description: subcategoryFormData.description.trim(),
+        image_url: subcategoryFormData.image_url.trim() || null,
+        parent_category_id: subcategoryFormData.parent_category_id,
+      };
+
+      const { data, error } = await supabase
+        .from('categories')
+        .insert([subcategoryData])
+        .select();
+
+      if (error) throw error;
+      
+      setCategories([...categories, data[0]]);
+      resetSubcategoryForm();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
   const addPredefinedCategories = async () => {
     try {
       setLoading(true);
@@ -322,7 +386,7 @@ export default function CategoriesPage() {
 
           {/* Add/Edit Category Form */}
           {showAddForm && (
-            <div className="bg-white shadow rounded-lg p-6">
+            <div className="bg-white shadow rounded-sm border border-gray-200 p-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">
                 {editingCategory ? 'Edit Category' : 'Add New Category'}
               </h3>
@@ -418,7 +482,7 @@ export default function CategoriesPage() {
           )}
 
           {/* Categories List */}
-          <div className="bg-white shadow rounded-lg overflow-hidden">
+          <div className="bg-white shadow rounded-sm border border-gray-200 overflow-hidden">
             <div className="px-4 py-5 sm:p-6">
               <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
                 All Categories
@@ -464,17 +528,21 @@ export default function CategoriesPage() {
                           Description
                         </th>
                         <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Subcategories
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                           Actions
                         </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {categories.map((category) => (
-                        <tr key={category.id} className="hover:bg-gray-50">
+                      {categories.filter(cat => !cat.parent_category_id).map((category) => (
+                        <>
+                          <tr key={category.id} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center">
+                                <div className="h-10 w-10 rounded-md bg-gray-200 flex items-center justify-center">
                                   <span className="text-gray-600 text-sm">📂</span>
                                 </div>
                               </div>
@@ -500,6 +568,23 @@ export default function CategoriesPage() {
                           <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
                             {category.description || 'No description'}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {category.parent_category_id ? (
+                              <span className="text-gray-400">Subcategory</span>
+                            ) : (
+                              <div className="space-y-1">
+                                <div className="text-sm">
+                                  {getSubcategories(category.id).length} subcategories
+                                </div>
+                                <button
+                                  onClick={() => handleAddSubcategory(category)}
+                                  className="text-xs text-blue-600 hover:text-blue-800"
+                                >
+                                  + Add Subcategory
+                                </button>
+                              </div>
+                            )}
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
@@ -517,6 +602,57 @@ export default function CategoriesPage() {
                             </div>
                           </td>
                         </tr>
+                        
+                        {/* Subcategories */}
+                        {getSubcategories(category.id).map((subcategory) => (
+                          <tr key={subcategory.id} className="hover:bg-gray-50 bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap pl-12">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-8 w-8">
+                                  <div className="h-8 w-8 rounded-md bg-gray-100 flex items-center justify-center">
+                                    <span className="text-gray-500 text-xs">📁</span>
+                                  </div>
+                                </div>
+                                <div className="ml-4">
+                                  <div className="text-sm font-medium text-gray-900">
+                                    {subcategory.name}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {subcategory.slug}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                Subcategory
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
+                              {subcategory.description || 'No description'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              <span className="text-gray-400">Subcategory</span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <div className="flex space-x-2">
+                                <button
+                                  onClick={() => handleEdit(subcategory)}
+                                  className="text-blue-600 hover:text-blue-900"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDelete(subcategory.id)}
+                                  className="text-red-600 hover:text-red-900"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </>
                       ))}
                     </tbody>
                   </table>
@@ -525,6 +661,108 @@ export default function CategoriesPage() {
             </div>
           </div>
         </div>
+
+        {/* Subcategory Form Modal */}
+        {showSubcategoryForm && (
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div className="relative top-20 mx-auto p-5 border border-gray-200 w-96 shadow-xs rounded-sm bg-white">
+              <div className="mt-3">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-medium text-gray-900">
+                    Add Subcategory to {selectedParentCategory?.name}
+                  </h3>
+                  <button
+                    onClick={resetSubcategoryForm}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <form onSubmit={handleSubcategorySubmit} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subcategory Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={subcategoryFormData.name}
+                      onChange={(e) => {
+                        setSubcategoryFormData(prev => ({
+                          ...prev,
+                          name: e.target.value,
+                          slug: prev.slug || generateSlug(e.target.value)
+                        }));
+                      }}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Enter subcategory name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Slug
+                    </label>
+                    <input
+                      type="text"
+                      value={subcategoryFormData.slug}
+                      onChange={(e) => setSubcategoryFormData(prev => ({ ...prev, slug: e.target.value }))}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Auto-generated from name"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={subcategoryFormData.description}
+                      onChange={(e) => setSubcategoryFormData(prev => ({ ...prev, description: e.target.value }))}
+                      rows={3}
+                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      placeholder="Enter subcategory description"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Subcategory Image
+                    </label>
+                    <ImageUpload
+                      onImageUpload={handleImageUpload}
+                      currentImageUrl={subcategoryFormData.image_url}
+                      placeholder="Upload subcategory image"
+                      className="w-full"
+                    />
+                    {uploadingImage && (
+                      <p className="mt-2 text-sm text-blue-600">Uploading image...</p>
+                    )}
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={resetSubcategoryForm}
+                      className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+                    >
+                      Add Subcategory
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
       </AdminLayout>
     </AdminGuard>
   );

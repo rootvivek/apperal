@@ -143,11 +143,11 @@ export default function MultiImageUpload({
               <img
                 src={image.image_url}
                 alt={image.alt_text || `Product image ${index + 1}`}
-                className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                className="w-full h-24 object-cover rounded-sm border border-gray-200"
               />
               
               {/* Overlay with controls */}
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-sm flex items-center justify-center">
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
                   {/* Move up */}
                   {index > 0 && (
@@ -210,7 +210,7 @@ export default function MultiImageUpload({
           />
           
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            className={`border-2 border-dashed rounded-sm p-6 text-center cursor-pointer transition-colors ${
               dragActive 
                 ? 'border-blue-500 bg-blue-50' 
                 : 'border-gray-300 hover:border-gray-400'
@@ -233,7 +233,7 @@ export default function MultiImageUpload({
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="mx-auto h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center">
+                <div className="mx-auto h-16 w-16 bg-gray-100 rounded-sm flex items-center justify-center">
                   <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>

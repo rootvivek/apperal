@@ -21,6 +21,7 @@ interface Product {
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,13 +35,31 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch products
+      const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setProducts(data || []);
+      if (productsError) throw productsError;
+      setProducts(productsData || []);
+
+      // Fetch categories from categories table
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('name')
+        .is('parent_category_id', null) // Only main categories
+        .order('name', { ascending: true });
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+        // Fallback to categories from products if categories table fails
+        const productCategories = [...new Set((productsData || []).map(p => p.category))];
+        setCategories(productCategories);
+      } else {
+        setCategories(categoriesData?.map(c => c.name) || []);
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -88,8 +107,6 @@ export default function ProductsPage() {
     const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
-
-  const categories = [...new Set(products.map(p => p.category))];
 
   if (loading) {
     return (
@@ -144,7 +161,7 @@ export default function ProductsPage() {
         )}
 
         {/* Filters */}
-        <div className="bg-white shadow rounded-lg p-6">
+        <div className="bg-white shadow rounded-sm border border-gray-200 p-6">
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
               <label htmlFor="search" className="block text-sm font-medium text-gray-700">
@@ -179,7 +196,7 @@ export default function ProductsPage() {
         </div>
 
         {/* Products Table */}
-        <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="bg-white shadow rounded-sm border border-gray-200 overflow-hidden">
           <div className="px-4 py-5 sm:p-6">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
@@ -212,7 +229,7 @@ export default function ProductsPage() {
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-12 w-12">
                             <img
-                              className="h-12 w-12 rounded-lg object-cover"
+                              className="h-12 w-12 rounded-md object-cover"
                               src={product.image_url || '/placeholder-product.jpg'}
                               alt={product.name}
                             />
@@ -232,7 +249,7 @@ export default function ProductsPage() {
                         <div className="text-xs text-gray-400">{product.subcategory}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${product.price.toFixed(2)}
+                        ₹{product.price.toFixed(2)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {product.stock_quantity}

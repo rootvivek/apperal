@@ -2,6 +2,11 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom container max width */
+.max-w-custom {
+  max-width: 1550px;
+}
+
 /* Fix cart icon overlapping issues */
 .cart-icon-container {
   position: relative;

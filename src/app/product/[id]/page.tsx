@@ -249,7 +249,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           {/* Product Images */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="aspect-square overflow-hidden rounded-lg bg-white">
+            <div className="aspect-square overflow-hidden rounded-sm bg-white border border-gray-200">
               <img
                 src={product.images && product.images.length > 0 
                   ? product.images[selectedImage].image_url 
@@ -257,7 +257,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 alt={product.name}
                 className="h-full w-full object-cover"
                 onError={(e) => {
-                  e.currentTarget.src = '/placeholder-product.jpg';
+                  // Only set placeholder if it's not already the placeholder to prevent infinite loop
+                  if (e.currentTarget.src !== window.location.origin + '/placeholder-product.jpg') {
+                    e.currentTarget.src = '/placeholder-product.jpg';
+                  }
                 }}
               />
             </div>
@@ -269,7 +272,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
+                    className={`aspect-square overflow-hidden rounded-sm border-2 transition-colors ${
                       selectedImage === index 
                         ? 'border-blue-500' 
                         : 'border-gray-200 hover:border-gray-300'
@@ -349,9 +352,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
               {/* Login Required Message */}
               {!user && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-sm">
                   <p className="text-blue-800 text-sm">
-                    <span className="font-medium">💡 Tip:</span> You can add items to cart, but you'll need to login to complete your purchase.
+                    <span className="font-medium">💡 Tip:</span> You can add items to cart, but you&apos;ll need to login to complete your purchase.
                   </p>
                   <Link 
                     href="/login" 
@@ -366,7 +369,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock_quantity === 0 || isAddedToCart}
-                  className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <CartIcon className="w-5 h-5 flex-shrink-0" />
                   <span>
@@ -376,14 +379,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleBuyNow}
                   disabled={product.stock_quantity === 0}
-                  className="flex-1 bg-gray-900 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="flex-1 bg-gray-900 text-white py-3 px-6 rounded-md font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   Buy Now
                 </button>
               </div>
 
               {product.stock_quantity === 0 && (
-                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-sm">
                   <p className="text-red-800 font-medium">This product is currently out of stock</p>
                 </div>
               )}

@@ -25,29 +25,35 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   return (
     <div className="p-6">
       {/* Card Grid View - Always shown initially */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-5">
+      <div className="flex flex-wrap justify-center gap-8">
         {displayedCategories.map((category) => (
           <Link
             key={category.id}
             href={`/products/${category.slug}`}
-            className="group relative overflow-hidden rounded-lg bg-white shadow-md hover:shadow-lg transition-shadow duration-300"
+            className="flex flex-col items-center cursor-pointer group"
           >
-            <div className="aspect-square overflow-hidden">
-              <img
-                src={category.image_url || category.image || '/images/categories/placeholder.svg'}
-                alt={category.name}
-                className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-                onError={(e) => {
-                  const target = e.target as HTMLImageElement;
-                  target.src = '/images/categories/placeholder.svg';
-                }}
-              />
+            <div className="w-40 h-40 rounded-full overflow-hidden shadow-xs hover:shadow-sm transition-shadow duration-200 group-hover:scale-105 transition-transform duration-300">
+              {category.image_url || category.image ? (
+                <img
+                  src={category.image_url || category.image || '/images/categories/placeholder.svg'}
+                  alt={category.name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    console.error('Category image failed to load:', e.currentTarget.src);
+                    e.currentTarget.style.display = 'none';
+                    e.currentTarget.nextElementSibling.style.display = 'flex';
+                  }}
+                />
+              ) : null}
+              <div 
+                className={`h-full w-full bg-gray-200 flex items-center justify-center group-hover:bg-gray-300 transition-colors duration-200 ${category.image_url || category.image ? 'hidden' : 'flex'}`}
+              >
+                <span className="text-gray-600 text-3xl">📁</span>
+              </div>
             </div>
-            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />
-            <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
-              <h3 className="text-white text-lg font-semibold mb-1">{category.name}</h3>
-              <p className="text-white/90 text-sm">{category.description || 'Explore this category'}</p>
-            </div>
+            <h3 className="mt-3 text-sm font-medium text-gray-900 text-center group-hover:text-blue-600 transition-colors duration-200">
+              {category.name}
+            </h3>
           </Link>
         ))}
       </div>
@@ -56,14 +62,14 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
       {showAll && (
         <div className="mt-8">
           <h3 className="text-xl font-semibold mb-4 text-gray-800">All Categories</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="flex flex-wrap justify-center gap-8">
             {categories.map((category) => (
               <Link
                 key={category.id}
                 href={`/products/${category.slug}`}
-                className="flex items-center space-x-4 p-4 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 border border-gray-100"
+                className="flex items-center space-x-4 p-4 bg-white rounded-sm shadow-xs hover:shadow-xs transition-shadow duration-300 border border-gray-200 w-80"
               >
-                <div className="w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                <div className="w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
                   <img
                     src={category.image_url || category.image || '/images/categories/placeholder.svg'}
                     alt={category.name}
@@ -76,7 +82,6 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-lg font-medium text-gray-900 truncate">{category.name}</h4>
-                  <p className="text-sm text-gray-600 line-clamp-2">{category.description || 'Explore this category'}</p>
                 </div>
                 <div className="flex-shrink-0">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -93,7 +98,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
         <div className="text-center mt-6">
           <button
             onClick={() => setShowAll(!showAll)}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+            className="px-6 py-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
           >
             {showAll ? 'Show Less' : `View All (${categories.length})`}
           </button>

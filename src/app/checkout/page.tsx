@@ -26,21 +26,7 @@ export default function CheckoutPage() {
   const { user } = useAuth();
   const { cartItems, loading: cartLoading } = useCart();
   
-  // Redirect to login if not authenticated
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Login Required</h1>
-          <p className="text-gray-600 mb-6">Please sign in to proceed with checkout</p>
-          <Link href="/login" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
-            Go to Login
-          </Link>
-        </div>
-      </div>
-    );
-  }
-  
+  // All hooks must be called before any conditional returns
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: user?.email || '',
     firstName: '',
@@ -60,6 +46,21 @@ export default function CheckoutPage() {
 
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Redirect to login if not authenticated
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center p-6 bg-white rounded-sm border border-gray-200 shadow-md">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Login Required</h1>
+          <p className="text-gray-600 mb-6">Please sign in to proceed with checkout</p>
+          <Link href="/login" className="bg-blue-600 text-white px-6 py-3 rounded-sm hover:bg-blue-700">
+            Go to Login
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   const getSubtotal = () => {
     return cartItems.reduce((total, item) => total + (item.product.price * item.quantity), 0);
@@ -92,7 +93,7 @@ export default function CheckoutPage() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
           <p className="text-gray-600 mb-6">Add some items to your cart before checkout</p>
-          <Link href="/products" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+          <Link href="/products" className="bg-blue-600 text-white px-6 py-3 rounded-sm hover:bg-blue-700">
             Continue Shopping
           </Link>
         </div>
@@ -131,7 +132,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-custom mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -139,7 +140,7 @@ export default function CheckoutPage() {
           <div>
             <form onSubmit={handleSubmit} className="space-y-8">
               {/* Contact Information */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white rounded-sm border border-gray-200 shadow-xs p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
@@ -159,7 +160,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Shipping Address */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white rounded-sm border border-gray-200 shadow-xs p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Address</h2>
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
@@ -291,7 +292,7 @@ export default function CheckoutPage() {
               </div>
 
               {/* Payment Information */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
+              <div className="bg-white rounded-sm border border-gray-200 shadow-xs p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Information</h2>
                 
                 <div className="mb-4">
@@ -377,7 +378,7 @@ export default function CheckoutPage() {
 
           {/* Order Summary */}
           <div className="lg:col-span-1">
-            <div className="bg-white rounded-lg shadow-sm p-6 sticky top-6">
+            <div className="bg-white rounded-sm border border-gray-200 shadow-xs p-6 sticky top-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
               
               {/* Real cart items */}

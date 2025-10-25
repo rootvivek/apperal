@@ -34,8 +34,8 @@ export default function Navigation() {
 
   return (
     <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+      <div className="max-w-custom mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-24">
           {/* Logo */}
           <Link href="/" className="flex items-center">
             <span className="text-2xl font-bold text-gray-900">Apperal</span>
@@ -58,7 +58,7 @@ export default function Navigation() {
           </div>
 
           {/* Right side icons */}
-          <div className="flex items-center space-x-3 h-16">
+          <div className="flex items-center space-x-3 h-24">
             {/* Wishlist Icon */}
             <Link href="/wishlist" className="text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2">
               <WishlistIcon showCount={true} count={wishlistCount} />

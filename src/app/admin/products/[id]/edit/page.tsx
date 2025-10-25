@@ -14,24 +14,29 @@ interface ProductImage {
   display_order: number;
 }
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  image_url?: string;
+  parent_category_id: string | null;
+}
+
 interface ProductFormData {
   name: string;
   description: string;
   price: string;
+  original_price: string;
   category: string;
   subcategory: string;
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
+  is_new: boolean;
+  show_in_hero: boolean;
   images: ProductImage[];
 }
-
-const categories = [
-  { name: 'Men\'s Clothing', subcategories: ['Tops & T-Shirts', 'Pants & Shorts', 'Jackets & Coats', 'Activewear'] },
-  { name: 'Women\'s Clothing', subcategories: ['Tops & Blouses', 'Dresses', 'Pants & Skirts', 'Jackets & Coats'] },
-  { name: 'Accessories', subcategories: ['Bags & Purses', 'Jewelry', 'Shoes', 'Watches'] },
-  { name: 'Kids\' Clothing', subcategories: ['Tops', 'Bottoms', 'Dresses', 'Shoes'] },
-];
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -43,21 +48,75 @@ export default function EditProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [subcategories, setSubcategories] = useState<Category[]>([]);
   const supabase = createClient();
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
     price: '',
+    original_price: '',
     category: '',
     subcategory: '',
     image_url: '',
     stock_quantity: '',
     is_active: true,
+    is_new: false,
+    show_in_hero: false,
     images: [],
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
+  // Fetch categories from database
+  const fetchCategories = async () => {
+    try {
+      setCategoriesLoading(true);
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .is('parent_category_id', null) // Only main categories
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setCategories(data || []);
+    } catch (err: any) {
+      console.error('Error fetching categories:', err);
+      setError('Failed to load categories');
+    } finally {
+      setCategoriesLoading(false);
+    }
+  };
+
+  // Get subcategories for the selected category
+  const getSubcategories = async (categoryName: string) => {
+    try {
+      // Find the main category by name
+      const mainCategory = categories.find(cat => cat.name === categoryName && !cat.parent_category_id);
+      
+      if (!mainCategory) {
+        console.log('Main category not found:', categoryName);
+        return [];
+      }
+      
+      // Get all subcategories for this main category
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('parent_category_id', mainCategory.id)
+        .order('name', { ascending: true });
+      
+      if (error) throw error;
+      
+      console.log('Found subcategories for', categoryName, ':', data);
+      return data || [];
+    } catch (err) {
+      console.error('Error fetching subcategories:', err);
+      return [];
+    }
+  };
 
   // Function to generate slug from product name
   const generateSlug = (name: string): string => {
@@ -69,11 +128,14 @@ export default function EditProductPage() {
       .trim();
   };
 
-  // Load existing product data
+  // Load existing product data and categories
   useEffect(() => {
     const loadProduct = async () => {
       try {
         setInitialLoading(true);
+        
+        // Load categories first
+        await fetchCategories();
         
         // Load product data
         const { data: product, error: productError } = await supabase
@@ -104,13 +166,25 @@ export default function EditProductPage() {
             name: product.name || '',
             description: product.description || '',
             price: product.price?.toString() || '',
+            original_price: product.original_price?.toString() || '',
             category: product.category || '',
             subcategory: product.subcategory || '',
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity?.toString() || '',
             is_active: product.is_active ?? true,
+            is_new: product.is_new ?? false,
+            show_in_hero: product.show_in_hero ?? false,
             images: images || [],
           });
+
+          // Load subcategories for the product's category
+          if (product.category) {
+            console.log('Loading subcategories for category:', product.category);
+            console.log('Available categories:', categories);
+            const subcats = await getSubcategories(product.category);
+            console.log('Loaded subcategories:', subcats);
+            setSubcategories(subcats);
+          }
         }
       } catch (error) {
         console.error('Error loading product:', error);
@@ -125,7 +199,7 @@ export default function EditProductPage() {
     }
   }, [productId, supabase]);
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+  const handleInputChange = async (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     
     if (type === 'checkbox') {
@@ -133,6 +207,18 @@ export default function EditProductPage() {
       setFormData(prev => ({ ...prev, [name]: checked }));
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
+    }
+
+    // If category changed, fetch subcategories and reset subcategory selection
+    if (name === 'category') {
+      console.log('Category changed to:', value);
+      const subcats = await getSubcategories(value);
+      console.log('Subcategories loaded:', subcats);
+      setSubcategories(subcats);
+      setFormData(prev => ({
+        ...prev,
+        subcategory: '' // Reset subcategory when category changes
+      }));
     }
     
     // Clear validation error for this field
@@ -169,9 +255,7 @@ export default function EditProductPage() {
       errors.category = 'Category is required';
     }
 
-    if (!formData.subcategory) {
-      errors.subcategory = 'Subcategory is required';
-    }
+    // Subcategory is optional, no validation needed
 
     if (!formData.stock_quantity || isNaN(Number(formData.stock_quantity)) || Number(formData.stock_quantity) < 0) {
       errors.stock_quantity = 'Valid stock quantity is required';
@@ -201,11 +285,14 @@ export default function EditProductPage() {
           name: formData.name.trim(),
           description: formData.description.trim(),
           price: parseFloat(formData.price),
+          original_price: formData.original_price ? parseFloat(formData.original_price) : null,
           category: formData.category,
           subcategory: formData.subcategory,
           image_url: formData.image_url,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
+          is_new: formData.is_new,
+          show_in_hero: formData.show_in_hero,
           slug: slug,
           updated_at: new Date().toISOString(),
         })
@@ -285,13 +372,13 @@ export default function EditProductPage() {
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-sm">
               <p className="text-red-800">{error}</p>
             </div>
           )}
 
           {success && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-sm">
               <p className="text-green-800">Product updated successfully! Redirecting...</p>
             </div>
           )}
@@ -311,7 +398,7 @@ export default function EditProductPage() {
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.name ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter product name"
@@ -324,7 +411,7 @@ export default function EditProductPage() {
                 {/* Price */}
                 <div>
                   <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-                    Price ($) *
+                    Current Price (₹) *
                   </label>
                   <input
                     type="number"
@@ -334,7 +421,7 @@ export default function EditProductPage() {
                     onChange={handleInputChange}
                     step="0.01"
                     min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.price ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="0.00"
@@ -342,6 +429,27 @@ export default function EditProductPage() {
                   {validationErrors.price && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.price}</p>
                   )}
+                </div>
+
+                {/* Original Price */}
+                <div>
+                  <label htmlFor="original_price" className="block text-sm font-medium text-gray-700 mb-2">
+                    Original Price (₹) - Optional
+                  </label>
+                  <input
+                    type="number"
+                    id="original_price"
+                    name="original_price"
+                    value={formData.original_price}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave empty if no discount. Used to show &quot;X% OFF&quot; badge.
+                  </p>
                 </div>
 
                 {/* Category */}
@@ -354,16 +462,28 @@ export default function EditProductPage() {
                     name="category"
                     value={formData.category}
                     onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    disabled={categoriesLoading}
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.category ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    } ${categoriesLoading ? 'bg-gray-50' : ''}`}
                   >
-                    <option value="">Select a category</option>
-                    {categories.map((category) => (
-                      <option key={category.name} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))}
+                    <option value="">{categoriesLoading ? 'Loading categories...' : 'Select a category'}</option>
+                    {categories
+                      .filter(cat => !cat.parent_category_id) // Only main categories
+                      .map(category => (
+                        <optgroup key={category.id} label={category.name}>
+                          <option value={category.name}>
+                            {category.name} (Main Category)
+                          </option>
+                          {categories
+                            .filter(subcat => subcat.parent_category_id === category.id)
+                            .map(subcategory => (
+                              <option key={subcategory.id} value={subcategory.name}>
+                                └─ {subcategory.name}
+                              </option>
+                            ))}
+                        </optgroup>
+                      ))}
                   </select>
                   {validationErrors.category && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.category}</p>
@@ -373,26 +493,31 @@ export default function EditProductPage() {
                 {/* Subcategory */}
                 <div>
                   <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-2">
-                    Subcategory *
+                    Subcategory (Optional)
                   </label>
                   <select
                     id="subcategory"
                     name="subcategory"
                     value={formData.subcategory}
                     onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.subcategory ? 'border-red-500' : 'border-gray-300'
-                    }`}
+                    } ${!formData.category ? 'bg-gray-50' : ''}`}
                     disabled={!formData.category}
                   >
-                    <option value="">Select a subcategory</option>
-                    {formData.category && categories
-                      .find(cat => cat.name === formData.category)
-                      ?.subcategories.map((subcategory) => (
-                        <option key={subcategory} value={subcategory}>
-                          {subcategory}
-                        </option>
-                      ))}
+                    <option value="">
+                      {!formData.category 
+                        ? 'Select a category first' 
+                        : subcategories.length === 0 
+                          ? 'No subcategories available' 
+                          : 'Select a subcategory (optional)'
+                      }
+                    </option>
+                    {subcategories.map((subcategory) => (
+                      <option key={subcategory.id} value={subcategory.name}>
+                        {subcategory.name}
+                      </option>
+                    ))}
                   </select>
                   {validationErrors.subcategory && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.subcategory}</p>
@@ -411,7 +536,7 @@ export default function EditProductPage() {
                     value={formData.stock_quantity}
                     onChange={handleInputChange}
                     min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.stock_quantity ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="0"
@@ -435,6 +560,40 @@ export default function EditProductPage() {
                     Product is active
                   </label>
                 </div>
+                
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="is_new"
+                    name="is_new"
+                    checked={formData.is_new}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_new" className="ml-2 block text-sm text-gray-700">
+                    Mark as &quot;New Product&quot; (shows green NEW badge)
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Check this to show a green &quot;NEW&quot; badge on the product card.
+                </p>
+                
+                <div className="flex items-center mt-4">
+                  <input
+                    type="checkbox"
+                    id="show_in_hero"
+                    name="show_in_hero"
+                    checked={formData.show_in_hero}
+                    onChange={handleInputChange}
+                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                  />
+                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-700">
+                    Show in Hero Carousel (Featured Product)
+                  </label>
+                </div>
+                <p className="mt-1 text-xs text-gray-500">
+                  Check this to display this product in the hero carousel section on the homepage.
+                </p>
               </div>
 
               {/* Right Column */}
@@ -466,7 +625,7 @@ export default function EditProductPage() {
                     value={formData.description}
                     onChange={handleInputChange}
                     rows={6}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-3 py-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.description ? 'border-red-500' : 'border-gray-300'
                     }`}
                     placeholder="Enter product description"
@@ -483,14 +642,14 @@ export default function EditProductPage() {
               <button
                 type="button"
                 onClick={() => router.push('/admin/products')}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
                 {loading ? 'Updating...' : 'Update Product'}
               </button>
