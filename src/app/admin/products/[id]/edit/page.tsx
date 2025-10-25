@@ -18,6 +18,9 @@ interface ProductFormData {
   name: string;
   description: string;
   price: string;
+  original_price: string;
+  discount_percentage: string;
+  badge: string;
   category: string;
   subcategory: string;
   image_url: string;
@@ -26,12 +29,15 @@ interface ProductFormData {
   images: ProductImage[];
 }
 
-const categories = [
-  { name: 'Men\'s Clothing', subcategories: ['Tops & T-Shirts', 'Pants & Shorts', 'Jackets & Coats', 'Activewear'] },
-  { name: 'Women\'s Clothing', subcategories: ['Tops & Blouses', 'Dresses', 'Pants & Skirts', 'Jackets & Coats'] },
-  { name: 'Accessories', subcategories: ['Bags & Purses', 'Jewelry', 'Shoes', 'Watches'] },
-  { name: 'Kids\' Clothing', subcategories: ['Tops', 'Bottoms', 'Dresses', 'Shoes'] },
-];
+// Categories will be fetched from database
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string;
+  parent_category_id: string | null;
+}
+
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -43,12 +49,19 @@ export default function EditProductPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [subcategories, setSubcategories] = useState<Category[]>([]);
+  const [subcategoriesLoading, setSubcategoriesLoading] = useState(false);
   const supabase = createClient();
 
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
     price: '',
+    original_price: '',
+    discount_percentage: '0',
+    badge: '',
     category: '',
     subcategory: '',
     image_url: '',
@@ -58,6 +71,96 @@ export default function EditProductPage() {
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
+  // Get available subcategories based on selected category
+  const getAvailableSubcategories = () => {
+    return subcategories;
+  };
+
+  // Fetch subcategories when category changes
+  const fetchSubcategories = async (categoryName: string) => {
+    if (!categoryName) {
+      setSubcategories([]);
+      return;
+    }
+
+    try {
+      setSubcategoriesLoading(true);
+      // Find the selected category to get its ID
+      const selectedCategory = categories.find(cat => cat.name === categoryName);
+      if (!selectedCategory) {
+        setSubcategories([]);
+        return;
+      }
+
+      // Fetch subcategories that have this category as parent
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('parent_category_id', selectedCategory.id)
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setSubcategories(data || []);
+    } catch (err: any) {
+      console.error('Error fetching subcategories:', err);
+      setSubcategories([]);
+    } finally {
+      setSubcategoriesLoading(false);
+    }
+  };
+
+  // Reset subcategory when category changes
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCategory = e.target.value;
+    setFormData(prev => ({
+      ...prev,
+      category: newCategory,
+      subcategory: '' // Reset subcategory when category changes
+    }));
+    
+    // Fetch subcategories for the new category
+    fetchSubcategories(newCategory);
+    
+    // Clear subcategory validation error
+    if (validationErrors.subcategory) {
+      setValidationErrors(prev => ({
+        ...prev,
+        subcategory: ''
+      }));
+    }
+  };
+
+  // Fetch categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setCategoriesLoading(true);
+        const { data, error } = await supabase
+          .from('categories')
+          .select('*')
+          .is('parent_category_id', null) // Only main categories
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        setCategories(data || []);
+      } catch (err: any) {
+        console.error('Error fetching categories:', err);
+        setError('Failed to load categories');
+      } finally {
+        setCategoriesLoading(false);
+      }
+    };
+
+    fetchCategories();
+  }, [supabase]);
+
+  // Fetch subcategories when form data is loaded and category is set
+  useEffect(() => {
+    if (formData.category && categories.length > 0) {
+      fetchSubcategories(formData.category);
+    }
+  }, [formData.category, categories]);
 
   // Function to generate slug from product name
   const generateSlug = (name: string): string => {
@@ -104,6 +207,9 @@ export default function EditProductPage() {
             name: product.name || '',
             description: product.description || '',
             price: product.price?.toString() || '',
+            original_price: product.original_price?.toString() || '',
+            discount_percentage: product.discount_percentage?.toString() || '0',
+            badge: product.badge || '',
             category: product.category || '',
             subcategory: product.subcategory || '',
             image_url: product.image_url || '',
@@ -201,6 +307,9 @@ export default function EditProductPage() {
           name: formData.name.trim(),
           description: formData.description.trim(),
           price: parseFloat(formData.price),
+          original_price: formData.original_price ? parseFloat(formData.original_price) : null,
+          discount_percentage: parseInt(formData.discount_percentage) || 0,
+          badge: formData.badge.trim() || null,
           category: formData.category,
           subcategory: formData.subcategory,
           image_url: formData.image_url,
@@ -324,7 +433,7 @@ export default function EditProductPage() {
                 {/* Price */}
                 <div>
                   <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-                    Price ($) *
+                    Current Price (₹) *
                   </label>
                   <input
                     type="number"
@@ -344,6 +453,66 @@ export default function EditProductPage() {
                   )}
                 </div>
 
+                {/* Original Price */}
+                <div>
+                  <label htmlFor="original_price" className="block text-sm font-medium text-gray-700 mb-2">
+                    Original Price (₹)
+                  </label>
+                  <input
+                    type="number"
+                    id="original_price"
+                    name="original_price"
+                    value={formData.original_price}
+                    onChange={handleInputChange}
+                    step="0.01"
+                    min="0"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">Leave empty if no discount</p>
+                </div>
+
+                {/* Discount Percentage */}
+                <div>
+                  <label htmlFor="discount_percentage" className="block text-sm font-medium text-gray-700 mb-2">
+                    Discount Percentage (%)
+                  </label>
+                  <input
+                    type="number"
+                    id="discount_percentage"
+                    name="discount_percentage"
+                    value={formData.discount_percentage}
+                    onChange={handleInputChange}
+                    min="0"
+                    max="100"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">0-100%</p>
+                </div>
+
+                {/* Product Badge */}
+                <div>
+                  <label htmlFor="badge" className="block text-sm font-medium text-gray-700 mb-2">
+                    Product Badge
+                  </label>
+                  <select
+                    id="badge"
+                    name="badge"
+                    value={formData.badge}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">No Badge</option>
+                    <option value="NEW">NEW</option>
+                    <option value="SALE">SALE</option>
+                    <option value="HOT">HOT</option>
+                    <option value="FEATURED">FEATURED</option>
+                    <option value="LIMITED">LIMITED</option>
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">Optional product badge</p>
+                </div>
+
                 {/* Category */}
                 <div>
                   <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
@@ -353,14 +522,17 @@ export default function EditProductPage() {
                     id="category"
                     name="category"
                     value={formData.category}
-                    onChange={handleInputChange}
+                    onChange={handleCategoryChange}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.category ? 'border-red-500' : 'border-gray-300'
                     }`}
+                    disabled={categoriesLoading}
                   >
-                    <option value="">Select a category</option>
+                    <option value="">
+                      {categoriesLoading ? 'Loading categories...' : 'Select a category'}
+                    </option>
                     {categories.map((category) => (
-                      <option key={category.name} value={category.name}>
+                      <option key={category.id} value={category.name}>
                         {category.name}
                       </option>
                     ))}
@@ -380,19 +552,26 @@ export default function EditProductPage() {
                     name="subcategory"
                     value={formData.subcategory}
                     onChange={handleInputChange}
+                    disabled={!formData.category || subcategoriesLoading}
                     className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
                       validationErrors.subcategory ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    disabled={!formData.category}
+                    } ${!formData.category || subcategoriesLoading ? 'bg-gray-50' : ''}`}
                   >
-                    <option value="">Select a subcategory</option>
-                    {formData.category && categories
-                      .find(cat => cat.name === formData.category)
-                      ?.subcategories.map((subcategory) => (
-                        <option key={subcategory} value={subcategory}>
-                          {subcategory}
-                        </option>
-                      ))}
+                    <option value="">
+                      {!formData.category 
+                        ? 'Select a category first' 
+                        : subcategoriesLoading 
+                          ? 'Loading subcategories...' 
+                          : subcategories.length === 0
+                            ? 'No subcategories available'
+                            : 'Select a subcategory'
+                      }
+                    </option>
+                    {getAvailableSubcategories().map(subcategory => (
+                      <option key={subcategory.id} value={subcategory.name}>
+                        {subcategory.name}
+                      </option>
+                    ))}
                   </select>
                   {validationErrors.subcategory && (
                     <p className="mt-1 text-sm text-red-600">{validationErrors.subcategory}</p>

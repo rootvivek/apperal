@@ -5,7 +5,6 @@ interface Category {
   id: string;
   name: string;
   slug: string;
-  description: string;
   image_url?: string;
   image?: string;
 }
@@ -45,8 +44,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
             </div>
             <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300" />
             <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/60 to-transparent">
-              <h3 className="text-white text-lg font-semibold mb-1">{category.name}</h3>
-              <p className="text-white/90 text-sm">{category.description || 'Explore this category'}</p>
+              <h3 className="text-white text-lg font-semibold">{category.name}</h3>
             </div>
           </Link>
         ))}
@@ -76,7 +74,6 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h4 className="text-lg font-medium text-gray-900 truncate">{category.name}</h4>
-                  <p className="text-sm text-gray-600 line-clamp-2">{category.description || 'Explore this category'}</p>
                 </div>
                 <div className="flex-shrink-0">
                   <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

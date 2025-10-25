@@ -19,52 +19,7 @@ interface Category {
   updated_at: string;
 }
 
-const predefinedCategories = [
-  {
-    name: "Men's Clothing",
-    slug: "mens-clothing",
-    description: "Clothing and apparel for men",
-    subcategories: [
-      { name: "Tops & T-Shirts", slug: "mens-tops" },
-      { name: "Pants & Shorts", slug: "mens-bottoms" },
-      { name: "Jackets & Coats", slug: "mens-outerwear" },
-      { name: "Activewear", slug: "mens-activewear" }
-    ]
-  },
-  {
-    name: "Women's Clothing",
-    slug: "womens-clothing",
-    description: "Clothing and apparel for women",
-    subcategories: [
-      { name: "Tops & Blouses", slug: "womens-tops" },
-      { name: "Dresses", slug: "womens-dresses" },
-      { name: "Pants & Skirts", slug: "womens-bottoms" },
-      { name: "Jackets & Coats", slug: "womens-outerwear" }
-    ]
-  },
-  {
-    name: "Accessories",
-    slug: "accessories",
-    description: "Fashion accessories and add-ons",
-    subcategories: [
-      { name: "Bags & Purses", slug: "bags" },
-      { name: "Jewelry", slug: "jewelry" },
-      { name: "Shoes", slug: "shoes" },
-      { name: "Watches", slug: "watches" }
-    ]
-  },
-  {
-    name: "Kids' Clothing",
-    slug: "kids-clothing",
-    description: "Clothing and apparel for children",
-    subcategories: [
-      { name: "Tops", slug: "kids-tops" },
-      { name: "Bottoms", slug: "kids-bottoms" },
-      { name: "Dresses", slug: "kids-dresses" },
-      { name: "Shoes", slug: "kids-shoes" }
-    ]
-  }
-];
+// Removed predefined categories to ensure we only fetch from database
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -84,20 +39,38 @@ export default function CategoriesPage() {
   });
 
   useEffect(() => {
+    console.log('🚀 Categories page loaded, starting fetch...');
     fetchCategories();
   }, []);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Starting to fetch categories from database...');
+      
       const { data, error } = await supabase
         .from('categories')
         .select('*')
         .order('name', { ascending: true });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Database error:', error);
+        throw error;
+      }
+      
+      console.log('✅ Database query successful');
+      console.log('📊 Raw data from database:', data);
+      console.log('📈 Number of categories fetched:', data?.length || 0);
+      
+      if (data && data.length > 0) {
+        console.log('📋 Category names:', data.map(cat => cat.name));
+      } else {
+        console.log('⚠️ No categories found in database');
+      }
+      
       setCategories(data || []);
     } catch (err: any) {
+      console.error('💥 Error fetching categories:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -205,6 +178,28 @@ export default function CategoriesPage() {
     }
   };
 
+  // Group categories by parent-child relationship
+  const groupedCategories = () => {
+    console.log('🔄 Grouping categories...');
+    console.log('📦 All categories:', categories);
+    
+    const mainCategories = categories.filter(cat => !cat.parent_category_id);
+    const subcategories = categories.filter(cat => cat.parent_category_id);
+    
+    console.log('📁 Main categories:', mainCategories);
+    console.log('📄 Subcategories:', subcategories);
+    
+    const grouped = mainCategories.map(mainCat => ({
+      ...mainCat,
+      subcategories: subcategories.filter(sub => sub.parent_category_id === mainCat.id)
+    }));
+    
+    console.log('🎯 Final grouped data:', grouped);
+    return grouped;
+  };
+
+  const groupedData = groupedCategories();
+
   const resetForm = () => {
     setFormData({
       name: '',
@@ -215,49 +210,6 @@ export default function CategoriesPage() {
     });
     setShowAddForm(false);
     setEditingCategory(null);
-  };
-
-  const addPredefinedCategories = async () => {
-    try {
-      setLoading(true);
-      
-      for (const category of predefinedCategories) {
-        // Insert main category
-        const { data: mainCategory, error: mainError } = await supabase
-          .from('categories')
-          .insert([{
-            name: category.name,
-            slug: category.slug,
-            description: category.description,
-            image_url: null,
-            parent_category_id: null
-          }])
-          .select();
-
-        if (mainError) throw mainError;
-
-        // Insert subcategories
-        for (const subcategory of category.subcategories) {
-          const { error: subError } = await supabase
-            .from('categories')
-            .insert([{
-              name: subcategory.name,
-              slug: subcategory.slug,
-              description: `${subcategory.name} in ${category.name}`,
-              image_url: null,
-              parent_category_id: mainCategory[0].id
-            }]);
-
-          if (subError) throw subError;
-        }
-      }
-
-      await fetchCategories(); // Refresh the list
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
   };
 
   if (loading) {
@@ -288,12 +240,6 @@ export default function CategoriesPage() {
               </p>
             </div>
             <div className="flex space-x-3">
-              <button
-                onClick={addPredefinedCategories}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                📂 Add Predefined Categories
-              </button>
               <button
                 onClick={() => setShowAddForm(true)}
                 className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
@@ -384,6 +330,29 @@ export default function CategoriesPage() {
                 </div>
 
                 <div>
+                  <label htmlFor="parent_category_id" className="block text-sm font-medium text-gray-700">
+                    Parent Category
+                  </label>
+                  <select
+                    name="parent_category_id"
+                    id="parent_category_id"
+                    value={formData.parent_category_id}
+                    onChange={(e) => setFormData(prev => ({ ...prev, parent_category_id: e.target.value }))}
+                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    <option value="">Main Category (No Parent)</option>
+                    {categories.filter(cat => !cat.parent_category_id).map(category => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Leave empty to create a main category, or select a parent to create a subcategory
+                  </p>
+                </div>
+
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Category Image
                   </label>
@@ -429,15 +398,27 @@ export default function CategoriesPage() {
                   <div className="text-gray-400 text-6xl mb-4">📂</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No categories found</h3>
                   <p className="text-gray-500 mb-4">
-                    Get started by adding predefined categories or creating your own.
+                    It looks like there are no categories in your database yet.
                   </p>
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
+                    <div className="flex">
+                      <div className="flex-shrink-0">
+                        <span className="text-yellow-400">⚠️</span>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-sm font-medium text-yellow-800">Database Issue</h3>
+                        <div className="mt-2 text-sm text-yellow-700">
+                          <p>If you expected to see categories, please check:</p>
+                          <ul className="list-disc list-inside mt-2 space-y-1">
+                            <li>Your Supabase connection is working</li>
+                            <li>The 'categories' table exists in your database</li>
+                            <li>You have data in the categories table</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   <div className="flex justify-center space-x-3">
-                    <button
-                      onClick={addPredefinedCategories}
-                      className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
-                    >
-                      📂 Add Predefined Categories
-                    </button>
                     <button
                       onClick={() => setShowAddForm(true)}
                       className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
@@ -447,79 +428,125 @@ export default function CategoriesPage() {
                   </div>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Category
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Slug
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Type
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Description
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {categories.map((category) => (
-                        <tr key={category.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10">
-                                <div className="h-10 w-10 rounded-lg bg-gray-200 flex items-center justify-center">
-                                  <span className="text-gray-600 text-sm">📂</span>
-                                </div>
-                              </div>
-                              <div className="ml-4">
-                                <div className="text-sm font-medium text-gray-900">
-                                  {category.name}
-                                </div>
+                <div className="space-y-6">
+                  {groupedData.map((mainCategory) => (
+                    <div key={mainCategory.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                      {/* Main Category Header */}
+                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
+                                <span className="text-blue-600 text-sm">📁</span>
                               </div>
                             </div>
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {category.slug}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                              category.parent_category_id 
-                                ? 'bg-blue-100 text-blue-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
-                              {category.parent_category_id ? 'Subcategory' : 'Main Category'}
+                            <div className="ml-4">
+                              <h3 className="text-lg font-medium text-gray-900">
+                                {mainCategory.name}
+                              </h3>
+                              <p className="text-sm text-gray-500">
+                                {mainCategory.slug} • {mainCategory.subcategories.length} subcategories
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                              Main Category
                             </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-500 max-w-xs truncate">
-                            {category.description || 'No description'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
-                                onClick={() => handleEdit(category)}
-                                className="text-blue-600 hover:text-blue-900"
+                                onClick={() => handleEdit(mainCategory)}
+                                className="text-blue-600 hover:text-blue-900 text-sm font-medium"
                               >
                                 Edit
                               </button>
                               <button
-                                onClick={() => handleDelete(category.id)}
-                                className="text-red-600 hover:text-red-900"
+                                onClick={() => handleDelete(mainCategory.id)}
+                                className="text-red-600 hover:text-red-900 text-sm font-medium"
                               >
                                 Delete
                               </button>
                             </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                        </div>
+                        {mainCategory.description && (
+                          <p className="mt-2 text-sm text-gray-600">
+                            {mainCategory.description}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Subcategories */}
+                      {mainCategory.subcategories.length > 0 ? (
+                        <div className="bg-white">
+                          <div className="px-6 py-3 bg-gray-25 border-b border-gray-100">
+                            <h4 className="text-sm font-medium text-gray-700">Subcategories</h4>
+                          </div>
+                          <div className="divide-y divide-gray-100">
+                            {mainCategory.subcategories.map((subcategory) => (
+                              <div key={subcategory.id} className="px-6 py-4 hover:bg-gray-50">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center">
+                                    <div className="flex-shrink-0 h-8 w-8">
+                                      <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                                        <span className="text-gray-600 text-xs">📄</span>
+                                      </div>
+                                    </div>
+                                    <div className="ml-4">
+                                      <div className="text-sm font-medium text-gray-900">
+                                        {subcategory.name}
+                                      </div>
+                                      <div className="text-xs text-gray-500">
+                                        {subcategory.slug}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                                      Subcategory
+                                    </span>
+                                    <div className="flex space-x-2">
+                                      <button
+                                        onClick={() => handleEdit(subcategory)}
+                                        className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                                      >
+                                        Edit
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(subcategory.id)}
+                                        className="text-red-600 hover:text-red-900 text-sm font-medium"
+                                      >
+                                        Delete
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                                {subcategory.description && (
+                                  <p className="mt-2 ml-12 text-xs text-gray-600">
+                                    {subcategory.description}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="px-6 py-8 text-center bg-gray-25">
+                          <div className="text-gray-400 text-4xl mb-2">📄</div>
+                          <p className="text-sm text-gray-500">No subcategories yet</p>
+                          <button
+                            onClick={() => {
+                              setFormData(prev => ({ ...prev, parent_category_id: mainCategory.id }));
+                              setShowAddForm(true);
+                            }}
+                            className="mt-2 text-sm text-blue-600 hover:text-blue-900 font-medium"
+                          >
+                            Add subcategory
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

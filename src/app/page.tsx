@@ -152,9 +152,9 @@ export default function Home() {
             </p>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {allProducts.map((product) => (
-                <ProductCard key={product.id} product={product} showCategoryAndStock={false} />
+                <ProductCard key={product.id} product={product} />
               ))}
             </div>
           ) : (
@@ -202,7 +202,7 @@ export default function Home() {
                 </p>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   {section.products.map((product) => (
                     <ProductCard key={product.id} product={product} />
                   ))}

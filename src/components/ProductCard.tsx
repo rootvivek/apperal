@@ -7,9 +7,11 @@ import { Product } from '@/types/product';
 interface ProductCardProduct {
   id: string;
   name: string;
-  description: string;
-  price: number;
-  category: string | { id: string; name: string; slug: string; description: string; image: string; subcategories: any[] };
+  price: number; // Current selling price
+  original_price?: number; // Original price before discount
+  discount_percentage?: number; // Discount percentage
+  badge?: string; // Product badge (NEW, SALE, HOT, etc.)
+  category: string | { id: string; name: string; slug: string; image: string; subcategories: any[] };
   subcategory: string;
   image_url: string;
   stock_quantity: number;
@@ -26,11 +28,10 @@ interface ProductCardProduct {
 
 interface ProductCardProps {
   product: ProductCardProduct;
-  showCategoryAndStock?: boolean;
   hideStockOverlay?: boolean; // New prop to hide the stock overlay
 }
 
-export default function ProductCard({ product, showCategoryAndStock = true, hideStockOverlay = false }: ProductCardProps) {
+export default function ProductCard({ product, hideStockOverlay = false }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
 
@@ -43,7 +44,7 @@ export default function ProductCard({ product, showCategoryAndStock = true, hide
     return {
       id: productCardProduct.id,
       name: productCardProduct.name,
-      description: productCardProduct.description,
+      description: '',
       price: productCardProduct.price,
       originalPrice: productCardProduct.price,
       images: [productCardProduct.image_url],
@@ -81,8 +82,52 @@ export default function ProductCard({ product, showCategoryAndStock = true, hide
     }
   };
 
+  // Calculate discount percentage if not provided
+  const calculateDiscountPercentage = () => {
+    if (product.discount_percentage) return product.discount_percentage;
+    if (product.original_price && product.original_price > product.price) {
+      return Math.round(((product.original_price - product.price) / product.original_price) * 100);
+    }
+    return 0;
+  };
+
+  const discountPercentage = calculateDiscountPercentage();
+  const hasDiscount = discountPercentage > 0;
+
+  // Badge styling
+  const getBadgeStyle = (badge: string) => {
+    switch (badge?.toUpperCase()) {
+      case 'NEW':
+        return 'bg-green-500 text-white';
+      case 'SALE':
+        return 'bg-red-500 text-white';
+      case 'HOT':
+        return 'bg-orange-500 text-white';
+      case 'FEATURED':
+        return 'bg-blue-500 text-white';
+      case 'LIMITED':
+        return 'bg-purple-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
+  };
+
   return (
-    <Link href={`/product/${product.id}`} className="group relative bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden block">
+    <Link href={`/product/${product.id}`} className="group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100">
+      {/* Product Badge */}
+      {product.badge && (
+        <div className={`absolute top-3 left-3 z-10 px-2 py-1 rounded-md text-xs font-semibold ${getBadgeStyle(product.badge)}`}>
+          {product.badge}
+        </div>
+      )}
+
+      {/* Discount Badge */}
+      {hasDiscount && (
+        <div className="absolute top-3 right-12 z-10 px-2 py-1 rounded-md text-xs font-semibold bg-red-500 text-white">
+          -{discountPercentage}%
+        </div>
+      )}
+
       {/* Wishlist Button */}
       <button
         onClick={handleWishlistToggle}
@@ -149,34 +194,30 @@ export default function ProductCard({ product, showCategoryAndStock = true, hide
       </div>
 
       {/* Product Info */}
-      <div className="p-4">
-        {showCategoryAndStock && (
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-gray-600">
-              {typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}
-            </span>
-            <span className="text-sm text-gray-500">Stock: {product.stock_quantity}</span>
-          </div>
-        )}
-        
-        <h3 className="font-semibold text-gray-900 mb-3 line-clamp-2 group-hover:text-blue-600 transition-colors">
+      <div className="p-3">
+        <h3 className="font-medium text-gray-900 mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
           {product.name}
         </h3>
         
         <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-lg font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
+          <div className="flex flex-col">
+            <div className="flex items-center space-x-2">
+              <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+                ₹{product.price.toFixed(2)}
+              </span>
+              {hasDiscount && product.original_price && (
+                <span className="text-sm text-gray-500 line-through">
+                  ₹{product.original_price.toFixed(2)}
+                </span>
+              )}
+            </div>
+            {hasDiscount && (
+              <span className="text-xs text-green-600 font-medium">
+                You save ₹{(product.original_price! - product.price).toFixed(2)}
+              </span>
+            )}
           </div>
         </div>
-
-        {/* Subcategory Badge */}
-        {showCategoryAndStock && (
-          <div className="mt-2">
-            <span className="inline-block bg-gray-100 text-gray-800 text-xs px-2 py-1 rounded-full">
-              {product.subcategory}
-            </span>
-          </div>
-        )}
       </div>
     </Link>
   );
