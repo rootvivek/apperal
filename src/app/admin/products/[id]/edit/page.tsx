@@ -19,7 +19,6 @@ interface ProductFormData {
   description: string;
   price: string;
   original_price: string;
-  discount_percentage: string;
   badge: string;
   category: string;
   subcategory: string;
@@ -61,7 +60,6 @@ export default function EditProductPage() {
     description: '',
     price: '',
     original_price: '',
-    discount_percentage: '0',
     badge: '',
     category: '',
     subcategory: '',
@@ -210,7 +208,6 @@ export default function EditProductPage() {
             description: product.description || '',
             price: product.price?.toString() || '',
             original_price: product.original_price?.toString() || '',
-            discount_percentage: product.discount_percentage?.toString() || '0',
             badge: product.badge || '',
             category: product.category || '',
             subcategory: product.subcategory || '',
@@ -311,7 +308,6 @@ export default function EditProductPage() {
           description: formData.description.trim(),
           price: parseFloat(formData.price),
           original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-          discount_percentage: parseInt(formData.discount_percentage) || 0,
           badge: formData.badge.trim() || null,
           category: formData.category,
           subcategory: formData.subcategory,
@@ -476,24 +472,6 @@ export default function EditProductPage() {
                   <p className="mt-1 text-xs text-gray-500">Leave empty if no discount</p>
                 </div>
 
-                {/* Discount Percentage */}
-                <div>
-                  <label htmlFor="discount_percentage" className="block text-sm font-medium text-gray-700 mb-2">
-                    Discount Percentage (%)
-                  </label>
-                  <input
-                    type="number"
-                    id="discount_percentage"
-                    name="discount_percentage"
-                    value={formData.discount_percentage}
-                    onChange={handleInputChange}
-                    min="0"
-                    max="100"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="0"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">0-100%</p>
-                </div>
 
                 {/* Product Badge */}
                 <div>

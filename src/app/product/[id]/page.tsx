@@ -46,6 +46,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [isAddedToCart, setIsAddedToCart] = useState(false);
+  const [showZoomPreview, setShowZoomPreview] = useState(false);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
@@ -202,9 +204,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       return;
     }
     
-    // Add to cart first, then redirect to checkout
+    // Add to cart first, then redirect to checkout with direct purchase parameters
     addToCart(product.id, quantity).then(() => {
-      window.location.href = '/checkout';
+      window.location.href = `/checkout?direct=true&productId=${product.id}&quantity=${quantity}`;
     });
   };
 
@@ -249,29 +251,15 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Product Images */}
-          <div className="space-y-4">
-            {/* Main Image */}
-            <div className="aspect-square overflow-hidden rounded-lg bg-white">
-              <img
-                src={product.images && product.images.length > 0 
-                  ? product.images[selectedImage].image_url 
-                  : product.image_url || '/placeholder-product.jpg'}
-                alt={product.name}
-                className="h-full w-full object-cover"
-                onError={(e) => {
-                  e.currentTarget.src = '/placeholder-product.jpg';
-                }}
-              />
-            </div>
-            
-            {/* Thumbnail Gallery */}
+          <div className="flex gap-4 relative">
+            {/* Thumbnail Gallery - Left Side */}
             {product.images && product.images.length > 1 && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="flex flex-col gap-2">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`aspect-square overflow-hidden rounded-lg border-2 transition-colors ${
+                    className={`w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
                       selectedImage === index 
                         ? 'border-blue-500' 
                         : 'border-gray-200 hover:border-gray-300'
@@ -280,10 +268,83 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                     <img
                       src={image.image_url}
                       alt={image.alt_text || `${product.name} ${index + 1}`}
-                      className="h-full w-full object-cover"
+                      className="h-full w-full object-contain"
                     />
                   </button>
                 ))}
+              </div>
+            )}
+            
+            {/* Main Image */}
+            <div 
+              className="flex-1 aspect-square overflow-hidden rounded-lg bg-white cursor-crosshair relative"
+              onMouseEnter={() => setShowZoomPreview(true)}
+              onMouseLeave={() => setShowZoomPreview(false)}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                setMousePosition({ x, y });
+              }}
+            >
+              <img
+                src={product.images && product.images.length > 0 
+                  ? product.images[selectedImage].image_url 
+                  : product.image_url || '/placeholder-product.jpg'}
+                alt={product.name}
+                className="h-full w-full object-contain"
+                onError={(e) => {
+                  e.currentTarget.src = '/placeholder-product.jpg';
+                }}
+              />
+              
+              {/* Magnifying Glass Overlay */}
+              {showZoomPreview && (
+                <div 
+                  className="absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
+                  style={{
+                    left: `${mousePosition.x}%`,
+                    top: `${mousePosition.y}%`,
+                    transform: 'translate(-50%, -50%)'
+                  }}
+                >
+                  <div className="w-full h-full rounded-full overflow-hidden">
+                    <img
+                      src={product.images && product.images.length > 0 
+                        ? product.images[selectedImage].image_url 
+                        : product.image_url || '/placeholder-product.jpg'}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                      style={{
+                        transform: `scale(3)`,
+                        transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
+                      }}
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder-product.jpg';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            
+             {/* Zoomed Image Preview - Right Side */}
+             {showZoomPreview && (
+               <div className="absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
+                <img
+                  src={product.images && product.images.length > 0 
+                    ? product.images[selectedImage].image_url 
+                    : product.image_url || '/placeholder-product.jpg'}
+                  alt={product.name}
+                  className="w-full h-full object-contain"
+                  style={{
+                    transform: `scale(3)`,
+                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.src = '/placeholder-product.jpg';
+                  }}
+                />
               </div>
             )}
           </div>
@@ -320,25 +381,19 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
                   Quantity
                 </label>
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center">
                   <button
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-10 h-10 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
+                    className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
                   >
                     -
                   </button>
-                  <input
-                    type="number"
-                    id="quantity"
-                    value={quantity}
-                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                    min="1"
-                    max={product.stock_quantity}
-                    className="w-16 text-center border border-gray-300 rounded-md py-2"
-                  />
+                  <span className="w-8 text-center text-sm font-medium text-gray-900">
+                    {quantity}
+                  </span>
                   <button
                     onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
-                    className="w-10 h-10 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
+                    className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
                   >
                     +
                   </button>

@@ -19,7 +19,6 @@ interface ProductFormData {
   description: string;
   price: string;
   original_price: string;
-  discount_percentage: string;
   badge: string;
   category: string;
   subcategories: string[]; // Changed from single subcategory to array
@@ -58,7 +57,6 @@ export default function NewProductPage() {
     description: '',
     price: '',
     original_price: '',
-    discount_percentage: '0',
     badge: '',
     category: '',
     subcategories: [], // Changed from single subcategory to array
@@ -300,7 +298,6 @@ export default function NewProductPage() {
           description: formData.description.trim(),
           price: parseFloat(formData.price),
           original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-          discount_percentage: parseInt(formData.discount_percentage) || 0,
           badge: formData.badge.trim() || null,
           category: formData.category,
           image_url: formData.image_url.trim() || null,
@@ -493,24 +490,6 @@ export default function NewProductPage() {
                 <p className="mt-1 text-xs text-gray-500">Leave empty if no discount</p>
               </div>
 
-              {/* Discount Percentage */}
-              <div>
-                <label htmlFor="discount_percentage" className="block text-sm font-medium text-gray-700">
-                  Discount Percentage (%)
-                </label>
-                <input
-                  type="number"
-                  name="discount_percentage"
-                  id="discount_percentage"
-                  min="0"
-                  max="100"
-                  value={formData.discount_percentage}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="0"
-                />
-                <p className="mt-1 text-xs text-gray-500">0-100%</p>
-              </div>
 
               {/* Product Badge */}
               <div>

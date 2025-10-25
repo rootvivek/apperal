@@ -83,9 +83,8 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     }
   };
 
-  // Calculate discount percentage if not provided
+  // Calculate discount percentage automatically
   const calculateDiscountPercentage = () => {
-    if (product.discount_percentage) return product.discount_percentage;
     if (product.original_price && product.original_price > product.price) {
       return Math.round(((product.original_price - product.price) / product.original_price) * 100);
     }
@@ -227,20 +226,18 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           </div>
         )}
         
-        <div className="flex flex-col space-y-1">
-          <div className="flex items-center space-x-2">
-            <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
-              ₹{product.price.toFixed(2)}
-            </span>
-            {hasDiscount && (
-              <span className="text-xs text-red-500 font-medium">
-                {discountPercentage}% off
-              </span>
-            )}
-          </div>
+        <div className="flex items-center space-x-2">
+          <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+            ₹{product.price.toFixed(2)}
+          </span>
           {hasDiscount && product.original_price && (
             <span className="text-sm text-gray-500 line-through">
               ₹{product.original_price.toFixed(2)}
+            </span>
+          )}
+          {hasDiscount && (
+            <span className="text-xs text-red-500 font-medium">
+              {discountPercentage}% off
             </span>
           )}
         </div>

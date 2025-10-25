@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import { useSearchParams } from 'next/navigation';
 
 interface CheckoutFormData {
   email: string;
@@ -25,6 +26,55 @@ interface CheckoutFormData {
 export default function CheckoutPage() {
   const { user } = useAuth();
   const { cartItems, loading: cartLoading } = useCart();
+  const searchParams = useSearchParams();
+  
+  const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
+  const [isDirectPurchase, setIsDirectPurchase] = useState(false);
+  const [formData, setFormData] = useState<CheckoutFormData>({
+    email: '',
+    firstName: '',
+    lastName: '',
+    address: '',
+    apartment: '',
+    city: '',
+    state: '',
+    zipCode: '',
+    phone: '',
+    cardNumber: '',
+    expiryDate: '',
+    cvv: '',
+    cardName: '',
+    billingSameAsShipping: true
+  });
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // Handle direct purchase from URL parameters
+  useEffect(() => {
+    const direct = searchParams.get('direct');
+    const productId = searchParams.get('productId');
+    const quantity = searchParams.get('quantity');
+    
+    if (direct === 'true' && productId && quantity) {
+      setIsDirectPurchase(true);
+      // For now, we'll use the cart items but filter to only show the direct purchase item
+      // In a real implementation, you'd fetch the product details here
+      setDirectPurchaseItems([{
+        product: cartItems.find(item => item.product.id === productId)?.product,
+        quantity: parseInt(quantity)
+      }].filter(item => item.product));
+    }
+  }, [searchParams, cartItems]);
+
+  // Update form data when user is available
+  useEffect(() => {
+    if (user?.email) {
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || ''
+      }));
+    }
+  }, [user]);
   
   // Redirect to login if not authenticated
   if (!user) {
@@ -40,29 +90,10 @@ export default function CheckoutPage() {
       </div>
     );
   }
-  
-  const [formData, setFormData] = useState<CheckoutFormData>({
-    email: user?.email || '',
-    firstName: '',
-    lastName: '',
-    address: '',
-    apartment: '',
-    city: '',
-    state: '',
-    zipCode: '',
-    phone: '',
-    cardNumber: '',
-    expiryDate: '',
-    cvv: '',
-    cardName: '',
-    billingSameAsShipping: true
-  });
-
-  const [errors, setErrors] = useState<{[key: string]: string}>({});
-  const [isProcessing, setIsProcessing] = useState(false);
 
   const getSubtotal = () => {
-    return cartItems.reduce((total, item) => total + (item.product.price * item.quantity), 0);
+    const items = isDirectPurchase ? directPurchaseItems : cartItems;
+    return items.reduce((total, item) => total + (item.product.price * item.quantity), 0);
   };
 
   const getShipping = () => {
@@ -86,7 +117,7 @@ export default function CheckoutPage() {
     );
   }
 
-  if (cartItems.length === 0) {
+  if (cartItems.length === 0 && !isDirectPurchase) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -390,7 +421,7 @@ export default function CheckoutPage() {
                     </Link>
                   </div>
                 ) : (
-                  cartItems.map((item) => (
+                  (isDirectPurchase ? directPurchaseItems : cartItems).map((item) => (
                     <div key={item.id} className="flex items-center space-x-3">
                       <img
                         src={item.product.image_url || '/placeholder-product.jpg'}
