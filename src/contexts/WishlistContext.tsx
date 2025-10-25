@@ -34,7 +34,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         if (savedWishlist) {
           const parsedWishlist = JSON.parse(savedWishlist);
           setWishlist(parsedWishlist);
-          console.log('Loaded wishlist from localStorage:', parsedWishlist);
         } else {
           setWishlist([]);
         }

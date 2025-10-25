@@ -12,7 +12,7 @@ interface ProductCardProduct {
   discount_percentage?: number; // Discount percentage
   badge?: string; // Product badge (NEW, SALE, HOT, etc.)
   category: string | { id: string; name: string; slug: string; image: string; subcategories: any[] };
-  subcategory: string;
+  subcategories: string[]; // Changed from single subcategory to array
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
@@ -56,7 +56,7 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
         image: '',
         subcategories: []
       },
-      subcategory: productCardProduct.subcategory,
+      subcategories: productCardProduct.subcategories || [],
       brand: '',
       sizes: [],
       colors: [],
@@ -121,12 +121,6 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
         </div>
       )}
 
-      {/* Discount Badge */}
-      {hasDiscount && (
-        <div className="absolute top-3 right-12 z-10 px-2 py-1 rounded-md text-xs font-semibold bg-red-500 text-white">
-          -{discountPercentage}%
-        </div>
-      )}
 
       {/* Wishlist Button */}
       <button
@@ -164,27 +158,22 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
               console.log('ProductCard - First image:', firstImage, 'Type:', typeof firstImage);
               // If it's a string (from wishlist), use it directly
               if (typeof firstImage === 'string') {
-                console.log('ProductCard - Using string image:', firstImage);
                 return firstImage;
               }
               // If it's an object (from product detail), use image_url
               if (typeof firstImage === 'object' && firstImage.image_url) {
-                console.log('ProductCard - Using object image:', firstImage.image_url);
                 return firstImage.image_url;
               }
             }
             // Fallback to product.image_url or placeholder
-            const fallbackUrl = product.image_url || '/placeholder-product.jpg';
-            console.log('ProductCard - Using fallback image:', fallbackUrl);
-            return fallbackUrl;
+            return product.image_url || '/placeholder-product.jpg';
           })()}
           alt={product.name}
           className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
-            console.error('ProductCard - Image failed to load:', e.currentTarget.src);
             e.currentTarget.src = '/placeholder-product.jpg';
           }}
-          onLoad={() => console.log('ProductCard - Image loaded successfully:', product.name)}
+          onLoad={() => {}}
         />
         {!product.is_active && !hideStockOverlay && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
@@ -199,21 +188,40 @@ export default function ProductCard({ product, hideStockOverlay = false }: Produ
           {product.name}
         </h3>
         
-        <div className="flex items-center justify-between">
-          <div className="flex flex-col">
-            <div className="flex items-center space-x-2">
-              <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
-                ₹{product.price.toFixed(2)}
-              </span>
-              {hasDiscount && product.original_price && (
-                <span className="text-sm text-gray-500 line-through">
-                  ₹{product.original_price.toFixed(2)}
+        {/* Subcategories */}
+        {product.subcategories && product.subcategories.length > 0 && (
+          <div className="mb-2">
+            <div className="flex flex-wrap gap-1">
+              {product.subcategories.slice(0, 3).map((subcategory, index) => (
+                <span
+                  key={index}
+                  className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
+                >
+                  {subcategory}
+                </span>
+              ))}
+              {product.subcategories.length > 3 && (
+                <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
+                  +{product.subcategories.length - 3} more
                 </span>
               )}
             </div>
+          </div>
+        )}
+        
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <span className="text-base font-semibold text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+              ₹{product.price.toFixed(2)}
+            </span>
+            {hasDiscount && product.original_price && (
+              <span className="text-sm text-gray-500 line-through">
+                ₹{product.original_price.toFixed(2)}
+              </span>
+            )}
             {hasDiscount && (
-              <span className="text-xs text-green-600 font-medium">
-                You save ₹{(product.original_price! - product.price).toFixed(2)}
+              <span className="text-xs text-red-500 font-medium">
+                {discountPercentage}% off
               </span>
             )}
           </div>

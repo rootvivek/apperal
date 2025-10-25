@@ -22,7 +22,7 @@ interface ProductFormData {
   discount_percentage: string;
   badge: string;
   category: string;
-  subcategory: string;
+  subcategories: string[]; // Changed from single subcategory to array
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
@@ -49,6 +49,7 @@ export default function NewProductPage() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false);
+  const [customSubcategory, setCustomSubcategory] = useState('');
   const supabase = createClient();
 
   const [formData, setFormData] = useState<ProductFormData>({
@@ -59,7 +60,7 @@ export default function NewProductPage() {
     discount_percentage: '0',
     badge: '',
     category: '',
-    subcategory: '',
+    subcategories: [], // Changed from single subcategory to array
     image_url: '',
     stock_quantity: '',
     is_active: true,
@@ -73,6 +74,17 @@ export default function NewProductPage() {
     return subcategories;
   };
 
+  // Add custom subcategory
+  const addCustomSubcategory = () => {
+    if (customSubcategory.trim() && !formData.subcategories.includes(customSubcategory.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        subcategories: [...prev.subcategories, customSubcategory.trim()]
+      }));
+      setCustomSubcategory('');
+    }
+  };
+
   // Fetch subcategories when category changes
   const fetchSubcategories = async (categoryName: string) => {
     if (!categoryName) {
@@ -82,22 +94,59 @@ export default function NewProductPage() {
 
     try {
       setSubcategoriesLoading(true);
-      // Find the selected category to get its ID
+      
+      // First, try to get subcategories from the categories table (parent-child relationship)
       const selectedCategory = categories.find(cat => cat.name === categoryName);
-      if (!selectedCategory) {
-        setSubcategories([]);
-        return;
+      let subcategoriesData = [];
+
+      if (selectedCategory) {
+        // Fetch subcategories that have this category as parent
+        const { data: categorySubcategories, error: categoryError } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('parent_category_id', selectedCategory.id)
+          .order('name', { ascending: true });
+
+        if (!categoryError && categorySubcategories) {
+          subcategoriesData = categorySubcategories;
+        }
       }
 
-      // Fetch subcategories that have this category as parent
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('parent_category_id', selectedCategory.id)
-        .order('name', { ascending: true });
+      // If no subcategories found in categories table, try to get from existing products
+      if (subcategoriesData.length === 0) {
+        const { data: productSubcategories, error: productError } = await supabase
+          .from('products')
+          .select('subcategory')
+          .eq('category', categoryName)
+          .not('subcategory', 'is', null)
+          .not('subcategory', 'eq', '');
 
-      if (error) throw error;
-      setSubcategories(data || []);
+        if (!productError && productSubcategories) {
+          // Get unique subcategories from existing products
+          const uniqueSubcategories = [...new Set(productSubcategories.map(p => p.subcategory))];
+          subcategoriesData = uniqueSubcategories.map((name, index) => ({
+            id: `temp-${index}`,
+            name: name,
+            slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            description: '',
+            parent_category_id: selectedCategory?.id || null
+          }));
+        }
+      }
+
+      // If still no subcategories, provide some common ones based on category
+      if (subcategoriesData.length === 0) {
+        const commonSubcategories = getCommonSubcategories(categoryName);
+        subcategoriesData = commonSubcategories.map((name, index) => ({
+          id: `common-${index}`,
+          name: name,
+          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          description: '',
+          parent_category_id: selectedCategory?.id || null
+        }));
+      }
+
+      setSubcategories(subcategoriesData);
     } catch (err: any) {
       console.error('Error fetching subcategories:', err);
       setSubcategories([]);
@@ -106,23 +155,38 @@ export default function NewProductPage() {
     }
   };
 
+  // Helper function to provide common subcategories based on category
+  const getCommonSubcategories = (categoryName: string) => {
+    const subcategoryMap: { [key: string]: string[] } = {
+      "Men's Clothing": ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Jackets", "Hoodies", "Sweaters"],
+      "Women's Clothing": ["Dresses", "Tops", "Blouses", "Pants", "Jeans", "Skirts", "Jackets", "Sweaters"],
+      "Kids' Clothing": ["T-Shirts", "Dresses", "Pants", "Shorts", "Jackets", "Sleepwear", "School Uniforms"],
+      "Accessories": ["Bags", "Wallets", "Belts", "Hats", "Scarves", "Jewelry", "Watches", "Sunglasses"],
+      "Electronics": ["Phones", "Laptops", "Tablets", "Headphones", "Chargers", "Cases", "Cables"],
+      "Mobile Covers": ["iPhone Cases", "Samsung Cases", "Google Cases", "OnePlus Cases", "Generic Cases"],
+      "Footwear": ["Sneakers", "Boots", "Sandals", "Heels", "Flats", "Athletic Shoes", "Dress Shoes"]
+    };
+
+    return subcategoryMap[categoryName] || ["General", "Popular", "New Arrivals", "Best Sellers"];
+  };
+
   // Reset subcategory when category changes
   const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newCategory = e.target.value;
     setFormData(prev => ({
       ...prev,
       category: newCategory,
-      subcategory: '' // Reset subcategory when category changes
+      subcategories: [] // Reset subcategories when category changes
     }));
     
     // Fetch subcategories for the new category
     fetchSubcategories(newCategory);
     
-    // Clear subcategory validation error
-    if (validationErrors.subcategory) {
+    // Clear subcategories validation error
+    if (validationErrors.subcategories) {
       setValidationErrors(prev => ({
         ...prev,
-        subcategory: ''
+        subcategories: ''
       }));
     }
   };
@@ -204,8 +268,8 @@ export default function NewProductPage() {
       errors.category = 'Category is required';
     }
 
-    if (!formData.subcategory) {
-      errors.subcategory = 'Subcategory is required';
+    if (formData.subcategories.length === 0) {
+      errors.subcategories = 'At least one subcategory is required';
     }
 
     if (!formData.stock_quantity || parseInt(formData.stock_quantity) < 0) {
@@ -237,7 +301,6 @@ export default function NewProductPage() {
           discount_percentage: parseInt(formData.discount_percentage) || 0,
           badge: formData.badge.trim() || null,
           category: formData.category,
-          subcategory: formData.subcategory,
           image_url: formData.image_url.trim() || null,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
@@ -246,6 +309,20 @@ export default function NewProductPage() {
         .single();
 
       if (productError) throw productError;
+
+      // Insert subcategories
+      if (formData.subcategories.length > 0) {
+        const subcategoryInserts = formData.subcategories.map(subcategory => ({
+          product_id: productData.id,
+          subcategory_name: subcategory.trim()
+        }));
+
+        const { error: subcategoriesError } = await supabase
+          .from('product_subcategories')
+          .insert(subcategoryInserts);
+
+        if (subcategoriesError) throw subcategoriesError;
+      }
 
       // Then, insert product images if any
       if (formData.images.length > 0) {
@@ -505,39 +582,90 @@ export default function NewProductPage() {
                 )}
               </div>
 
-              {/* Subcategory */}
+              {/* Subcategories */}
               <div>
-                <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700">
-                  Subcategory *
+                <label className="block text-sm font-medium text-gray-700">
+                  Subcategories *
                 </label>
-                <select
-                  name="subcategory"
-                  id="subcategory"
-                  value={formData.subcategory}
-                  onChange={handleChange}
-                  disabled={!formData.category || subcategoriesLoading}
-                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                    validationErrors.subcategory ? 'border-red-300' : ''
-                  } ${!formData.category || subcategoriesLoading ? 'bg-gray-50' : ''}`}
-                >
-                  <option value="">
-                    {!formData.category 
-                      ? 'Select a category first' 
-                      : subcategoriesLoading 
-                        ? 'Loading subcategories...' 
-                        : subcategories.length === 0
-                          ? 'No subcategories available'
-                          : 'Select a subcategory'
-                    }
-                  </option>
-                  {getAvailableSubcategories().map(subcategory => (
-                    <option key={subcategory.id} value={subcategory.name}>
-                      {subcategory.name}
-                    </option>
-                  ))}
-                </select>
-                {validationErrors.subcategory && (
-                  <p className="mt-1 text-sm text-red-600">{validationErrors.subcategory}</p>
+                <div className="mt-1 space-y-2">
+                  {!formData.category ? (
+                    <p className="text-sm text-gray-500">Select a category first</p>
+                  ) : subcategoriesLoading ? (
+                    <p className="text-sm text-gray-500">Loading subcategories...</p>
+                  ) : subcategories.length === 0 ? (
+                    <p className="text-sm text-gray-500">No subcategories available</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {getAvailableSubcategories().map(subcategory => (
+                        <label key={subcategory.id} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            value={subcategory.name}
+                            checked={formData.subcategories.includes(subcategory.name)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (e.target.checked) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  subcategories: [...prev.subcategories, value]
+                                }));
+                              } else {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  subcategories: prev.subcategories.filter(s => s !== value)
+                                }));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{subcategory.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {validationErrors.subcategories && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.subcategories}</p>
+                )}
+                {formData.subcategories.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500">Selected: {formData.subcategories.join(', ')}</p>
+                  </div>
+                )}
+                
+                {/* Custom Subcategory Input */}
+                {formData.category && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Add Custom Subcategory
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customSubcategory}
+                        onChange={(e) => setCustomSubcategory(e.target.value)}
+                        placeholder="Enter custom subcategory name"
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addCustomSubcategory();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomSubcategory}
+                        disabled={!customSubcategory.trim() || formData.subcategories.includes(customSubcategory.trim())}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Add custom subcategories that aren't in the list above
+                    </p>
+                  </div>
                 )}
               </div>
 

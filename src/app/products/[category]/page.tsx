@@ -11,6 +11,7 @@ interface Category {
   slug: string;
   description: string;
   image_url: string;
+  parent_category_id: string | null;
 }
 
 interface Product {
@@ -33,13 +34,30 @@ interface CategoryPageProps {
 
 export default function CategoryPage({ params }: CategoryPageProps) {
   const [category, setCategory] = useState<Category | null>(null);
+  const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     fetchCategoryAndProducts();
   }, [params.category]);
+
+  // Filter products by subcategory
+  useEffect(() => {
+    if (selectedSubcategory === 'all') {
+      setFilteredProducts(products);
+    } else {
+      const filtered = products.filter(product => product.subcategory === selectedSubcategory);
+      setFilteredProducts(filtered);
+    }
+  }, [selectedSubcategory, products]);
+
+  const handleSubcategoryClick = (subcategoryName: string) => {
+    setSelectedSubcategory(subcategoryName);
+  };
 
   const fetchCategoryAndProducts = async () => {
     try {
@@ -60,6 +78,20 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
       setCategory(categoryData);
 
+      // Fetch subcategories for this category
+      const { data: subcategoriesData, error: subcategoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('parent_category_id', categoryData.id)
+        .order('name', { ascending: true });
+
+      if (subcategoriesError) {
+        console.error('Error fetching subcategories:', subcategoriesError);
+        setSubcategories([]);
+      } else {
+        setSubcategories(subcategoriesData || []);
+      }
+
       // Fetch products for this category
       const { data: productsData, error: productsError } = await supabase
         .from('products')
@@ -71,8 +103,10 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       if (productsError) {
         console.error('Error fetching products:', productsError);
         setProducts([]);
+        setFilteredProducts([]);
       } else {
         setProducts(productsData || []);
+        setFilteredProducts(productsData || []);
       }
     } catch (error) {
       console.error('Error:', error);
@@ -111,34 +145,106 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         </div>
       </div>
 
-      {/* Products Grid */}
+      {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {products.length} Products
-          </h2>
-          <div className="flex items-center space-x-4">
-            <select className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-              <option>Sort by: Featured</option>
-              <option>Price: Low to High</option>
-              <option>Price: High to Low</option>
-              <option>Customer Rating</option>
-              <option>Newest</option>
-            </select>
+        <div className="flex flex-col lg:flex-row gap-8">
+          {/* Left Sidebar - Subcategories */}
+          <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
+            <div className="bg-white rounded-lg shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Subcategories</h3>
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleSubcategoryClick('all')}
+                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                    selectedSubcategory === 'all'
+                      ? 'bg-blue-100 text-blue-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }`}
+                >
+                  All Products ({products.length})
+                </button>
+                {subcategories.map((subcategory) => {
+                  const subcategoryProductCount = products.filter(
+                    product => product.subcategory === subcategory.name
+                  ).length;
+                  
+                  return (
+                    <button
+                      key={subcategory.id}
+                      onClick={() => handleSubcategoryClick(subcategory.name)}
+                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                        selectedSubcategory === subcategory.name
+                          ? 'bg-blue-100 text-blue-700 font-medium'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {subcategory.name} ({subcategoryProductCount})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* Right Content - Products */}
+          <div className="flex-1">
+            {/* Mobile Subcategory Selector */}
+            <div className="lg:hidden mb-6">
+              <select
+                value={selectedSubcategory}
+                onChange={(e) => handleSubcategoryClick(e.target.value)}
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              >
+                <option value="all">All Products ({products.length})</option>
+                {subcategories.map((subcategory) => {
+                  const subcategoryProductCount = products.filter(
+                    product => product.subcategory === subcategory.name
+                  ).length;
+                  return (
+                    <option key={subcategory.id} value={subcategory.name}>
+                      {subcategory.name} ({subcategoryProductCount})
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-gray-900">
+                {selectedSubcategory === 'all' 
+                  ? `All Products (${filteredProducts.length})`
+                  : `${selectedSubcategory} (${filteredProducts.length})`
+                }
+              </h2>
+              <div className="flex items-center space-x-4">
+                <select className="border border-gray-300 rounded-md px-3 py-2 text-sm">
+                  <option>Sort by: Featured</option>
+                  <option>Price: Low to High</option>
+                  <option>Price: High to Low</option>
+                  <option>Customer Rating</option>
+                  <option>Newest</option>
+                </select>
+              </div>
+            </div>
+
+            {filteredProducts.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                {filteredProducts.map((product) => (
+                  <ProductCard key={product.id} product={product} />
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-500 text-lg">
+                  {selectedSubcategory === 'all' 
+                    ? 'No products found in this category.'
+                    : `No products found in ${selectedSubcategory}.`
+                  }
+                </p>
+              </div>
+            )}
           </div>
         </div>
-
-        {products.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No products found in this category.</p>
-          </div>
-        )}
       </div>
     </div>
   );

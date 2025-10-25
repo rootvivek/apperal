@@ -7,7 +7,7 @@ export interface Product {
   originalPrice?: number;
   images: string[];
   category: ProductCategory;
-  subcategory: string;
+  subcategories: string[]; // Changed from single subcategory to array
   brand: string;
   sizes: string[];
   colors: string[];
