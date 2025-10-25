@@ -49,6 +49,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
+      console.log('Fetching related products for category:', category, 'excluding product:', currentProductId);
       setRelatedLoading(true);
       const { data, error } = await supabase
         .from('products')
@@ -64,6 +65,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         return;
       }
 
+      console.log('Related products found:', data?.length || 0);
       if (data) {
         // Fetch images for each related product
         const productsWithImages = await Promise.all(
@@ -413,31 +415,35 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         </div>
 
         {/* Related Products Section */}
-        {relatedProducts.length > 0 && (
-          <div className="mt-16">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Related Products</h2>
-              <p className="text-gray-600">You might also like these products</p>
-            </div>
-            
-            {relatedLoading ? (
-              <div className="flex justify-center items-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-2 text-gray-600">Loading related products...</span>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {relatedProducts.map((relatedProduct) => (
-                  <ProductCard 
-                    key={relatedProduct.id} 
-                    product={relatedProduct}
-                    showCategoryAndStock={false}
-                  />
-                ))}
-              </div>
-            )}
+        <div className="mt-16">
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Related Products</h2>
+            <p className="text-gray-600">You might also like these products</p>
           </div>
-        )}
+          
+          {relatedLoading ? (
+            <div className="flex justify-center items-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Loading related products...</span>
+            </div>
+          ) : relatedProducts.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {relatedProducts.map((relatedProduct) => (
+                <ProductCard 
+                  key={relatedProduct.id} 
+                  product={relatedProduct}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No related products found.</p>
+              <p className="text-sm text-gray-400 mt-2">
+                Debug: Related products count: {relatedProducts.length}
+              </p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
