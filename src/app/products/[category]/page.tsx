@@ -75,65 +75,46 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     try {
       setLoading(true);
       
-      // Fetch category
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('slug', params.category)
-        .single();
+      // ULTRA-FAST: Single database call using optimized function
+      const { data: result, error } = await supabase.rpc('get_category_products', {
+        category_slug_param: params.category
+      });
 
-      if (categoryError) {
-        console.error('Error fetching category:', categoryError);
+      if (error) {
+        console.error('Error fetching category data:', error);
         notFound();
         return;
       }
 
-      setCategory(categoryData);
-
-      // Fetch subcategories for this category
-      const { data: subcategoriesData, error: subcategoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('parent_category_id', categoryData.id)
-        .order('name', { ascending: true });
-
-      if (subcategoriesError) {
-        console.error('Error fetching subcategories:', subcategoriesError);
-        setSubcategories([]);
-      } else {
-        setSubcategories(subcategoriesData || []);
+      if (!result) {
+        notFound();
+        return;
       }
 
-      // Fetch products for this category with additional images
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_images (
-            id,
-            image_url,
-            alt_text,
-            display_order
-          )
-        `)
-        .eq('category', categoryData.name)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // Set category data
+      setCategory(result.category);
 
-      if (productsError) {
-        console.error('Error fetching products:', productsError);
-        setProducts([]);
-        setFilteredProducts([]);
-      } else {
-        // Transform products to include images array
-        const transformedProducts = productsData?.map(product => ({
-          ...product,
-          images: product.product_images || []
-        })) || [];
-        
-        setProducts(transformedProducts);
-        setFilteredProducts(transformedProducts);
-      }
+      // Set subcategories
+      setSubcategories(result.subcategories || []);
+
+      // Transform and set products
+      const transformedProducts = result.products?.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: result.category.name,
+        subcategory: '',
+        image_url: product.main_image_url,
+        stock_quantity: 0,
+        is_active: true,
+        created_at: product.created_at,
+        updated_at: product.created_at,
+        images: product.additional_images || []
+      })) || [];
+
+      setProducts(transformedProducts);
+      setFilteredProducts(transformedProducts);
     } catch (error) {
       console.error('Error:', error);
       notFound();

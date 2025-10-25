@@ -53,21 +53,10 @@ export default function SearchPage() {
       setLoading(true);
       setError(null);
 
-      // Search products by name, description, category, and subcategory with additional images
-      const { data, error: searchError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_images (
-            id,
-            image_url,
-            alt_text,
-            display_order
-          )
-        `)
-        .eq('is_active', true)
-        .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%,subcategory.ilike.%${searchQuery}%`)
-        .order('created_at', { ascending: false });
+      // ULTRA-FAST: Single database call using optimized function
+      const { data: result, error: searchError } = await supabase.rpc('search_products', {
+        search_query: searchQuery
+      });
 
       if (searchError) {
         console.error('Search error:', searchError);
@@ -75,10 +64,20 @@ export default function SearchPage() {
         return;
       }
 
-      // Transform products to include images array
-      const transformedProducts = data?.map(product => ({
-        ...product,
-        images: product.product_images || []
+      // Transform data to match existing component expectations
+      const transformedProducts = result?.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: '',
+        subcategory: '',
+        image_url: product.main_image_url,
+        stock_quantity: 0,
+        is_active: true,
+        created_at: product.created_at,
+        updated_at: product.created_at,
+        images: product.additional_images || []
       })) || [];
 
       setProducts(transformedProducts);

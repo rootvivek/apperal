@@ -66,66 +66,44 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
     try {
       setLoading(true);
       
-      // Fetch category
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('slug', params.category)
-        .single();
+      // ULTRA-FAST: Single database call using optimized function
+      const { data: result, error } = await supabase.rpc('get_subcategory_products', {
+        category_slug_param: params.category,
+        subcategory_slug_param: params.subcategory
+      });
 
-      if (categoryError) {
-        console.error('Error fetching category:', categoryError);
+      if (error) {
+        console.error('Error fetching subcategory data:', error);
         notFound();
         return;
       }
 
-      setCategory(categoryData);
-
-      // Fetch subcategory
-      const { data: subcategoryData, error: subcategoryError } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('slug', params.subcategory)
-        .eq('parent_category_id', categoryData.id)
-        .single();
-
-      if (subcategoryError) {
-        console.error('Error fetching subcategory:', subcategoryError);
+      if (!result) {
         notFound();
         return;
       }
 
-      setSubcategory(subcategoryData);
+      // Set category and subcategory data
+      setCategory(result.category);
+      setSubcategory(result.subcategory);
 
-      // Fetch products for this subcategory with additional images
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select(`
-          *,
-          product_images (
-            id,
-            image_url,
-            alt_text,
-            display_order
-          )
-        `)
-        .eq('category', categoryData.name)
-        .eq('subcategory', subcategoryData.name)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+      // Transform and set products
+      const transformedProducts = result.products?.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: result.category.name,
+        subcategory: result.subcategory.name,
+        image_url: product.main_image_url,
+        stock_quantity: 0,
+        is_active: true,
+        created_at: product.created_at,
+        updated_at: product.created_at,
+        images: product.additional_images || []
+      })) || [];
 
-      if (productsError) {
-        console.error('Error fetching products:', productsError);
-        setProducts([]);
-      } else {
-        // Transform products to include images array
-        const transformedProducts = productsData?.map(product => ({
-          ...product,
-          images: product.product_images || []
-        })) || [];
-        
-        setProducts(transformedProducts);
-      }
+      setProducts(transformedProducts);
     } catch (error) {
       console.error('Error:', error);
       notFound();

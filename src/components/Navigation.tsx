@@ -37,11 +37,15 @@ export default function Navigation() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
+  const [dataFetched, setDataFetched] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
-    fetchCategories();
-  }, []);
+    // Only fetch data if not already fetched (prevents refetch on refresh)
+    if (!dataFetched) {
+      fetchCategories();
+    }
+  }, [dataFetched]);
 
   useEffect(() => {
     // Close mobile search when clicking outside (but keep open when keyboard is active)
@@ -68,40 +72,22 @@ export default function Navigation() {
 
   const fetchCategories = async () => {
     try {
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .is('parent_category_id', null)
-        .order('name', { ascending: true });
+      setCategoriesLoading(true);
+      
+      // ULTRA-FAST: Single database call using optimized function
+      const { data: result, error } = await supabase.rpc('get_navigation_categories');
 
-      if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
+      if (error) {
+        console.error('Error fetching categories:', error);
+        setCategories([]);
         return;
       }
 
-      // Fetch subcategories for each category
-      const categoriesWithSubcategories = await Promise.all(
-        (categoriesData || []).map(async (category) => {
-          const { data: subcategoriesData, error: subcategoriesError } = await supabase
-            .from('categories')
-            .select('*')
-            .eq('parent_category_id', category.id)
-            .order('name', { ascending: true });
-
-          if (subcategoriesError) {
-            console.error(`Error fetching subcategories for ${category.name}:`, subcategoriesError);
-          }
-
-          return {
-            ...category,
-            subcategories: subcategoriesData || []
-          };
-        })
-      );
-
-      setCategories(categoriesWithSubcategories);
+      setCategories(result || []);
+      setDataFetched(true); // Mark data as fetched
     } catch (error) {
       console.error('Error fetching categories:', error);
+      setCategories([]);
     } finally {
       setCategoriesLoading(false);
     }

@@ -99,5 +99,11 @@ function createMockClient() {
         eq: () => Promise.resolve({ data: null, error: null }),
       }),
     }),
+    rpc: () => Promise.resolve({ 
+      data: null, 
+      error: { 
+        message: 'RPC functions not available in mock mode. Please set up your Supabase project first.' 
+      } 
+    }),
   }
 }

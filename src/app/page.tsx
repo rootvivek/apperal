@@ -53,13 +53,86 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
+  // Simple cache to prevent refetching on refresh
+  const [dataFetched, setDataFetched] = useState(false);
+
   useEffect(() => {
-    fetchData();
-  }, []);
+    // Only fetch data if not already fetched (prevents refetch on refresh)
+    if (!dataFetched) {
+      fetchData();
+    }
+  }, [dataFetched]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
+      
+      // ULTRA-FAST: Single database call using optimized function
+      const { data: result, error } = await supabase.rpc('get_home_page_data');
+
+      if (error) {
+        console.error('Error fetching home data:', error);
+        
+        // FALLBACK: Use original query method if optimized function fails
+        await fetchDataFallback();
+        return;
+      }
+
+      // Extract data from the optimized response
+      const allProducts = result?.all_products || [];
+      const categorySections = result?.category_sections || [];
+      
+      // Transform data to match existing component expectations
+      const transformedAllProducts = allProducts.map((product: any) => ({
+        id: product.id,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: '',
+        subcategory: '',
+        image_url: product.main_image_url,
+        stock_quantity: 0,
+        is_active: true,
+        created_at: product.created_at,
+        updated_at: product.created_at,
+        images: product.additional_images || []
+      }));
+
+      const transformedCategorySections = categorySections.map((section: any) => ({
+        category: section.category,
+        products: section.products.map((product: any) => ({
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: section.category.name,
+          subcategory: '',
+          image_url: product.main_image_url,
+          stock_quantity: 0,
+          is_active: true,
+          created_at: product.created_at,
+          updated_at: product.created_at,
+          images: product.additional_images || []
+        }))
+      }));
+
+      setAllProducts(transformedAllProducts);
+      setCategorySections(transformedCategorySections);
+      setCategories(categorySections.map((s: any) => s.category));
+      setDataFetched(true); // Mark data as fetched
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setAllProducts([]);
+      setCategorySections([]);
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // FALLBACK: Original query method if optimized function fails
+  const fetchDataFallback = async () => {
+    try {
       
       // Fetch all active products with their additional images
       const { data: allProductsData, error: allProductsError } = await supabase
@@ -117,7 +190,6 @@ export default function Home() {
             console.error(`Error fetching products for ${category.name}:`, categoryProductsError);
           }
 
-          // Show ALL categories, even if they have no products
           categorySectionsData.push({
             category,
             products: categoryProducts || []
@@ -143,13 +215,12 @@ export default function Home() {
       setAllProducts(transformedAllProducts);
       setCategorySections(transformedCategorySections);
       setCategories(categoriesData || []);
+      setDataFetched(true);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Fallback error:', error);
       setAllProducts([]);
       setCategorySections([]);
       setCategories([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -157,10 +228,18 @@ export default function Home() {
     return (
       <main className="min-h-screen">
         <HeroCarousel />
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading products...</p>
+        {/* Show skeleton loading for better UX */}
+        <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, index) => (
+              <div key={index} className="bg-gray-200 animate-pulse rounded-lg">
+                <div className="aspect-[4/5] bg-gray-300 rounded-t-lg"></div>
+                <div className="p-4 space-y-2">
+                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
+                  <div className="h-3 bg-gray-300 rounded w-1/2"></div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </main>
