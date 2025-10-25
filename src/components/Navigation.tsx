@@ -2,12 +2,14 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { createClient } from '@/lib/supabase/client';
 import CartIcon from './CartIcon';
 import WishlistIcon from './WishlistIcon';
+import SearchBar from './SearchBar';
 
 interface Category {
   id: string;
@@ -31,13 +33,38 @@ export default function Navigation() {
   const { user, signOut, loading, signingOut } = useAuth();
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
+  const router = useRouter();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [showMobileSearch, setShowMobileSearch] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
     fetchCategories();
   }, []);
+
+  useEffect(() => {
+    // Close mobile search when clicking outside (but keep open when keyboard is active)
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showMobileSearch) {
+        const target = event.target as Element;
+        const searchContainer = document.getElementById('mobile-search-container');
+        const searchInput = document.getElementById('mobile-search-input');
+        
+        if (searchContainer && !searchContainer.contains(target) && !searchInput?.contains(target)) {
+          closeMobileSearch();
+        }
+      }
+    };
+
+    if (showMobileSearch) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMobileSearch]);
 
   const fetchCategories = async () => {
     try {
@@ -100,17 +127,25 @@ export default function Navigation() {
     return user.email || 'User';
   };
 
+  const openMobileSearch = () => {
+    setShowMobileSearch(true);
+  };
+
+  const closeMobileSearch = () => {
+    setShowMobileSearch(false);
+  };
+
   return (
     <nav className="bg-white shadow-sm border-b">
-      <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
-        <div className="flex justify-between items-center h-16 sm:h-20">
+      <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full"} style={{ paddingLeft: showMobileSearch ? '0px' : '6px', paddingRight: showMobileSearch ? '0px' : '6px' }}>
+        <div className="flex justify-between items-center h-16 sm:h-20 relative">
           {/* Logo */}
-          <Link href="/" className="flex items-center">
-            <span className="text-2xl sm:text-3xl font-bold text-gray-900">Apperal</span>
+          <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
+            <span className="text-2xl sm:text-3xl font-bold text-gray-900 mr-0">Apperal</span>
           </Link>
 
           {/* Categories Navigation - Hidden on mobile, visible on larger screens */}
-          <div className="hidden lg:flex items-center space-x-6 ml-12">
+          <div className={`hidden lg:flex items-center space-x-6 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {categoriesLoading ? (
               <div className="text-gray-500 text-sm">Loading...</div>
             ) : (
@@ -150,43 +185,45 @@ export default function Navigation() {
           </div>
 
           {/* Search Bar - Hidden on mobile, visible on larger screens */}
-          <div className="hidden sm:flex flex-1 mx-4 lg:mx-8">
-            <div className="relative w-full">
-              <input
-                type="text"
-                placeholder="Search products..."
-                className="w-full px-4 py-2 pl-10 pr-4 text-gray-700 bg-gray-100 border border-gray-300 rounded-[999px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
+          {!showMobileSearch && <SearchBar variant="desktop" />}
+
+          {/* Mobile Search Bar - Outside of hidden container */}
+          {showMobileSearch && (
+            <div className="sm:hidden w-full flex items-center px-4">
+              <SearchBar variant="mobile" onClose={closeMobileSearch} />
             </div>
-          </div>
+          )}
 
           {/* Right side icons */}
-          <div className="flex items-center space-x-2 sm:space-x-3 h-16">
+          <div className={`flex items-center space-x-2 sm:space-x-3 h-16 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {/* Mobile Search Icon */}
-            <button className="sm:hidden text-gray-700 hover:text-blue-600 p-2">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </button>
+            {!showMobileSearch && (
+              <button 
+                onClick={() => {
+                  console.log('Mobile search icon clicked');
+                  openMobileSearch();
+                }}
+                className="sm:hidden text-gray-700 hover:text-blue-600 p-2"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </button>
+            )}
 
             {/* Wishlist Icon */}
-            <Link href="/wishlist" className="text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2">
+            <Link href="/wishlist" className={`text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
             
             {user && (
-              <Link href="/cart" className="text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2">
+              <Link href="/cart" className={`text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
                 <CartIcon showCount={true} count={cartCount} />
               </Link>
             )}
             
             {/* Auth Section */}
-            <div className="flex items-center space-x-2 sm:space-x-3 ml-1 sm:ml-2 h-full">
+            <div className={`flex items-center space-x-2 sm:space-x-3 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`}>
               {loading ? (
                 <div className="text-gray-500 text-xs sm:text-sm flex items-center h-full">Loading...</div>
               ) : user ? (
@@ -209,24 +246,38 @@ export default function Navigation() {
                 </div>
               ) : (
                 <>
+                  {/* Mobile: User Icon */}
                   <Link
                     href="/login"
-                    className="text-gray-700 hover:text-blue-600 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors"
+                    className="sm:hidden text-gray-700 hover:text-blue-600 p-2"
                   >
-                    Sign In
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
                   </Link>
-                  <Link
-                    href="/signup"
-                    className="bg-blue-600 text-white px-3 sm:px-4 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    Sign Up
-                  </Link>
+                  
+                  {/* Desktop: Sign In and Sign Up buttons */}
+                  <div className="hidden sm:flex items-center space-x-2">
+                    <Link
+                      href="/login"
+                      className="text-gray-700 hover:text-blue-600 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors"
+                    >
+                      Sign In
+                    </Link>
+                    <Link
+                      href="/signup"
+                      className="bg-blue-600 text-white px-3 sm:px-4 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors"
+                    >
+                      Sign Up
+                    </Link>
+                  </div>
                 </>
               )}
-            </div>
+              </div>
           </div>
         </div>
       </div>
+
     </nav>
   );
 }

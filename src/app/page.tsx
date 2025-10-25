@@ -131,9 +131,12 @@ export default function Home() {
 
       {/* Categories Section */}
       <section className="py-8 bg-gray-50">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Shop by Category</h2>
+        <div className="w-full px-1.5 sm:px-6 lg:px-8">
+          <div className="text-center mb-6 hidden sm:block">
+            <h2 className="text-2xl font-bold text-gray-900 mb-4">
+              <span className="sm:hidden">Shop by Subcategory</span>
+              <span className="hidden sm:inline">Shop by Category</span>
+            </h2>
           </div>
           <CategoryGrid categories={categories} />
         </div>
@@ -141,7 +144,7 @@ export default function Home() {
 
       {/* All Products Section */}
       <section className="py-8 bg-white">
-        <div className="w-full px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-1.5 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">All Products</h2>
           </div>
@@ -188,7 +191,7 @@ export default function Home() {
         
         return (
           <section key={section.category.id} className={`py-16 ${bgColor}`}>
-            <div className="w-full px-4 sm:px-6 lg:px-8">
+            <div className="w-full px-1.5 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.category.name}</h2>
               </div>

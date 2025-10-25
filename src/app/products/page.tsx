@@ -67,7 +67,7 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white py-6">
-        <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '20px', paddingRight: '20px' }}>
+        <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Our Products</h1>
             <p className="text-xl text-gray-600">
@@ -77,7 +77,7 @@ export default function ProductsPage() {
         </div>
       </div>
       
-      <div className="max-w-[1450px] mx-auto w-full px-5">
+      <div className="max-w-[1450px] mx-auto w-full px-1.5 sm:px-5">
         <CategoryGrid categories={categories} />
       </div>
     </div>

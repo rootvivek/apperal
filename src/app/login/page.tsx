@@ -164,7 +164,7 @@ export default function LoginPage() {
                           setFormData(prev => ({ ...prev, phone: value }));
                         }}
                         className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="8881765192"
+                        placeholder="Type phone number"
                       />
                     </div>
                     <p className="mt-1 text-xs text-gray-500">

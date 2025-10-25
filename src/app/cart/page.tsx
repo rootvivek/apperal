@@ -51,7 +51,7 @@ export default function CartPage() {
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-[1450px] mx-auto w-full py-12" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+        <div className="max-w-[1450px] mx-auto w-full py-12" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>

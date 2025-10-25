@@ -227,7 +227,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
         {/* Breadcrumb */}
         <nav className="flex mb-8" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
@@ -277,7 +277,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             {/* Main Image */}
             <div 
-              className="flex-1 aspect-square overflow-hidden rounded-lg bg-white cursor-crosshair relative"
+              className="flex-1 aspect-square overflow-hidden rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default"
               onMouseEnter={() => setShowZoomPreview(true)}
               onMouseLeave={() => setShowZoomPreview(false)}
               onMouseMove={(e) => {
@@ -301,7 +301,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Magnifying Glass Overlay */}
               {showZoomPreview && (
                 <div 
-                  className="absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
+                  className="hidden sm:block absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
                   style={{
                     left: `${mousePosition.x}%`,
                     top: `${mousePosition.y}%`,
@@ -330,7 +330,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
              {/* Zoomed Image Preview - Right Side */}
              {showZoomPreview && (
-               <div className="absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
+               <div className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
                 <img
                   src={product.images && product.images.length > 0 
                     ? product.images[selectedImage].image_url 

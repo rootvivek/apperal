@@ -145,7 +145,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       </div>
 
       {/* Main Content */}
-        <div className="max-w-[1450px] mx-auto w-full py-4" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+        <div className="max-w-[1450px] mx-auto w-full py-4" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Sidebar - Subcategories */}
           <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
