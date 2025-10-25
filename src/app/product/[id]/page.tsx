@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useWishlist } from '@/contexts/WishlistContext';
 import { createClient } from '@/lib/supabase/client';
 import CartIcon from '@/components/CartIcon';
 import ProductCard from '@/components/ProductCard';
@@ -41,6 +42,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [error, setError] = useState<string | null>(null);
   const { addToCart } = useCart();
   const { user } = useAuth();
+  const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
   const supabase = createClient();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -48,6 +50,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [isAddedToCart, setIsAddedToCart] = useState(false);
   const [showZoomPreview, setShowZoomPreview] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [isSharing, setIsSharing] = useState(false);
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
@@ -210,6 +213,75 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     });
   };
 
+  const handleWishlistToggle = () => {
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    if (product && wishlistItems) {
+      const isInWishlist = wishlistItems.some(item => item.id === product.id);
+      if (isInWishlist) {
+        removeFromWishlist(product.id);
+      } else {
+        addToWishlist(product);
+      }
+    }
+  };
+
+  const handleShare = async () => {
+    if (!product || isSharing) {
+      console.error('No product data available for sharing or already sharing');
+      return;
+    }
+
+    setIsSharing(true);
+    console.log('Share button clicked');
+
+    const shareData = {
+      title: product.name,
+      text: `Check out this product: ${product.name}`,
+      url: window.location.href,
+    };
+
+    console.log('Attempting to share:', shareData);
+
+    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+      try {
+        await navigator.share(shareData);
+        console.log('Successfully shared via Web Share API');
+      } catch (err) {
+        console.log('Error sharing via Web Share API:', err);
+        // Fallback to clipboard if share was cancelled or failed
+        await copyToClipboard();
+      }
+    } else {
+      console.log('Web Share API not available, using clipboard fallback');
+      await copyToClipboard();
+    }
+
+    setIsSharing(false);
+  };
+
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      // Show a more user-friendly notification
+      const notification = document.createElement('div');
+      notification.textContent = 'Product link copied to clipboard!';
+      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 3000);
+    } catch (err) {
+      console.error('Error copying to clipboard:', err);
+      // Final fallback - show the URL in a prompt
+      prompt('Copy this link to share:', window.location.href);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -227,39 +299,62 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
-        {/* Breadcrumb */}
-        <nav className="flex mb-8" aria-label="Breadcrumb">
+      <div className="max-w-[1450px] mx-auto w-full py-2" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+        {/* Breadcrumb Navigation - Desktop only */}
+        <nav className="hidden sm:flex mb-8" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
             <li>
-              <Link href="/" className="text-gray-500 hover:text-blue-600">Home</Link>
+              <Link href="/" className="text-gray-500 hover:text-gray-700 text-sm">
+                Home
+              </Link>
             </li>
-            <li className="flex items-center">
-              <svg className="w-4 h-4 text-gray-400 mx-2" fill="currentColor" viewBox="0 0 20 20">
+            <li>
+              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
               </svg>
-              <Link href="/products" className="text-gray-500 hover:text-blue-600">Products</Link>
             </li>
-            <li className="flex items-center">
-              <svg className="w-4 h-4 text-gray-400 mx-2" fill="currentColor" viewBox="0 0 20 20">
+            <li>
+              <Link href="/products" className="text-gray-500 hover:text-gray-700 text-sm">
+                Products
+              </Link>
+            </li>
+            <li>
+              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
               </svg>
-              <span className="text-gray-900">{product.name}</span>
+            </li>
+            <li>
+              <Link 
+                href={`/products/${typeof product.category === 'string' ? product.category.toLowerCase().replace(/\s+/g, '-') : product.category?.slug || 'category'}`}
+                className="text-gray-500 hover:text-gray-700 text-sm"
+              >
+                {typeof product.category === 'string' ? product.category : product.category?.name || 'Category'}
+              </Link>
+            </li>
+            <li>
+              <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+              </svg>
+            </li>
+            <li>
+              <span className="text-gray-900 font-medium text-sm" aria-current="page">
+                {product.name}
+              </span>
             </li>
           </ol>
         </nav>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Product Images */}
-          <div className="flex gap-4 relative">
-            {/* Thumbnail Gallery - Left Side */}
+          <div className="flex gap-4">
+            {/* Thumbnail Gallery - Left (Desktop only) */}
             {product.images && product.images.length > 1 && (
-              <div className="flex flex-col gap-2">
+              <div className="hidden sm:flex flex-col gap-2">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
+                    className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
                       selectedImage === index 
                         ? 'border-blue-500' 
                         : 'border-gray-200 hover:border-gray-300'
@@ -267,17 +362,22 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   >
                     <img
                       src={image.image_url}
-                      alt={image.alt_text || `${product.name} ${index + 1}`}
-                      className="h-full w-full object-contain"
+                      alt={`${product.name} ${index + 1}`}
+                      className="w-full h-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder-product.jpg';
+                      }}
                     />
                   </button>
                 ))}
               </div>
             )}
-            
-            {/* Main Image */}
+
+            {/* Main Image Container */}
+            <div className="flex-1 space-y-4">
+              {/* Main Image */}
             <div 
-              className="flex-1 aspect-square overflow-hidden rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default"
+              className="aspect-square rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default"
               onMouseEnter={() => setShowZoomPreview(true)}
               onMouseLeave={() => setShowZoomPreview(false)}
               onMouseMove={(e) => {
@@ -287,12 +387,54 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 setMousePosition({ x, y });
               }}
             >
+              {/* Wishlist and Share Icons */}
+              <div className="absolute top-2 right-2 z-20 flex flex-col gap-2">
+                <button
+                  onClick={handleWishlistToggle}
+                  className="p-1.5 sm:p-2 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-sm transition-all duration-200"
+                >
+                  <svg 
+                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
+                      wishlistItems?.some(item => item.id === product.id) 
+                        ? 'text-red-500 fill-current' 
+                        : 'text-gray-600 hover:text-red-500'
+                    }`} 
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={handleShare}
+                  disabled={isSharing}
+                  className={`p-1.5 sm:p-2 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-sm transition-all duration-200 ${
+                    isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md'
+                  }`}
+                  title="Share this product"
+                >
+                  <svg 
+                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
+                      isSharing 
+                        ? 'text-blue-500' 
+                        : 'text-gray-600 hover:text-blue-500'
+                    }`}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                </button>
+              </div>
+
               <img
                 src={product.images && product.images.length > 0 
                   ? product.images[selectedImage].image_url 
                   : product.image_url || '/placeholder-product.jpg'}
                 alt={product.name}
-                className="h-full w-full object-contain"
+                className="h-full w-full object-contain rounded-lg overflow-hidden"
                 onError={(e) => {
                   e.currentTarget.src = '/placeholder-product.jpg';
                 }}
@@ -326,11 +468,55 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   </div>
                 </div>
               )}
+              
+              {/* Zoomed Image Preview - Right Side */}
+              {showZoomPreview && (
+                <div className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
+                  <img
+                    src={product.images && product.images.length > 0 
+                      ? product.images[selectedImage].image_url 
+                      : product.image_url || '/placeholder-product.jpg'}
+                    alt={product.name}
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `scale(3)`,
+                      transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.src = '/placeholder-product.jpg';
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+            
+            {/* Thumbnail Gallery - Bottom (Mobile only) */}
+            {product.images && product.images.length > 1 && (
+              <div className="sm:hidden flex gap-2 overflow-x-auto pb-2">
+                {product.images.map((image, index) => (
+                  <button
+                    key={image.id}
+                    onClick={() => setSelectedImage(index)}
+                    className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
+                      selectedImage === index 
+                        ? 'border-blue-500' 
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <img
+                      src={image.image_url}
+                      alt={image.alt_text || `${product.name} ${index + 1}`}
+                      className="h-full w-full object-contain"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
             </div>
             
              {/* Zoomed Image Preview - Right Side */}
              {showZoomPreview && (
-               <div className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
+               <div className="hidden sm:block absolute left-full top-0 ml-4 w-96 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden">
                 <img
                   src={product.images && product.images.length > 0 
                     ? product.images[selectedImage].image_url 
@@ -349,12 +535,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             )}
           </div>
 
+
           {/* Product Info */}
           <div className="space-y-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">{product.name}</h1>
               <div className="mt-2 flex items-center space-x-4">
-                <span className="text-3xl font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
+                <span className="text-xl sm:text-3xl font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
                 <span className="text-sm text-gray-500">
                   {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
                 </span>
@@ -399,21 +586,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   </button>
                 </div>
               </div>
-
-              {/* Login Required Message */}
-              {!user && (
-                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-blue-800 text-sm">
-                    <span className="font-medium">💡 Tip:</span> You can add items to cart, but you'll need to login to complete your purchase.
-                  </p>
-                  <Link 
-                    href="/login" 
-                    className="inline-block mt-2 text-blue-600 hover:text-blue-800 text-sm font-medium"
-                  >
-                    Login to save your cart →
-                  </Link>
-                </div>
-              )}
 
               <div className="flex space-x-4">
                 <button

@@ -25,7 +25,7 @@ export function createClient() {
 function createMockClient() {
   let authStateCallback: ((event: string, session: any) => void) | null = null;
   
-  // Create a chainable query builder
+  // Create a chainable query builder that returns a Promise
   const createQueryBuilder = () => {
     const builder = {
       eq: () => builder,
@@ -35,7 +35,11 @@ function createMockClient() {
       in: () => builder,
       select: () => builder,
     };
-    return builder;
+    
+    // Make it a proper Promise
+    const promise = Promise.resolve({ data: [], error: null });
+    Object.setPrototypeOf(builder, promise);
+    return builder as any;
   };
   
   return {
@@ -84,28 +88,16 @@ function createMockClient() {
       }),
     },
     from: () => ({
-      select: () => ({
-        eq: () => ({
-          eq: () => ({
-            order: () => ({
-              limit: () => Promise.resolve({ data: [], error: null }),
-            }),
-          }),
-          order: () => ({
-            limit: () => Promise.resolve({ data: [], error: null }),
-          }),
-        }),
-        order: () => ({
-          limit: () => Promise.resolve({ data: [], error: null }),
-        }),
-        limit: () => Promise.resolve({ data: [], error: null }),
-        is: () => ({
-          order: () => Promise.resolve({ data: [], error: null }),
-        }),
+      select: () => createQueryBuilder(),
+      insert: () => ({
+        select: () => Promise.resolve({ data: [], error: null }),
       }),
-      insert: () => Promise.resolve({ data: null, error: null }),
-      update: () => Promise.resolve({ data: null, error: null }),
-      delete: () => Promise.resolve({ data: null, error: null }),
+      update: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
+      delete: () => ({
+        eq: () => Promise.resolve({ data: null, error: null }),
+      }),
     }),
   }
 }

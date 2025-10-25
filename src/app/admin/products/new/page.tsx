@@ -645,7 +645,7 @@ export default function NewProductPage() {
                       </button>
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      Add custom subcategories that aren't in the list above
+                      Add custom subcategories that aren&apos;t in the list above
                     </p>
                   </div>
                 )}

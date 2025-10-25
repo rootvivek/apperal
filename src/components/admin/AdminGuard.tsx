@@ -76,7 +76,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           <div className="text-red-500 text-6xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
           <p className="text-gray-600 mb-4">
-            You don't have permission to access the admin panel.
+            You don&apos;t have permission to access the admin panel.
           </p>
           <p className="text-sm text-gray-500 mb-6">
             Only authorized administrators can access this area.

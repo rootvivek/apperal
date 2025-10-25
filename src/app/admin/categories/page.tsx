@@ -13,7 +13,7 @@ interface Category {
   name: string;
   slug: string;
   description: string;
-  image_url: string;
+  image_url: string | null;
   parent_category_id: string | null;
   created_at: string;
   updated_at: string;
@@ -425,7 +425,7 @@ export default function CategoriesPage() {
                           <p>If you expected to see categories, please check:</p>
                           <ul className="list-disc list-inside mt-2 space-y-1">
                             <li>Your Supabase connection is working</li>
-                            <li>The 'categories' table exists in your database</li>
+                            <li>The &apos;categories&apos; table exists in your database</li>
                             <li>You have data in the categories table</li>
                           </ul>
                         </div>
@@ -570,7 +570,7 @@ export default function CategoriesPage() {
                       ) : mainCategory.subcategories.length > 0 ? (
                         <div className="px-6 py-4 text-center bg-gray-25">
                           <p className="text-sm text-gray-500">
-                            Click "Show subcategories" to view {mainCategory.subcategories.length} subcategories
+                            Click &quot;Show subcategories&quot; to view {mainCategory.subcategories.length} subcategories
                           </p>
                         </div>
                       ) : (

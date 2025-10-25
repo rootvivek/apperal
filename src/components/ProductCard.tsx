@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useState, useEffect, useRef } from 'react';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { Product } from '@/types/product';
 
@@ -35,6 +36,16 @@ interface ProductCardProps {
 export default function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
+  
+  // State for image sliding functionality
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // State for touch/swipe functionality
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+  const [isTouching, setIsTouching] = useState(false);
 
   // Convert ProductCardProduct to Product type for wishlist
   const convertToWishlistProduct = (productCardProduct: ProductCardProduct): Product => {
@@ -93,6 +104,110 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
 
   const discountPercentage = calculateDiscountPercentage();
   const hasDiscount = discountPercentage > 0;
+
+  // Get all available images for the product
+  const getAvailableImages = () => {
+    const images = [];
+    
+    // Add main image
+    if (product.image_url) {
+      images.push(product.image_url);
+    }
+    
+    // Add additional images if they exist
+    if (product.images && product.images.length > 0) {
+      product.images.forEach((image, index) => {
+        if (typeof image === 'string' && image !== product.image_url) {
+          images.push(image);
+        } else if (typeof image === 'object' && image.image_url && image.image_url !== product.image_url) {
+          images.push(image.image_url);
+        } else if (typeof image === 'object' && image.url && image.url !== product.image_url) {
+          images.push(image.url);
+        }
+      });
+    }
+    
+    return images;
+  };
+
+  const availableImages = getAvailableImages();
+  const hasMultipleImages = availableImages.length > 1;
+
+  // Start image sliding when hovering
+  const startImageSliding = () => {
+    if (!hasMultipleImages) return;
+    
+    setIsHovered(true);
+    setCurrentImageIndex(0);
+    
+    intervalRef.current = setInterval(() => {
+      setCurrentImageIndex(prevIndex => {
+        return (prevIndex + 1) % availableImages.length;
+      });
+    }, 2000); // Change image every 2 seconds
+  };
+
+  // Stop image sliding when not hovering
+  const stopImageSliding = () => {
+    setIsHovered(false);
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    setCurrentImageIndex(0); // Reset to first image
+  };
+
+  // Touch event handlers for mobile swipe
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!hasMultipleImages) return;
+    
+    setIsTouching(true);
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+    
+    // Stop auto-sliding when user starts touching
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!hasMultipleImages) return;
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!hasMultipleImages || !touchStart || !touchEnd) {
+      setIsTouching(false);
+      return;
+    }
+    
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+
+    if (isLeftSwipe) {
+      // Swipe left - next image
+      setCurrentImageIndex(prevIndex => (prevIndex + 1) % availableImages.length);
+    } else if (isRightSwipe) {
+      // Swipe right - previous image
+      setCurrentImageIndex(prevIndex => prevIndex === 0 ? availableImages.length - 1 : prevIndex - 1);
+    }
+    
+    setIsTouching(false);
+    setTouchStart(null);
+    setTouchEnd(null);
+  };
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 
   // Badge styling
   const getBadgeStyle = (badge: string) => {
@@ -166,32 +281,63 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
       )}
 
       {/* Product Image */}
-      <div className={variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[4/5] overflow-hidden relative"}>
+      <div 
+        className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[4/5] overflow-hidden relative"} group`}
+        onMouseEnter={startImageSliding}
+        onMouseLeave={stopImageSliding}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
         <img
-          src={(() => {
-            // Handle both string array (from wishlist) and object array (from product detail)
-            if (product.images && product.images.length > 0) {
-              const firstImage = product.images[0];
-              console.log('ProductCard - First image:', firstImage, 'Type:', typeof firstImage);
-              // If it's a string (from wishlist), use it directly
-              if (typeof firstImage === 'string') {
-                return firstImage;
-              }
-              // If it's an object (from product detail), use image_url
-              if (typeof firstImage === 'object' && firstImage.image_url) {
-                return firstImage.image_url;
-              }
-            }
-            // Fallback to product.image_url or placeholder
-            return product.image_url || '/placeholder-product.jpg';
-          })()}
+          src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
           alt={product.name}
-          className={imageClasses}
+          className={`${imageClasses} transition-all duration-500`}
           onError={(e) => {
             e.currentTarget.src = '/placeholder-product.jpg';
           }}
           onLoad={() => {}}
         />
+        
+        {/* Image indicators (dots) - only show if there are multiple images */}
+        {hasMultipleImages && variant !== 'image-only' && (
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
+            {availableImages.map((_, index) => (
+              <div
+                key={index}
+                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                  index === currentImageIndex 
+                    ? 'bg-white shadow-md' 
+                    : 'bg-white bg-opacity-50'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+        
+        {/* Multiple images indicator - subtle hint */}
+        {hasMultipleImages && variant !== 'image-only' && (
+          <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full opacity-80">
+            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+            </svg>
+          </div>
+        )}
+        
+        {/* Mobile swipe hint - only show on mobile */}
+        {hasMultipleImages && variant !== 'image-only' && (
+          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 md:hidden transition-opacity duration-300">
+            Swipe
+          </div>
+        )}
+        
+        {/* Desktop hover hint - only show on desktop */}
+        {hasMultipleImages && variant !== 'image-only' && (
+          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 hidden md:block transition-opacity duration-300">
+            Hover
+          </div>
+        )}
+        
         {!product.is_active && !hideStockOverlay && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
             <span className="text-white font-medium">Out of Stock</span>

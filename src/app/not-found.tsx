@@ -31,8 +31,8 @@ export default function NotFound() {
             Oops! Page Not Found
           </h2>
           <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-            The page you're looking for seems to have wandered off into the digital void. 
-            Don't worry, even the best explorers sometimes take a wrong turn!
+            The page you&apos;re looking for seems to have wandered off into the digital void. 
+            Don&apos;t worry, even the best explorers sometimes take a wrong turn!
           </p>
         </div>
 
@@ -79,10 +79,10 @@ export default function NotFound() {
             <p className="text-sm text-gray-500 mb-4">Need help? Try these popular pages:</p>
             <div className="flex flex-wrap justify-center gap-4 text-sm">
               <Link href="/products/mens-clothing" className="text-blue-600 hover:text-blue-800 hover:underline">
-                Men's Clothing
+                Men&apos;s Clothing
               </Link>
               <Link href="/products/womens-clothing" className="text-blue-600 hover:text-blue-800 hover:underline">
-                Women's Clothing
+                Women&apos;s Clothing
               </Link>
               <Link href="/products/accessories" className="text-blue-600 hover:text-blue-800 hover:underline">
                 Accessories

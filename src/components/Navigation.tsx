@@ -136,7 +136,7 @@ export default function Navigation() {
   };
 
   return (
-    <nav className="bg-white shadow-sm border-b">
+    <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
       <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full"} style={{ paddingLeft: showMobileSearch ? '0px' : '6px', paddingRight: showMobileSearch ? '0px' : '6px' }}>
         <div className="flex justify-between items-center h-16 sm:h-20 relative">
           {/* Logo */}

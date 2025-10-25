@@ -44,13 +44,11 @@ export default function ProductsPage() {
           description,
           price,
           category,
+          subcategory,
           image_url,
           stock_quantity,
           is_active,
-          created_at,
-          product_subcategories (
-            subcategory_name
-          )
+          created_at
         `)
         .order('created_at', { ascending: false });
 
@@ -59,7 +57,7 @@ export default function ProductsPage() {
       // Transform the data to include subcategories array
       const transformedProducts = productsData?.map(product => ({
         ...product,
-        subcategories: product.product_subcategories?.map((ps: any) => ps.subcategory_name) || []
+        subcategories: product.subcategory ? [product.subcategory] : []
       })) || [];
 
       setProducts(transformedProducts);

@@ -150,7 +150,7 @@ export default function SignupPage() {
                     Account Created Successfully!
                   </h3>
                   <div className="mt-2 text-sm text-green-700">
-                    <p>We've sent a verification email to <strong>{formData.email}</strong></p>
+                    <p>We&apos;ve sent a verification email to <strong>{formData.email}</strong></p>
                     <p className="mt-1">Please check your inbox and click the verification link to activate your account.</p>
                   </div>
                   <div className="mt-3">

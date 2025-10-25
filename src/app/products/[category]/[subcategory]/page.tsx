@@ -30,6 +30,18 @@ interface Product {
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  product_images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
+  images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
 }
 
 interface SubcategoryPageProps {
@@ -85,10 +97,18 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
 
       setSubcategory(subcategoryData);
 
-      // Fetch products for this subcategory
+      // Fetch products for this subcategory with additional images
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          product_images (
+            id,
+            image_url,
+            alt_text,
+            display_order
+          )
+        `)
         .eq('category', categoryData.name)
         .eq('subcategory', subcategoryData.name)
         .eq('is_active', true)
@@ -98,7 +118,13 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
         console.error('Error fetching products:', productsError);
         setProducts([]);
       } else {
-        setProducts(productsData || []);
+        // Transform products to include images array
+        const transformedProducts = productsData?.map(product => ({
+          ...product,
+          images: product.product_images || []
+        })) || [];
+        
+        setProducts(transformedProducts);
       }
     } catch (error) {
       console.error('Error:', error);

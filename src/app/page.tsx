@@ -19,6 +19,18 @@ interface Product {
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  product_images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
+  images?: {
+    id: string;
+    image_url: string;
+    alt_text?: string;
+    display_order: number;
+  }[];
 }
 
 interface Category {
@@ -49,10 +61,18 @@ export default function Home() {
     try {
       setLoading(true);
       
-      // Fetch all active products
+      // Fetch all active products with their additional images
       const { data: allProductsData, error: allProductsError } = await supabase
         .from('products')
-        .select('*')
+        .select(`
+          *,
+          product_images (
+            id,
+            image_url,
+            alt_text,
+            display_order
+          )
+        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(8);
@@ -79,7 +99,15 @@ export default function Home() {
         for (const category of categoriesData) {
           const { data: categoryProducts, error: categoryProductsError } = await supabase
             .from('products')
-            .select('*')
+            .select(`
+              *,
+              product_images (
+                id,
+                image_url,
+                alt_text,
+                display_order
+              )
+            `)
             .eq('is_active', true)
             .eq('category', category.name)
             .order('created_at', { ascending: false })
@@ -97,8 +125,23 @@ export default function Home() {
         }
       }
 
-      setAllProducts(allProductsData || []);
-      setCategorySections(categorySectionsData);
+      // Transform products to include images array
+      const transformedAllProducts = allProductsData?.map(product => ({
+        ...product,
+        images: product.product_images || []
+      })) || [];
+
+      // Transform category products to include images array
+      const transformedCategorySections = categorySectionsData.map(section => ({
+        ...section,
+        products: section.products.map(product => ({
+          ...product,
+          images: product.product_images || []
+        }))
+      }));
+
+      setAllProducts(transformedAllProducts);
+      setCategorySections(transformedCategorySections);
       setCategories(categoriesData || []);
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -206,7 +249,7 @@ export default function Home() {
                   <div className="text-gray-400 text-6xl mb-4">📦</div>
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No products available yet</h3>
                   <p className="text-gray-500">
-                    We're working on adding products to this category. Check back soon!
+                    We&apos;re working on adding products to this category. Check back soon!
                   </p>
                 </div>
               )}
