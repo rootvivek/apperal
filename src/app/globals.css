@@ -72,6 +72,7 @@
 }
 
 /* Infinite scroll animation for hero carousel - responsive */
+/* Mobile: 1 card at a time (w-full) */
 @keyframes scroll {
   0% {
     transform: translateX(0);
@@ -102,7 +103,41 @@
   }
 }
 
-@media (min-width: 640px) {
+/* Tablet: 2 cards at a time (w-1/2) */
+@media (min-width: 768px) and (max-width: 1023px) {
+  @keyframes scroll {
+    0% {
+      transform: translateX(0);
+    }
+    20% {
+      transform: translateX(0);
+    }
+    25% {
+      transform: translateX(-50%);
+    }
+    45% {
+      transform: translateX(-50%);
+    }
+    50% {
+      transform: translateX(-100%);
+    }
+    70% {
+      transform: translateX(-100%);
+    }
+    75% {
+      transform: translateX(-150%);
+    }
+    95% {
+      transform: translateX(-150%);
+    }
+    100% {
+      transform: translateX(-200%);
+    }
+  }
+}
+
+/* Desktop: 4 cards at a time (w-1/4) */
+@media (min-width: 1024px) {
   @keyframes scroll {
     0% {
       transform: translateX(0);
@@ -140,4 +175,39 @@
 
 .animate-scroll:hover {
   animation-play-state: paused;
+}
+
+/* Hide scrollbar by default, show on hover */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+.scrollbar-hide:hover::-webkit-scrollbar {
+  display: block;
+  height: 6px;
+}
+
+.scrollbar-hide:hover::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-hide:hover::-webkit-scrollbar-thumb {
+  background-color: rgba(156, 163, 175, 0.5);
+  border-radius: 3px;
+}
+
+.scrollbar-hide:hover::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(156, 163, 175, 0.7);
+}
+
+/* Smooth scrolling */
+@supports (scroll-behavior: smooth) {
+  .overflow-x-auto {
+    scroll-behavior: smooth;
+  }
 }

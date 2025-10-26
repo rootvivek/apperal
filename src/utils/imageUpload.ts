@@ -19,6 +19,8 @@ export async function uploadImageToSupabase(
     const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
     const filePath = `${folder}/${fileName}`;
     
+    console.log('Uploading image to path:', filePath);
+    
     // Upload file to Supabase Storage
     const { data, error } = await supabase.storage
       .from(bucket)
@@ -29,6 +31,7 @@ export async function uploadImageToSupabase(
     
     if (error) {
       console.error('Upload error:', error);
+      console.error('Failed path:', filePath);
       
       // If bucket doesn't exist, try to create it
       if (error.message.includes('Bucket not found')) {

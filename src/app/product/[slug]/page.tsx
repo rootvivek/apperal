@@ -30,7 +30,7 @@ interface ProductCardProduct {
 
 interface ProductDetailPageProps {
   params: {
-    id: string;
+    slug: string;
   };
 }
 
@@ -40,6 +40,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [categorySlug, setCategorySlug] = useState<string>('');
+  const [subcategorySlug, setSubcategorySlug] = useState<string>('');
   const { addToCart } = useCart();
   const { user } = useAuth();
   const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
@@ -113,13 +115,36 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     const fetchProduct = async () => {
       try {
         setLoading(true);
-        // Load product data
-        const { data: product, error: productError } = await supabase
+        
+        console.log('Fetching product with slug:', params.slug);
+        
+        // First try to find by slug
+        let { data: product, error: productError } = await supabase
           .from('products')
-          .select('*')
-          .eq('id', params.id)
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('slug', params.slug)
           .eq('is_active', true)
-          .single();
+          .maybeSingle();
+        
+        console.log('First fetch result:', { product: !!product, error: productError });
+        
+        // If not found by slug, try by ID (for backward compatibility)
+        if (!product && !productError && params.slug && params.slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+          console.log('Trying to fetch by ID:', params.slug);
+          const { data, error } = await supabase
+            .from('products')
+            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .eq('id', params.slug)
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          console.log('ID fetch result:', { data: !!data, error });
+          
+          if (!error && data) {
+            product = data;
+            productError = null;
+          }
+        }
 
         if (productError) {
           console.error('Error fetching product:', productError);
@@ -127,50 +152,78 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           return;
         }
 
-        // Load product images (temporarily disabled until table is created)
-        let images = null;
-        let imagesError = null;
-        
-        try {
-          const result = await supabase
-            .from('product_images')
-            .select('*')
-            .eq('product_id', params.id)
-            .order('display_order', { ascending: true });
-          
-          images = result.data;
-          imagesError = result.error;
-        } catch (err) {
-          console.log('product_images table not found, using fallback');
-          images = null;
-          imagesError = null;
+        if (!product) {
+          console.error('No product found with slug:', params.slug);
+          setError('Product not found');
+          return;
         }
 
-        if (imagesError) {
-          console.error('Error fetching product images:', imagesError);
-          // If the table doesn't exist, just continue with empty images array
-        }
+        // Extract images from product_images relationship
+        const images = product.product_images || [];
+        
+        console.log('=== PRODUCT FETCH DEBUG ===');
+        console.log('URL slug param:', params.slug);
+        console.log('Product found:', !!product);
+        console.log('Product ID:', product?.id);
+        console.log('Product slug in DB:', product?.slug);
+        console.log('Product name:', product?.name);
+        console.log('Images count:', images?.length);
+        console.log('Images:', images);
+        console.log('Full product object:', product);
+        console.log('========================');
 
         if (product) {
+          // Transform product to match ProductCardProduct interface
           const productWithImages = {
-            ...product,
-            images: images || []
-          };
-          
-          // If no images from product_images table, but product has image_url, create a fake image entry
-          if ((!images || images.length === 0) && product.image_url) {
-            productWithImages.images = [{
+            id: product.id,
+            name: product.name,
+            description: product.description || '',
+            price: product.price,
+            category: product.category || '',
+            subcategory: product.subcategory || '',
+            image_url: product.image_url || '',
+            stock_quantity: product.stock_quantity || 0,
+            is_active: product.is_active || true,
+            created_at: product.created_at,
+            updated_at: product.updated_at,
+            images: images && images.length > 0 ? images : (product.image_url ? [{
               id: 'main-image',
               image_url: product.image_url,
               alt_text: product.name,
               display_order: 0
-            }];
-          }
+            }] : [])
+          };
           
+          console.log('Transformed product:', productWithImages);
           setProduct(productWithImages as ProductCardProduct);
-          // Fetch related products based on category
+          
+          // Fetch category and subcategory slugs
           const categoryName = typeof product.category === 'string' ? product.category : product.category?.name;
           if (categoryName) {
+            // Fetch category by name
+            const { data: categoryData } = await supabase
+              .from('categories')
+              .select('slug')
+              .eq('name', categoryName)
+              .single();
+            
+            if (categoryData) {
+              setCategorySlug(categoryData.slug);
+            }
+            
+            // Fetch subcategory by name if product has subcategory
+            if (product.subcategory) {
+              const { data: subcategoryData } = await supabase
+                .from('subcategories')
+                .select('slug')
+                .eq('name', product.subcategory)
+                .single();
+              
+              if (subcategoryData) {
+                setSubcategorySlug(subcategoryData.slug);
+              }
+            }
+            
             fetchRelatedProducts(categoryName, product.id);
           }
         } else {
@@ -184,10 +237,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       }
     };
 
-    if (params.id) {
+    if (params.slug) {
       fetchProduct();
     }
-  }, [params.id, supabase]);
+  }, [params.slug, supabase]);
 
   const handleAddToCart = async () => {
     if (!product) return;
@@ -294,12 +347,25 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   }
 
   if (error || !product) {
-    notFound();
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
+          <p className="text-gray-600 mb-6">The product you're looking for doesn't exist.</p>
+          <Link
+            href="/products"
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+          >
+            Browse Products
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full py-2" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
         {/* Breadcrumb Navigation - Desktop only */}
         <nav className="hidden sm:flex mb-8" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
@@ -325,12 +391,29 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </li>
             <li>
               <Link 
-                href={`/products/${typeof product.category === 'string' ? product.category.toLowerCase().replace(/\s+/g, '-') : product.category?.slug || 'category'}`}
+                href={categorySlug ? `/products/${categorySlug}` : `/products`}
                 className="text-gray-500 hover:text-gray-700 text-sm"
               >
                 {typeof product.category === 'string' ? product.category : product.category?.name || 'Category'}
               </Link>
             </li>
+            {product.subcategory && (
+              <>
+                <li>
+                  <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                </li>
+                <li>
+                  <Link 
+                    href={categorySlug && subcategorySlug ? `/products/${categorySlug}/${subcategorySlug}` : `/products/${categorySlug || 'category'}`}
+                    className="text-gray-500 hover:text-gray-700 text-sm"
+                  >
+                    {product.subcategory}
+                  </Link>
+                </li>
+              </>
+            )}
             <li>
               <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
@@ -344,7 +427,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           </ol>
         </nav>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12">
           {/* Product Images */}
           <div className="flex gap-4">
             {/* Thumbnail Gallery - Left (Desktop only) */}
@@ -374,10 +457,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             )}
 
             {/* Main Image Container */}
-            <div className="flex-1 space-y-4">
+            <div className="flex-1 space-y-4 w-full">
               {/* Main Image */}
             <div 
-              className="aspect-square rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default"
+              className="aspect-square rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default w-full max-w-full"
               onMouseEnter={() => setShowZoomPreview(true)}
               onMouseLeave={() => setShowZoomPreview(false)}
               onMouseMove={(e) => {

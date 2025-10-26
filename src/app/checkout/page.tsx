@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useSearchParams } from 'next/navigation';
@@ -23,7 +24,7 @@ interface CheckoutFormData {
   billingSameAsShipping: boolean;
 }
 
-export default function CheckoutPage() {
+function CheckoutContent() {
   const { user } = useAuth();
   const { cartItems, loading: cartLoading } = useCart();
   const searchParams = useSearchParams();
@@ -75,21 +76,6 @@ export default function CheckoutPage() {
       }));
     }
   }, [user]);
-  
-  // Redirect to login if not authenticated
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center p-6 bg-white rounded-lg shadow-md">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Login Required</h1>
-          <p className="text-gray-600 mb-6">Please sign in to proceed with checkout</p>
-          <Link href="/login" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
-            Go to Login
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const getSubtotal = () => {
     const items = isDirectPurchase ? directPurchaseItems : cartItems;
@@ -162,7 +148,7 @@ export default function CheckoutPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+      <div className="px-2 sm:px-4 md:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -488,5 +474,13 @@ export default function CheckoutPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CheckoutPage() {
+  return (
+    <AuthGuard>
+      <CheckoutContent />
+    </AuthGuard>
   );
 }

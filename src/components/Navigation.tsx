@@ -74,12 +74,12 @@ export default function Navigation() {
     try {
       setCategoriesLoading(true);
       
-      // ULTRA-FAST: Single database call using optimized function
+      // Try RPC function first, fallback to regular query if it fails
       const { data: result, error } = await supabase.rpc('get_navigation_categories');
 
       if (error) {
-        console.error('Error fetching categories:', error);
-        setCategories([]);
+        // RPC function not available, silently use fallback
+        await fetchCategoriesFallback();
         return;
       }
 
@@ -87,9 +87,51 @@ export default function Navigation() {
       setDataFetched(true); // Mark data as fetched
     } catch (error) {
       console.error('Error fetching categories:', error);
-      setCategories([]);
+      await fetchCategoriesFallback();
     } finally {
       setCategoriesLoading(false);
+    }
+  };
+
+  const fetchCategoriesFallback = async () => {
+    try {
+      // Fetch main categories (those without parent_category_id)
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('categories')
+        .select('*')
+        .is('parent_category_id', null)
+        .order('name', { ascending: true });
+
+      if (categoriesError) {
+        console.error('Error fetching categories:', categoriesError);
+        setCategories([]);
+        return;
+      }
+
+      // Fetch all subcategories
+      const { data: subcategoriesData, error: subcategoriesError } = await supabase
+        .from('subcategories')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (subcategoriesError) {
+        console.error('Error fetching subcategories:', subcategoriesError);
+        // Continue without subcategories
+      }
+
+      // Attach subcategories to their parent categories
+      const categoriesWithSubcategories = (categoriesData || []).map(category => ({
+        ...category,
+        subcategories: (subcategoriesData || []).filter(
+          subcat => subcat.parent_category_id === category.id
+        )
+      }));
+
+      setCategories(categoriesWithSubcategories);
+      setDataFetched(true);
+    } catch (error) {
+      console.error('Fallback error:', error);
+      setCategories([]);
     }
   };
 
@@ -123,7 +165,7 @@ export default function Navigation() {
 
   return (
     <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
-      <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full"} style={{ paddingLeft: showMobileSearch ? '0px' : '6px', paddingRight: showMobileSearch ? '0px' : '6px' }}>
+      <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
         <div className="flex justify-between items-center h-16 sm:h-20 relative">
           {/* Logo */}
           <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>

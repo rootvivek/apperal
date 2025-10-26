@@ -15,13 +15,17 @@ interface MultiImageUploadProps {
   currentImages?: ProductImage[];
   maxImages?: number;
   className?: string;
+  productId?: string | null;
+  userId?: string | null;
 }
 
 export default function MultiImageUpload({ 
   onImagesChange, 
   currentImages = [],
   maxImages = 5,
-  className = ""
+  className = "",
+  productId = null,
+  userId = null
 }: MultiImageUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -57,9 +61,23 @@ export default function MultiImageUpload({
     try {
       const uploadPromises = validFiles.map(async (file, index) => {
         setUploadingIndex(index);
-        const result = await uploadImageToSupabase(file, 'product-images', 'products');
+        // Organize by user, then by product
+        // Structure: {userId}/products/{productId}/
+        let folder = 'products';
+        if (userId && productId) {
+          folder = `${userId}/products/${productId}`;
+        } else if (userId) {
+          folder = `${userId}/products`;
+        } else if (productId) {
+          folder = `products/${productId}`;
+        }
+        console.log('Uploading to folder:', folder);
+        const result = await uploadImageToSupabase(file, 'product-images', folder);
+        
+        console.log('Upload result:', result);
         
         if (result.success && result.url) {
+          console.log('Image uploaded successfully. URL:', result.url);
           return {
             image_url: result.url,
             alt_text: file.name.split('.')[0],

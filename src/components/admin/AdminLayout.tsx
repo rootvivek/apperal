@@ -25,7 +25,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Admin Header */}
       <div className="bg-white shadow-sm border-b">
-        <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+        <div className="px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
               <Link href="/admin" className="flex items-center">
@@ -93,7 +93,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         <div className="flex-1 flex flex-col overflow-hidden">
           <main className="flex-1 relative overflow-y-auto focus:outline-none">
             <div className="py-6">
-              <div className="max-w-[1450px] mx-auto w-full" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+              <div className="px-2 sm:px-4 md:px-6 lg:px-8">
                 {children}
               </div>
             </div>

@@ -23,6 +23,7 @@ interface Category {
 
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
+  const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -49,29 +50,35 @@ export default function CategoriesPage() {
       setLoading(true);
       console.log('🔍 Starting to fetch categories from database...');
       
-      const { data, error } = await supabase
+      // Fetch main categories
+      const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('*')
         .order('name', { ascending: true });
 
-      if (error) {
-        console.error('❌ Database error:', error);
-        throw error;
+      if (categoriesError) {
+        console.error('❌ Categories error:', categoriesError);
+        throw categoriesError;
+      }
+
+      // Fetch subcategories
+      const { data: subcategoriesData, error: subcategoriesError } = await supabase
+        .from('subcategories')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (subcategoriesError) {
+        console.error('❌ Subcategories error:', subcategoriesError);
       }
       
       console.log('✅ Database query successful');
-      console.log('📊 Raw data from database:', data);
-      console.log('📈 Number of categories fetched:', data?.length || 0);
+      console.log('📊 Categories:', categoriesData?.length || 0);
+      console.log('📊 Subcategories:', subcategoriesData?.length || 0);
       
-      if (data && data.length > 0) {
-        console.log('📋 Category names:', data.map(cat => cat.name));
-      } else {
-        console.log('⚠️ No categories found in database');
-      }
-      
-      setCategories(data || []);
+      setCategories(categoriesData || []);
+      setSubcategories(subcategoriesData || []);
     } catch (err: any) {
-      console.error('💥 Error fetching categories:', err);
+      console.error('💥 Error fetching:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -90,7 +97,16 @@ export default function CategoriesPage() {
     setError(null);
     
     try {
-      const result = await uploadImageToSupabase(file, 'category-images', 'categories');
+      // Generate UUID for category folder
+      const categoryUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      
+      console.log('Generated category UUID:', categoryUuid);
+      
+      const result = await uploadImageToSupabase(file, 'category-images', `categories/${categoryUuid}`);
       
       if (result.success && result.url) {
         setFormData(prev => ({
@@ -120,28 +136,83 @@ export default function CategoriesPage() {
       };
 
       if (editingCategory) {
-        // Update existing category
-        const { error } = await supabase
-          .from('categories')
-          .update(categoryData)
-          .eq('id', editingCategory.id);
-
-        if (error) throw error;
+        // Update existing category or subcategory
+        // Check if it's currently in the wrong table and needs to be moved
+        const isSubcategory = !!categoryData.parent_category_id;
+        const wasSubcategory = subcategories.some(sub => sub.id === editingCategory.id);
+        const wasCategory = categories.some(cat => cat.id === editingCategory.id);
         
-        setCategories(categories.map(cat => 
-          cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
-        ));
+        if (isSubcategory && wasCategory) {
+          // Moving from categories to subcategories
+          // Delete from categories
+          await supabase.from('categories').delete().eq('id', editingCategory.id);
+          // Insert into subcategories
+          const { data } = await supabase
+            .from('subcategories')
+            .insert([categoryData])
+            .select();
+          setCategories(categories.filter(cat => cat.id !== editingCategory.id));
+          setSubcategories([...subcategories, data[0]]);
+        } else if (!isSubcategory && wasSubcategory) {
+          // Moving from subcategories to categories
+          // Delete from subcategories
+          await supabase.from('subcategories').delete().eq('id', editingCategory.id);
+          // Insert into categories
+          const { data } = await supabase
+            .from('categories')
+            .insert([categoryData])
+            .select();
+          setSubcategories(subcategories.filter(sub => sub.id !== editingCategory.id));
+          setCategories([...categories, data[0]]);
+        } else if (isSubcategory) {
+          // It's a subcategory - update in subcategories table
+          const { error } = await supabase
+            .from('subcategories')
+            .update(categoryData)
+            .eq('id', editingCategory.id);
+
+          if (error) throw error;
+          
+          setSubcategories(subcategories.map(sub => 
+            sub.id === editingCategory.id ? { ...sub, ...categoryData } : sub
+          ));
+        } else {
+          // It's a category - update in categories table
+          const { error } = await supabase
+            .from('categories')
+            .update(categoryData)
+            .eq('id', editingCategory.id);
+
+          if (error) throw error;
+          
+          setCategories(categories.map(cat => 
+            cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
+          ));
+        }
         setEditingCategory(null);
       } else {
-        // Create new category
-        const { data, error } = await supabase
-          .from('categories')
-          .insert([categoryData])
-          .select();
+        // Create new category or subcategory
+        if (categoryData.parent_category_id) {
+          // It's a subcategory - insert into subcategories table
+          const { data, error } = await supabase
+            .from('subcategories')
+            .insert([categoryData])
+            .select();
 
-        if (error) throw error;
-        
-        setCategories([...categories, data[0]]);
+          if (error) throw error;
+          
+          setSubcategories([...subcategories, data[0]]);
+        } else {
+          // It's a main category - insert into categories table
+          const { data, error } = await supabase
+            .from('categories')
+            .insert([categoryData])
+            .select();
+
+          if (error) throw error;
+          
+          setCategories([...categories, data[0]]);
+        }
       }
 
       resetForm();
@@ -182,15 +253,11 @@ export default function CategoriesPage() {
   // Group categories by parent-child relationship
   const groupedCategories = () => {
     console.log('🔄 Grouping categories...');
-    console.log('📦 All categories:', categories);
+    console.log('📦 Main categories:', categories);
+    console.log('📦 Subcategories:', subcategories);
     
-    const mainCategories = categories.filter(cat => !cat.parent_category_id);
-    const subcategories = categories.filter(cat => cat.parent_category_id);
-    
-    console.log('📁 Main categories:', mainCategories);
-    console.log('📄 Subcategories:', subcategories);
-    
-    const grouped = mainCategories.map(mainCat => ({
+    // Map subcategories to their parent categories
+    const grouped = categories.map(mainCat => ({
       ...mainCat,
       subcategories: subcategories.filter(sub => sub.parent_category_id === mainCat.id)
     }));

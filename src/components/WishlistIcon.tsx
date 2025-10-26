@@ -30,7 +30,7 @@ export default function WishlistIcon({
         />
       </svg>
       {showCount && count > 0 && (
-        <span className="wishlist-count-badge bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-md">
+        <span className="wishlist-count-badge bg-red-500 text-white text-[10px] sm:text-xs font-bold rounded-full flex items-center justify-center shadow-md">
           {count > 99 ? '99+' : count}
         </span>
       )}

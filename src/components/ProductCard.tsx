@@ -7,6 +7,7 @@ import { Product } from '@/types/product';
 
 interface ProductCardProduct {
   id: string;
+  slug?: string; // Product slug for friendly URLs
   name: string;
   price: number; // Current selling price
   original_price?: number; // Original price before discount
@@ -121,8 +122,6 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           images.push(image);
         } else if (typeof image === 'object' && image.image_url && image.image_url !== product.image_url) {
           images.push(image.image_url);
-        } else if (typeof image === 'object' && image.url && image.url !== product.image_url) {
-          images.push(image.url);
         }
       });
     }
@@ -230,7 +229,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
   // Conditional styling based on variant
   const cardClasses = variant === 'minimal' || variant === 'image-only'
     ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
-    : "group relative bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
+    : "group relative bg-white rounded shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
   
   const imageClasses = variant === 'minimal' || variant === 'image-only'
     ? "h-full w-full object-cover transition-transform duration-300"
@@ -242,11 +241,14 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     ? "hidden"
     : "p-2";
 
+  // Use slug if available, otherwise use ID for backward compatibility
+  const productUrl = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
+  
   return (
-    <Link href={`/product/${product.id}`} className={`${cardClasses} relative z-0`}>
+    <Link href={productUrl} className={`${cardClasses} relative z-0`}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
-        <div className={`absolute top-2 left-2 z-10 px-1.5 py-0.5 rounded text-xs font-medium ${getBadgeStyle(product.badge)}`}>
+        <div className={`absolute top-2 left-2 z-10 px-1 py-0.5 rounded text-[10px] sm:text-xs font-medium ${getBadgeStyle(product.badge)}`}>
           {product.badge}
         </div>
       )}

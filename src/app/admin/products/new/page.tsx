@@ -52,6 +52,9 @@ export default function NewProductPage() {
   const [customSubcategory, setCustomSubcategory] = useState('');
   const supabase = createClient();
 
+  const [userId, setUserId] = useState<string | null>(null);
+  const [productUuid, setProductUuid] = useState<string | null>(null);
+  
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     description: '',
@@ -68,6 +71,30 @@ export default function NewProductPage() {
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
+  // Get user ID and generate product UUID on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        console.log('Logged in user ID:', user.id);
+        setUserId(user.id);
+      }
+    };
+    
+    const generateUuid = () => {
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    };
+    
+    fetchUser();
+    const uuid = generateUuid();
+    console.log('Generated product UUID:', uuid);
+    setProductUuid(uuid);
+  }, []);
 
   // Get available subcategories based on selected category
   const getAvailableSubcategories = () => {
@@ -100,9 +127,9 @@ export default function NewProductPage() {
       let subcategoriesData = [];
 
       if (selectedCategory) {
-        // Fetch subcategories that have this category as parent
+        // Fetch subcategories that have this category as parent from subcategories table
         const { data: categorySubcategories, error: categoryError } = await supabase
-          .from('categories')
+          .from('subcategories')
           .select('*')
           .eq('parent_category_id', selectedCategory.id)
           .order('name', { ascending: true });
@@ -215,12 +242,34 @@ export default function NewProductPage() {
     fetchCategories();
   }, [supabase]);
 
-  // Function to generate slug from product name
-  const generateSlug = (name: string): string => {
-    return name
+  // Function to generate unique slug from product name
+  const generateUniqueSlug = async (name: string): Promise<string> => {
+    const baseSlug = name
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+      .replace(/^-+|-+$/g, '')
+      .substring(0, 100); // Limit slug length to 100 characters
+    
+    let slug = baseSlug;
+    let counter = 1;
+    
+    // Check if slug exists and append number if it does
+    while (true) {
+      const { data, error } = await supabase
+        .from('products')
+        .select('id')
+        .eq('slug', slug)
+        .single();
+      
+      // If no product found with this slug, it's unique
+      if (error || !data) {
+        return slug;
+      }
+      
+      // If slug exists, append a number
+      slug = `${baseSlug}-${counter}`;
+      counter++;
+    }
   };
 
   // Handle multiple images change
@@ -289,17 +338,21 @@ export default function NewProductPage() {
     setError(null);
 
     try {
+      // Generate unique slug
+      const uniqueSlug = await generateUniqueSlug(formData.name.trim());
+      
       // First, create the product
       const { data: productData, error: productError } = await supabase
         .from('products')
         .insert([{
           name: formData.name.trim(),
-          slug: generateSlug(formData.name.trim()),
+          slug: uniqueSlug,
           description: formData.description.trim(),
           price: parseFloat(formData.price),
           original_price: formData.original_price ? parseFloat(formData.original_price) : null,
           badge: formData.badge.trim() || null,
           category: formData.category,
+          subcategory: formData.subcategories.length > 0 ? formData.subcategories[0] : null,
           image_url: formData.image_url.trim() || null,
           stock_quantity: parseInt(formData.stock_quantity),
           is_active: formData.is_active,
@@ -310,19 +363,9 @@ export default function NewProductPage() {
 
       if (productError) throw productError;
 
-      // Insert subcategories
-      if (formData.subcategories.length > 0) {
-        const subcategoryInserts = formData.subcategories.map(subcategory => ({
-          product_id: productData.id,
-          subcategory_name: subcategory.trim()
-        }));
-
-        const { error: subcategoriesError } = await supabase
-          .from('product_subcategories')
-          .insert(subcategoryInserts);
-
-        if (subcategoriesError) throw subcategoriesError;
-      }
+      // Note: Subcategories are stored in the products table's 'subcategory' field
+      // which handles the first subcategory. Multiple subcategories are stored
+      // in the subcategories field as an array (stored in formData.subcategories).
 
       // Then, insert product images if any
       if (formData.images.length > 0) {
@@ -661,6 +704,8 @@ export default function NewProductPage() {
                   currentImages={formData.images}
                   maxImages={5}
                   className="w-full"
+                  productId={productUuid}
+                  userId={userId}
                 />
                 <p className="mt-2 text-sm text-gray-500">
                   Upload multiple images for your product. The first image will be used as the main product image.

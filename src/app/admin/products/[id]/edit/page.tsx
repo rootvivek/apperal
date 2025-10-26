@@ -93,9 +93,9 @@ export default function EditProductPage() {
         return;
       }
 
-      // Fetch subcategories that have this category as parent
+      // Fetch subcategories that have this category as parent from subcategories table
       const { data, error } = await supabase
-        .from('categories')
+        .from('subcategories')
         .select('*')
         .eq('parent_category_id', selectedCategory.id)
         .order('name', { ascending: true });

@@ -1,6 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
+import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect } from 'react';
@@ -75,38 +76,53 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     try {
       setLoading(true);
       
+      // Decode URL parameter
+      const decodedCategory = decodeURIComponent(params.category);
+      
       // ULTRA-FAST: Single database call using optimized function
       const { data: result, error } = await supabase.rpc('get_category_products', {
-        category_slug_param: params.category
+        category_slug_param: decodedCategory
       });
 
       if (error) {
-        console.error('Error fetching category data:', error);
-        notFound();
+        // RPC not available, silently fallback to regular queries
+        console.log('RPC not available, using fallback method');
+        await fetchCategoryAndProductsFallback();
         return;
       }
 
       if (!result) {
-        notFound();
+        // Fallback to regular queries
+        await fetchCategoryAndProductsFallback();
         return;
       }
 
       // Set category data
       setCategory(result.category);
 
-      // Set subcategories
-      setSubcategories(result.subcategories || []);
+      // Set subcategories from result if available
+      if (result.subcategories && result.subcategories.length > 0) {
+        setSubcategories(result.subcategories);
+      } else {
+        // Fetch subcategories separately if not in result
+        const { data: subcats } = await supabase
+          .from('subcategories')
+          .select('*')
+          .eq('parent_category_id', result.category.id);
+        setSubcategories(subcats || []);
+      }
 
       // Transform and set products
       const transformedProducts = result.products?.map((product: any) => ({
         id: product.id,
+        slug: product.slug,
         name: product.name,
         description: product.description || '',
         price: product.price,
         category: result.category.name,
-        subcategory: '',
+        subcategory: product.subcategory || '',
         image_url: product.main_image_url,
-        stock_quantity: 0,
+        stock_quantity: product.stock_quantity || 0,
         is_active: true,
         created_at: product.created_at,
         updated_at: product.created_at,
@@ -117,9 +133,83 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       setFilteredProducts(transformedProducts);
     } catch (error) {
       console.error('Error:', error);
-      notFound();
+      // Fallback to regular queries
+      await fetchCategoryAndProductsFallback();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchCategoryAndProductsFallback = async () => {
+    try {
+      // Decode URL parameter to handle encoding issues
+      const decodedCategory = decodeURIComponent(params.category);
+      
+      // Fetch category by slug
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('slug', decodedCategory)
+        .single();
+
+      if (categoryError || !categoryData) {
+        console.error('Category not found:', categoryError);
+        // Don't call notFound() - show empty results instead
+        setCategory(null);
+        setProducts([]);
+        setFilteredProducts([]);
+        setSubcategories([]);
+        return;
+      }
+
+      // Fetch subcategories for this category
+      const { data: subcategoriesData, error: subcategoriesError } = await supabase
+        .from('subcategories')
+        .select('*')
+        .eq('parent_category_id', categoryData.id);
+
+      if (!subcategoriesError && subcategoriesData) {
+        setSubcategories(subcategoriesData);
+      }
+
+      // Fetch products for this category
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*, product_images (id, image_url, alt_text, display_order)')
+        .eq('category', categoryData.name)
+        .eq('is_active', true);
+
+      if (productsError) {
+        console.error('Error fetching products:', productsError);
+        setProducts([]);
+        setCategory(categoryData);
+        return;
+      }
+
+      // Transform products
+      const transformedProducts = productsData.map((product: any) => ({
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: categoryData.name,
+        subcategory: product.subcategory || '',
+        image_url: product.image_url,
+        stock_quantity: product.stock_quantity || 0,
+        is_active: product.is_active,
+        created_at: product.created_at,
+        updated_at: product.updated_at,
+        product_images: product.product_images,
+        images: product.product_images?.map((img: any) => img.image_url) || []
+      }));
+
+      setCategory(categoryData);
+      setProducts(transformedProducts);
+      setFilteredProducts(transformedProducts);
+    } catch (error) {
+      console.error('Fallback error:', error);
+      setProducts([]);
     }
   };
 
@@ -137,14 +227,29 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   }
 
   if (!category) {
-    notFound();
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+          <div className="text-center py-12">
+            <h1 className="text-3xl font-bold text-gray-900 mb-4">Category Not Found</h1>
+            <p className="text-gray-600 mb-8">The category you're looking for doesn't exist.</p>
+            <Link
+              href="/products"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            >
+              Browse All Products
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Category Header */}
       <div className="bg-white py-12">
-        <div className="w-full" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{category.name}</h1>
           </div>
@@ -152,7 +257,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       </div>
 
       {/* Main Content */}
-        <div className="max-w-[1450px] mx-auto w-full py-4" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Sidebar - Subcategories */}
           <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">

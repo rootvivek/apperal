@@ -229,7 +229,7 @@ export default function Home() {
       <main className="min-h-screen">
         <HeroCarousel />
         {/* Show skeleton loading for better UX */}
-        <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+        <div className="px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {[...Array(8)].map((_, index) => (
               <div key={index} className="bg-gray-200 animate-pulse rounded-lg">
@@ -247,22 +247,14 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen">
+    <main className="min-h-screen bg-white">
+      {/* Categories Section - Show after navbar */}
+      <section className="pt-1 pb-3 bg-white mb-4">
+        <CategoryGrid categories={categories} />
+      </section>
+
       {/* Hero Carousel */}
       <HeroCarousel />
-
-      {/* Categories Section */}
-      <section className="py-8 bg-gray-50">
-        <div className="w-full px-1.5 sm:px-6 lg:px-8">
-          <div className="text-center mb-6 hidden sm:block">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-              <span className="sm:hidden">Shop by Subcategory</span>
-              <span className="hidden sm:inline">Shop by Category</span>
-            </h2>
-          </div>
-          <CategoryGrid categories={categories} />
-        </div>
-      </section>
 
       {/* All Products Section */}
       <section className="py-8 bg-white">
@@ -298,7 +290,7 @@ export default function Home() {
 
       {/* Dynamic Category Sections */}
       {categorySections.map((section, index) => {
-        const bgColor = index % 2 === 0 ? 'bg-gray-50' : 'bg-white';
+        const bgColor = 'bg-white';
         const buttonColors = [
           'bg-green-600 hover:bg-green-700',
           'bg-purple-600 hover:bg-purple-700',

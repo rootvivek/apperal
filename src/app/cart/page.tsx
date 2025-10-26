@@ -1,22 +1,23 @@
 'use client';
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/contexts/AuthContext';
+import AuthGuard from '@/components/AuthGuard';
 import { useCart } from '@/contexts/CartContext';
 
-export default function CartPage() {
-  const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
 
-  // Redirect to login if not authenticated
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push('/login');
-    }
-  }, [user, authLoading, router]);
+  // Don't render if loading
+  if (cartLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading cart...</p>
+        </div>
+      </div>
+    );
+  }
 
   const getSubtotal = () => {
     return cartItems.reduce((total, item) => total + (item.product.price * item.quantity), 0);
@@ -31,8 +32,8 @@ export default function CartPage() {
     return getSubtotal() + getShipping();
   };
 
-  // Show loading while checking authentication
-  if (authLoading || cartLoading) {
+  // Show loading while checking cart data
+  if (cartLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -43,15 +44,10 @@ export default function CartPage() {
     );
   }
 
-  // Don't render anything if not authenticated (will redirect)
-  if (!user) {
-    return null;
-  }
-
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-[1450px] mx-auto w-full py-12" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
@@ -72,7 +68,7 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="w-full py-12" style={{ paddingLeft: '10px', paddingRight: '10px' }}>
+      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Shopping Cart</h1>
           <p className="mt-2 text-gray-600">{cartItems.length} item(s) in your cart</p>
@@ -205,5 +201,13 @@ export default function CartPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function CartPage() {
+  return (
+    <AuthGuard>
+      <CartContent />
+    </AuthGuard>
   );
 }

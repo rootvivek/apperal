@@ -53,34 +53,62 @@ export default function SearchPage() {
       setLoading(true);
       setError(null);
 
-      // ULTRA-FAST: Single database call using optimized function
+      // FALLBACK: Use original search query if RPC function fails
       const { data: result, error: searchError } = await supabase.rpc('search_products', {
         search_query: searchQuery
       });
 
+      let products: Product[] = [];
+
       if (searchError) {
-        console.error('Search error:', searchError);
-        setError('Failed to search products');
-        return;
+        console.log('RPC search failed, using fallback method...');
+        
+        // FALLBACK: Search using original query method
+        const { data: searchData, error } = await supabase
+          .from('products')
+          .select(`
+            *,
+            product_images (
+              id,
+              image_url,
+              alt_text,
+              display_order
+            )
+          `)
+          .eq('is_active', true)
+          .or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,category.ilike.%${searchQuery}%,subcategory.ilike.%${searchQuery}%`)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('Search error:', error);
+          setError('Failed to search products');
+          return;
+        }
+
+        // Transform products to include images array
+        products = (searchData || []).map(product => ({
+          ...product,
+          images: product.product_images || []
+        }));
+      } else {
+        // Transform data from RPC function result
+        products = (result || []).map((product: any) => ({
+          id: product.id,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: product.category || '',
+          subcategory: product.subcategory || '',
+          image_url: product.main_image_url || product.image_url,
+          stock_quantity: product.stock_quantity || 0,
+          is_active: product.is_active !== undefined ? product.is_active : true,
+          created_at: product.created_at,
+          updated_at: product.updated_at || product.created_at,
+          images: product.additional_images || []
+        }));
       }
 
-      // Transform data to match existing component expectations
-      const transformedProducts = result?.map((product: any) => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: '',
-        subcategory: '',
-        image_url: product.main_image_url,
-        stock_quantity: 0,
-        is_active: true,
-        created_at: product.created_at,
-        updated_at: product.created_at,
-        images: product.additional_images || []
-      })) || [];
-
-      setProducts(transformedProducts);
+      setProducts(products);
     } catch (error) {
       console.error('Search error:', error);
       setError('Failed to search products');
@@ -91,7 +119,7 @@ export default function SearchPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
         {/* Search Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">

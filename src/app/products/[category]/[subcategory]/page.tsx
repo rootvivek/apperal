@@ -66,20 +66,19 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
     try {
       setLoading(true);
       
-      // ULTRA-FAST: Single database call using optimized function
+      // Decode URL parameters to handle spaces and special characters
+      const decodedCategory = decodeURIComponent(params.category);
+      const decodedSubcategory = decodeURIComponent(params.subcategory);
+      
+      // Try optimized RPC function first, fallback to regular queries if it fails
       const { data: result, error } = await supabase.rpc('get_subcategory_products', {
-        category_slug_param: params.category,
-        subcategory_slug_param: params.subcategory
+        category_slug_param: decodedCategory,
+        subcategory_slug_param: decodedSubcategory
       });
 
-      if (error) {
-        console.error('Error fetching subcategory data:', error);
-        notFound();
-        return;
-      }
-
-      if (!result) {
-        notFound();
+      if (error || !result) {
+        // RPC function not available, use fallback
+        await fetchSubcategoryFallback();
         return;
       }
 
@@ -90,6 +89,7 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       // Transform and set products
       const transformedProducts = result.products?.map((product: any) => ({
         id: product.id,
+        slug: product.slug,
         name: product.name,
         description: product.description || '',
         price: product.price,
@@ -106,9 +106,104 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       setProducts(transformedProducts);
     } catch (error) {
       console.error('Error:', error);
-      notFound();
+      await fetchSubcategoryFallback();
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubcategoryFallback = async () => {
+    try {
+      // Decode URL parameters
+      const decodedCategory = decodeURIComponent(params.category);
+      const decodedSubcategory = decodeURIComponent(params.subcategory);
+      
+      // Fetch category by slug
+      const { data: categoryData, error: categoryError } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('slug', decodedCategory)
+        .single();
+
+      // Create fallback category if not found
+      const fallbackCategory = categoryError || !categoryData 
+        ? {
+            id: `fallback-${params.category}`,
+            name: params.category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            slug: params.category,
+            description: '',
+            image_url: null,
+            parent_category_id: null
+          }
+        : categoryData;
+
+      if (!fallbackCategory) {
+        setProducts([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch subcategory by slug and parent category from subcategories table
+      const { data: subcategoryData, error: subcategoryError } = await supabase
+        .from('subcategories')
+        .select('*')
+        .eq('slug', decodedSubcategory)
+        .eq('parent_category_id', fallbackCategory.id)
+        .single();
+
+      // Create fallback subcategory if not found in database
+      const fallbackSubcategory = subcategoryError || !subcategoryData 
+        ? {
+            id: `fallback-${params.subcategory}`,
+            name: params.subcategory.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            slug: params.subcategory,
+            description: '',
+            image_url: null,
+            parent_category_id: fallbackCategory.id
+          }
+        : subcategoryData;
+
+      setCategory(fallbackCategory);
+      setSubcategory(fallbackSubcategory);
+
+      // Fetch products for this subcategory
+      const subcategoryNameToSearch = fallbackSubcategory.name;
+      
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select('*, product_images (id, image_url, alt_text, display_order)')
+        .eq('subcategory', subcategoryNameToSearch)
+        .eq('is_active', true);
+
+      if (productsError) {
+        console.error('Error fetching products:', productsError);
+        setProducts([]);
+        return;
+      }
+
+      // Transform products
+      const transformedProducts = productsData.map((product: any) => ({
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: fallbackCategory.name,
+        subcategory: fallbackSubcategory.name,
+        image_url: product.image_url,
+        stock_quantity: product.stock_quantity || 0,
+        is_active: product.is_active,
+        created_at: product.created_at,
+        updated_at: product.updated_at,
+        product_images: product.product_images,
+        images: product.product_images?.map((img: any) => img.image_url) || []
+      }));
+
+      setProducts(transformedProducts);
+    } catch (error) {
+      console.error('Fallback error:', error);
+      // Don't call notFound() here - let the product display with empty subcategory data
+      setProducts([]);
     }
   };
 
@@ -132,7 +227,7 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Products Grid */}
-      <div className="max-w-[1450px] mx-auto w-full py-8" style={{ paddingLeft: '6px', paddingRight: '6px' }}>
+      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             {products.length} Products
