@@ -348,8 +348,7 @@ export default function EditProductPage() {
 
         const { error: imagesError } = await supabase
           .from('product_images')
-          .insert(imageInserts)
-          .select();
+          .insert(imageInserts);
 
         if (imagesError) {
           console.error('Error inserting product images:', imagesError);

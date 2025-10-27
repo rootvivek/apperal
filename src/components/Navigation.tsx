@@ -321,7 +321,7 @@ export default function Navigation() {
       {/* Mobile Subcategories Section - Only visible on mobile */}
       {!showMobileSearch && (
         <div className="lg:hidden bg-white border-t border-gray-100">
-          <div className="px-4 pt-1 pb-0.5">
+          <div className="px-4 pt-0 pb-0">
             {categoriesLoading ? (
               <div className="text-gray-500 text-xs text-center">Loading...</div>
             ) : getAllSubcategories().length > 0 ? (

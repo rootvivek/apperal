@@ -151,10 +151,8 @@ export default function CategoriesPage() {
             .from('subcategories')
             .insert([categoryData])
             .select();
-          if (data && data[0]) {
-            setCategories(categories.filter(cat => cat.id !== editingCategory.id));
-            setSubcategories([...subcategories, data[0]]);
-          }
+          setCategories(categories.filter(cat => cat.id !== editingCategory.id));
+          setSubcategories([...subcategories, data[0]]);
         } else if (!isSubcategory && wasSubcategory) {
           // Moving from subcategories to categories
           // Delete from subcategories
@@ -164,10 +162,8 @@ export default function CategoriesPage() {
             .from('categories')
             .insert([categoryData])
             .select();
-          if (data && data[0]) {
-            setSubcategories(subcategories.filter(sub => sub.id !== editingCategory.id));
-            setCategories([...categories, data[0]]);
-          }
+          setSubcategories(subcategories.filter(sub => sub.id !== editingCategory.id));
+          setCategories([...categories, data[0]]);
         } else if (isSubcategory) {
           // It's a subcategory - update in subcategories table
           const { error } = await supabase

@@ -60,7 +60,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   };
 
   return (
-    <div className="py-0.5 mx-3 sm:mx-6 lg:mx-8">
+    <div className="py-3 mx-3 sm:mx-6 lg:mx-8">
       {/* Desktop: Subcategories Grid - Smaller cards */}
       <div className="hidden sm:flex sm:justify-center px-1.5 sm:px-6 lg:px-8">
         <div className="flex flex-wrap justify-center gap-5">
