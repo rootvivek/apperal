@@ -86,7 +86,7 @@ export default function SearchPage() {
         }
 
         // Transform products to include images array
-        products = (searchData || []).map(product => ({
+        products = (searchData || []).map((product: any) => ({
           ...product,
           images: product.product_images || []
         }));
