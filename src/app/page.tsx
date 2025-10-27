@@ -13,6 +13,7 @@ interface Product {
   description: string;
   price: number;
   category: string;
+  subcategories: string[];
   subcategory: string;
   image_url: string;
   stock_quantity: number;
@@ -89,6 +90,7 @@ export default function Home() {
         description: product.description || '',
         price: product.price,
         category: '',
+        subcategories: [],
         subcategory: '',
         image_url: product.main_image_url,
         stock_quantity: 0,
@@ -106,6 +108,7 @@ export default function Home() {
           description: product.description || '',
           price: product.price,
           category: section.category.name,
+          subcategories: [],
           subcategory: '',
           image_url: product.main_image_url,
           stock_quantity: 0,
@@ -198,8 +201,9 @@ export default function Home() {
       }
 
       // Transform products to include images array
-      const transformedAllProducts = allProductsData?.map(product => ({
+      const transformedAllProducts = allProductsData?.map((product: any) => ({
         ...product,
+        subcategories: [],
         images: product.product_images || []
       })) || [];
 
@@ -208,6 +212,7 @@ export default function Home() {
         ...section,
         products: section.products.map(product => ({
           ...product,
+          subcategories: [],
           images: product.product_images || []
         }))
       }));
@@ -249,7 +254,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white">
       {/* Categories Section - Show after navbar */}
-      <section className="pt-1 pb-3 bg-white mb-4">
+      <section className="pt-1 pb-3 bg-white mb-1">
         <CategoryGrid categories={categories} />
       </section>
 

@@ -10,7 +10,10 @@ import { createClient } from '@/lib/supabase/client';
 import CartIcon from '@/components/CartIcon';
 import ProductCard from '@/components/ProductCard';
 
-interface ProductCardProduct {
+// Import ProductCardProduct from ProductCard
+type ProductCardProduct = Parameters<typeof ProductCard>[0]['product'];
+
+interface LocalProductData {
   id: string;
   name: string;
   description: string;
@@ -44,7 +47,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [subcategorySlug, setSubcategorySlug] = useState<string>('');
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
+  const { wishlist, addToWishlist, removeFromWishlist } = useWishlist();
   const supabase = createClient();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -76,16 +79,21 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       if (data) {
         // Fetch images for each related product
         const productsWithImages = await Promise.all(
-          data.map(async (product) => {
+          data.map(async (product: any) => {
             const { data: images } = await supabase
               .from('product_images')
               .select('*')
               .eq('product_id', product.id)
               .order('display_order', { ascending: true });
             
-            const productWithImages = {
+            const productWithImages: ProductCardProduct = {
               ...product,
-              images: images || []
+              slug: product.slug,
+              subcategories: [],
+              images: images || [],
+              created_at: product.created_at || new Date().toISOString(),
+              updated_at: product.updated_at || new Date().toISOString(),
+              subcategory: (product as any).subcategory || ''
             };
             
             // If no images from product_images table, but product has image_url, create a fake image entry
@@ -102,7 +110,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           })
         );
         
-        setRelatedProducts(productsWithImages as ProductCardProduct[]);
+        setRelatedProducts(productsWithImages);
       }
     } catch (err) {
       console.error('Error fetching related products:', err);
@@ -180,7 +188,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             description: product.description || '',
             price: product.price,
             category: product.category || '',
-            subcategory: product.subcategory || '',
+            subcategory: (product as any).subcategory || '',
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity || 0,
             is_active: product.is_active || true,
@@ -195,7 +203,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           };
           
           console.log('Transformed product:', productWithImages);
-          setProduct(productWithImages as ProductCardProduct);
+          setProduct(productWithImages as unknown as ProductCardProduct);
           
           // Fetch category and subcategory slugs
           const categoryName = typeof product.category === 'string' ? product.category : product.category?.name;
@@ -212,11 +220,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             }
             
             // Fetch subcategory by name if product has subcategory
-            if (product.subcategory) {
+            if ((product as any).subcategory) {
               const { data: subcategoryData } = await supabase
                 .from('subcategories')
                 .select('slug')
-                .eq('name', product.subcategory)
+                .eq('name', (product as any).subcategory)
                 .single();
               
               if (subcategoryData) {
@@ -266,18 +274,43 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     });
   };
 
+  const convertToWishlistProduct = (productCardProduct: ProductCardProduct): any => {
+    const p = productCardProduct as any;
+    return {
+      id: p.id,
+      name: p.name,
+      description: p.description || '',
+      price: p.price,
+      originalPrice: p.original_price || p.price,
+      images: p.images || [p.image_url || ''],
+      category: typeof p.category === 'string' 
+        ? { id: p.category, name: p.category, slug: p.category, description: '', image: '', subcategories: [] }
+        : p.category,
+      subcategories: p.subcategories || [],
+      brand: '',
+      sizes: [],
+      colors: [],
+      inStock: p.stock_quantity > 0,
+      rating: 0,
+      reviewCount: 0,
+      tags: [],
+      createdAt: new Date(p.created_at),
+      updatedAt: new Date(p.updated_at)
+    };
+  };
+
   const handleWishlistToggle = () => {
     if (!user) {
       window.location.href = '/login';
       return;
     }
     
-    if (product && wishlistItems) {
-      const isInWishlist = wishlistItems.some(item => item.id === product.id);
+    if (product && wishlist) {
+      const isInWishlist = wishlist.some(item => item.id === product.id);
       if (isInWishlist) {
         removeFromWishlist(product.id);
       } else {
-        addToWishlist(product);
+        addToWishlist(convertToWishlistProduct(product));
       }
     }
   };
@@ -351,7 +384,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
-          <p className="text-gray-600 mb-6">The product you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-6">The product you&apos;re looking for doesn&apos;t exist.</p>
           <Link
             href="/products"
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
@@ -397,7 +430,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 {typeof product.category === 'string' ? product.category : product.category?.name || 'Category'}
               </Link>
             </li>
-            {product.subcategory && (
+            {(product as any).subcategory && (
               <>
                 <li>
                   <svg className="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
@@ -409,7 +442,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                     href={categorySlug && subcategorySlug ? `/products/${categorySlug}/${subcategorySlug}` : `/products/${categorySlug || 'category'}`}
                     className="text-gray-500 hover:text-gray-700 text-sm"
                   >
-                    {product.subcategory}
+                    {(product as any).subcategory}
                   </Link>
                 </li>
               </>
@@ -433,26 +466,30 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Thumbnail Gallery - Left (Desktop only) */}
             {product.images && product.images.length > 1 && (
               <div className="hidden sm:flex flex-col gap-2">
-                {product.images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
-                      selectedImage === index 
-                        ? 'border-blue-500' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <img
-                      src={image.image_url}
-                      alt={`${product.name} ${index + 1}`}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder-product.jpg';
-                      }}
-                    />
-                  </button>
-                ))}
+                {product.images.map((image, index) => {
+                  const imageUrl = typeof image === 'string' ? image : image.image_url;
+                  const imageId = typeof image === 'string' ? index.toString() : image.id;
+                  return (
+                    <button
+                      key={imageId}
+                      onClick={() => setSelectedImage(index)}
+                      className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
+                        selectedImage === index 
+                          ? 'border-blue-500' 
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`${product.name} ${index + 1}`}
+                        className="w-full h-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder-product.jpg';
+                        }}
+                      />
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -478,7 +515,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 >
                   <svg 
                     className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
-                      wishlistItems?.some(item => item.id === product.id) 
+                      wishlist?.some(item => item.id === product.id) 
                         ? 'text-red-500 fill-current' 
                         : 'text-gray-600 hover:text-red-500'
                     }`} 
@@ -513,9 +550,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
 
               <img
-                src={product.images && product.images.length > 0 
-                  ? product.images[selectedImage].image_url 
-                  : product.image_url || '/placeholder-product.jpg'}
+                src={(() => {
+                  if (product.images && product.images.length > 0) {
+                    const image = product.images[selectedImage];
+                    return typeof image === 'string' ? image : image.image_url;
+                  }
+                  return product.image_url || '/placeholder-product.jpg';
+                })()}
                 alt={product.name}
                 className="h-full w-full object-contain rounded-lg overflow-hidden"
                 onError={(e) => {
@@ -535,9 +576,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 >
                   <div className="w-full h-full rounded-full overflow-hidden">
                     <img
-                      src={product.images && product.images.length > 0 
-                        ? product.images[selectedImage].image_url 
-                        : product.image_url || '/placeholder-product.jpg'}
+                      src={(() => {
+                        if (product.images && product.images.length > 0) {
+                          const image = product.images[selectedImage];
+                          return typeof image === 'string' ? image : image.image_url;
+                        }
+                        return product.image_url || '/placeholder-product.jpg';
+                      })()}
                       alt={product.name}
                       className="w-full h-full object-cover"
                       style={{
@@ -556,9 +601,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {showZoomPreview && (
                 <div className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
                   <img
-                    src={product.images && product.images.length > 0 
-                      ? product.images[selectedImage].image_url 
-                      : product.image_url || '/placeholder-product.jpg'}
+                    src={(() => {
+                      if (product.images && product.images.length > 0) {
+                        const image = product.images[selectedImage];
+                        return typeof image === 'string' ? image : image.image_url;
+                      }
+                      return product.image_url || '/placeholder-product.jpg';
+                    })()}
                     alt={product.name}
                     className="w-full h-full object-contain"
                     style={{
@@ -641,7 +690,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
               <div>
                 <span className="font-medium text-gray-900">Subcategory:</span>
-                <span className="ml-2 text-gray-600">{product.subcategory}</span>
+                <span className="ml-2 text-gray-600">{(product as any).subcategory}</span>
               </div>
             </div>
 
@@ -707,7 +756,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </div>
                 <div className="flex justify-between">
                   <span>Subcategory:</span>
-                  <span>{product.subcategory}</span>
+                  <span>{(product as any).subcategory}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Stock:</span>

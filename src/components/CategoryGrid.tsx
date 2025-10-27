@@ -60,65 +60,9 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   };
 
   return (
-    <div className="py-3 mx-3 sm:mx-6 lg:mx-8">
-      {/* Mobile: Subcategories Grid */}
-      <div className="sm:hidden flex justify-center px-1.5">
-        <div className="grid grid-cols-4 gap-3 max-w-full justify-items-center">
-          {subcategoriesLoading ? (
-            <div className="col-span-4 text-gray-500 text-sm text-center py-8">Loading subcategories...</div>
-          ) : subcategories.length === 0 ? (
-            // Fallback to show categories if no subcategories
-            categories.slice(0, 8).map((category) => (
-              <Link
-                key={category.id}
-                href={`/products/${category.slug}`}
-                className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300"
-              >
-                <div className="w-full aspect-square overflow-hidden mb-2 shadow-sm">
-                  <img
-                    src={category.image_url || category.image || '/images/categories/placeholder.svg'}
-                    alt={category.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/images/categories/placeholder.svg';
-                    }}
-                  />
-                </div>
-                <h3 className="text-gray-900 text-xs font-medium group-hover:text-blue-600 transition-colors">
-                  {category.name}
-                </h3>
-              </Link>
-            ))
-          ) : (
-            subcategories.map((subcategory) => (
-              <Link
-                key={subcategory.id}
-                href={`/products/${getParentCategorySlug(subcategory.parent_category_id)}/${subcategory.slug}`}
-                className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300"
-              >
-                <div className="w-full aspect-square overflow-hidden mb-2 shadow-sm">
-                  <img
-                    src={subcategory.image_url || subcategory.image || '/images/categories/placeholder.svg'}
-                    alt={subcategory.name}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = '/images/categories/placeholder.svg';
-                    }}
-                  />
-                </div>
-                <h3 className="text-gray-900 text-xs font-medium group-hover:text-blue-600 transition-colors">
-                  {subcategory.name}
-                </h3>
-              </Link>
-            ))
-          )}
-        </div>
-      </div>
-
+    <div className="py-0.5 mx-3 sm:mx-6 lg:mx-8">
       {/* Desktop: Subcategories Grid - Smaller cards */}
-      <div className="hidden sm:flex sm:justify-center">
+      <div className="hidden sm:flex sm:justify-center px-1.5 sm:px-6 lg:px-8">
         <div className="flex flex-wrap justify-center gap-5">
         {subcategoriesLoading ? (
           <div className="w-full text-gray-500 text-sm text-center py-8">Loading subcategories...</div>
@@ -172,7 +116,6 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
         )}
         </div>
       </div>
-
     </div>
   );
 }

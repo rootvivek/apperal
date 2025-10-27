@@ -74,20 +74,12 @@ export default function Navigation() {
     try {
       setCategoriesLoading(true);
       
-      // Try RPC function first, fallback to regular query if it fails
-      const { data: result, error } = await supabase.rpc('get_navigation_categories');
-
-      if (error) {
-        // RPC function not available, silently use fallback
-        await fetchCategoriesFallback();
-        return;
-      }
-
-      setCategories(result || []);
-      setDataFetched(true); // Mark data as fetched
+      // Skip RPC call and use optimized parallel queries directly
+      // This prevents timeout delays from waiting for non-existent RPC function
+      await fetchCategoriesFallback();
     } catch (error) {
       console.error('Error fetching categories:', error);
-      await fetchCategoriesFallback();
+      setCategories([]);
     } finally {
       setCategoriesLoading(false);
     }
@@ -95,35 +87,35 @@ export default function Navigation() {
 
   const fetchCategoriesFallback = async () => {
     try {
-      // Fetch main categories (those without parent_category_id)
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .is('parent_category_id', null)
-        .order('name', { ascending: true });
+      // Fetch main categories and subcategories in parallel for better performance
+      const [categoriesResult, subcategoriesResult] = await Promise.all([
+        supabase
+          .from('categories')
+          .select('*')
+          .is('parent_category_id', null)
+          .order('name', { ascending: true }),
+        supabase
+          .from('subcategories')
+          .select('*')
+          .order('name', { ascending: true })
+      ]);
 
-      if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
+      if (categoriesResult.error) {
+        console.error('Error fetching categories:', categoriesResult.error);
         setCategories([]);
         return;
       }
 
-      // Fetch all subcategories
-      const { data: subcategoriesData, error: subcategoriesError } = await supabase
-        .from('subcategories')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (subcategoriesError) {
-        console.error('Error fetching subcategories:', subcategoriesError);
+      if (subcategoriesResult.error) {
+        console.error('Error fetching subcategories:', subcategoriesResult.error);
         // Continue without subcategories
       }
 
       // Attach subcategories to their parent categories
-      const categoriesWithSubcategories = (categoriesData || []).map(category => ({
+      const categoriesWithSubcategories = (categoriesResult.data || []).map((category: Category) => ({
         ...category,
-        subcategories: (subcategoriesData || []).filter(
-          subcat => subcat.parent_category_id === category.id
+        subcategories: (subcategoriesResult.data || []).filter(
+          (subcat: Subcategory) => subcat.parent_category_id === category.id
         )
       }));
 
@@ -163,10 +155,29 @@ export default function Navigation() {
     setShowMobileSearch(false);
   };
 
+  // Get all subcategories for mobile display (unique by ID)
+  const getAllSubcategories = () => {
+    const allSubcategories: Subcategory[] = [];
+    const seenIds = new Set<string>();
+    
+    categories.forEach(category => {
+      if (category.subcategories && category.subcategories.length > 0) {
+        category.subcategories.forEach(subcat => {
+          if (!seenIds.has(subcat.id)) {
+            seenIds.add(subcat.id);
+            allSubcategories.push(subcat);
+          }
+        });
+      }
+    });
+    return allSubcategories;
+  };
+
   return (
-    <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
-      <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
-        <div className="flex justify-between items-center h-16 sm:h-20 relative">
+    <>
+      <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
+        <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
+          <div className="flex justify-between items-center h-16 sm:h-20 relative">
           {/* Logo */}
           <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
             <span className="text-2xl sm:text-3xl font-bold text-gray-900 mr-0">Apperal</span>
@@ -303,9 +314,51 @@ export default function Navigation() {
               )}
               </div>
           </div>
+          </div>
         </div>
-      </div>
+      </nav>
 
-    </nav>
+      {/* Mobile Subcategories Section - Only visible on mobile */}
+      {!showMobileSearch && (
+        <div className="lg:hidden bg-white border-t border-gray-100">
+          <div className="px-4 pt-1 pb-0.5">
+            {categoriesLoading ? (
+              <div className="text-gray-500 text-xs text-center">Loading...</div>
+            ) : getAllSubcategories().length > 0 ? (
+              <div className="grid grid-cols-5 gap-0.5">
+                {getAllSubcategories().slice(0, 20).map((subcategory) => {
+                  // Find parent category for the link
+                  const parentCategory = categories.find(cat => cat.id === subcategory.parent_category_id);
+                  return (
+                    <Link
+                      key={subcategory.id}
+                      href={`/products/${parentCategory?.slug || 'all'}/${subcategory.slug}`}
+                      className="flex flex-col items-center text-center group"
+                    >
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 overflow-hidden mb-1.5 rounded-[2px]">
+                        <img
+                          src={subcategory.image_url || '/images/categories/placeholder.svg'}
+                          alt={subcategory.name}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/images/categories/placeholder.svg';
+                          }}
+                        />
+                      </div>
+                      <span className="text-[11px] sm:text-[12px] text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2">
+                        {subcategory.name}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-gray-500 text-xs text-center">No subcategories available</div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
   );
 }

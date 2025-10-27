@@ -75,10 +75,10 @@ export default function NewProductPage() {
   // Get user ID and generate product UUID on mount
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('Logged in user ID:', user.id);
-        setUserId(user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('Logged in user ID:', session.user.id);
+        setUserId(session.user.id);
       }
     };
     
@@ -150,7 +150,7 @@ export default function NewProductPage() {
 
         if (!productError && productSubcategories) {
           // Get unique subcategories from existing products
-          const uniqueSubcategories = [...new Set(productSubcategories.map(p => p.subcategory))];
+          const uniqueSubcategories = [...new Set(productSubcategories.map((p: any) => p.subcategory))] as string[];
           subcategoriesData = uniqueSubcategories.map((name, index) => ({
             id: `temp-${index}`,
             name: name,
@@ -358,9 +358,10 @@ export default function NewProductPage() {
           is_active: formData.is_active,
           show_in_hero: formData.show_in_hero,
         }])
-        .select()
-        .single();
+        .select();
 
+      const productDataResult = productData && productData[0] ? productData[0] : null;
+      
       if (productError) throw productError;
 
       // Note: Subcategories are stored in the products table's 'subcategory' field
@@ -370,7 +371,7 @@ export default function NewProductPage() {
       // Then, insert product images if any
       if (formData.images.length > 0) {
         const imageInserts = formData.images.map(image => ({
-          product_id: productData.id,
+          product_id: productDataResult?.id,
           image_url: image.image_url,
           alt_text: image.alt_text || '',
           display_order: image.display_order
@@ -378,7 +379,8 @@ export default function NewProductPage() {
 
         const { error: imagesError } = await supabase
           .from('product_images')
-          .insert(imageInserts);
+          .insert(imageInserts)
+          .select();
 
         if (imagesError) {
           console.error('Error inserting product images:', imagesError);
