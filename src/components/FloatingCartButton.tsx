@@ -9,7 +9,8 @@ export default function FloatingCartButton() {
   const { cartCount } = useCart();
   const { user } = useAuth();
 
-  if (!user || cartCount === 0) {
+  // Show cart button if there are items in cart (whether logged in or not)
+  if (cartCount === 0) {
     return null;
   }
 

@@ -257,11 +257,10 @@ export default function Navigation() {
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
             
-            {user && (
-              <Link href="/cart" className={`text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-                <CartIcon showCount={true} count={cartCount} />
-              </Link>
-            )}
+            {/* Cart Icon - Show for all users (logged in and guests) */}
+            <Link href="/cart" className={`text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+              <CartIcon showCount={true} count={cartCount} />
+            </Link>
             
             {/* Auth Section */}
             <div className={`flex items-center space-x-2 sm:space-x-3 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`}>

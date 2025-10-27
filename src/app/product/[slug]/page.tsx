@@ -186,12 +186,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         // Extract images from product_images relationship
         const images = product.product_images || [];
         
-        console.log('=== PRODUCT FETCH DEBUG ===');
-        console.log('URL slug param:', params.slug);
-        console.log('Product found:', !!product);
-        console.log('Product ID:', product?.id);
-        console.log('Product slug in DB:', product?.slug);
-        console.log('Product name:', product?.name);
+        // Minimal debug logs retained for troubleshooting
         console.log('Images count:', images?.length);
         console.log('Images:', images);
         console.log('Full product object:', product);
@@ -206,10 +201,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             price: product.price,
             category: product.category || '',
             subcategory: product.subcategory || '',
-            subcategories: product.subcategories || product.subcategory ? [product.subcategory] : [],
+            subcategories: Array.isArray(product.subcategories)
+              ? product.subcategories
+              : (product.subcategory ? [product.subcategory] : []),
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity || 0,
-            is_active: product.is_active || true,
+            is_active: typeof product.is_active === 'boolean' ? product.is_active : true,
             created_at: product.created_at,
             updated_at: product.updated_at,
             images: images && images.length > 0 ? images : (product.image_url ? [{
@@ -268,12 +265,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     }
   }, [params.slug, supabase]);
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = () => {
     if (!product) return;
-    
-    await addToCart(product.id, quantity);
+    // Do not block the click handler on network I/O
     setIsAddedToCart(true);
     setTimeout(() => setIsAddedToCart(false), 2000);
+    void addToCart(product.id, quantity);
   };
 
   const handleBuyNow = () => {

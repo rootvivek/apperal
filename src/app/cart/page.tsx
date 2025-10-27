@@ -1,11 +1,12 @@
 'use client';
 
 import Link from 'next/link';
-import AuthGuard from '@/components/AuthGuard';
 import { useCart } from '@/contexts/CartContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
+  const { user } = useAuth();
 
   // Don't render if loading
   if (cartLoading) {
@@ -54,6 +55,11 @@ function CartContent() {
             <p className="text-lg text-gray-600 mb-8">
               Looks like you haven&apos;t added any items to your cart yet.
             </p>
+            {!user && (
+              <p className="text-sm text-gray-500 mb-4">
+                Note: Your cart items will be saved and transferred to your account when you login.
+              </p>
+            )}
             <Link
               href="/products"
               className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
@@ -188,13 +194,28 @@ function CartContent() {
                   </div>
                 </div>
                 <div className="pt-4">
-                  <Link
-                    href="/checkout"
-                    className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block"
-                  >
-                    Proceed to Checkout
-                  </Link>
+                  {!user && (
+                    <Link
+                      href="/login"
+                      className="w-full bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors text-center block mb-2"
+                    >
+                      Login to Checkout
+                    </Link>
+                  )}
+                  {user && (
+                    <Link
+                      href="/checkout"
+                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block"
+                    >
+                      Proceed to Checkout
+                    </Link>
+                  )}
                 </div>
+                {!user && (
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Your items are saved in your guest cart
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -205,9 +226,5 @@ function CartContent() {
 }
 
 export default function CartPage() {
-  return (
-    <AuthGuard>
-      <CartContent />
-    </AuthGuard>
-  );
+  return <CartContent />;
 }
