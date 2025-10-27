@@ -198,17 +198,19 @@ export default function Home() {
       }
 
       // Transform products to include images array
-      const transformedAllProducts = allProductsData?.map(product => ({
+      const transformedAllProducts = allProductsData?.map((product: any) => ({
         ...product,
-        images: product.product_images || []
+        images: product.product_images || [],
+        subcategories: []
       })) || [];
 
       // Transform category products to include images array
       const transformedCategorySections = categorySectionsData.map(section => ({
         ...section,
-        products: section.products.map(product => ({
+        products: section.products.map((product: any) => ({
           ...product,
-          images: product.product_images || []
+          images: product.product_images || [],
+          subcategories: []
         }))
       }));
 
@@ -249,7 +251,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white">
       {/* Categories Section - Show after navbar */}
-      <section className="pt-1 pb-3 bg-white mb-4">
+      <section className="pb-3 bg-white mb-4">
         <CategoryGrid categories={categories} />
       </section>
 

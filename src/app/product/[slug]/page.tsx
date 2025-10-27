@@ -17,9 +17,12 @@ interface ProductCardProduct {
   price: number;
   category: string | { id: string; name: string; slug: string; description: string; image: string; subcategories: any[] };
   subcategory: string;
+  subcategories: string[];
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
   images?: {
     id: string;
     image_url: string;
@@ -44,7 +47,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [subcategorySlug, setSubcategorySlug] = useState<string>('');
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const { wishlistItems, addToWishlist, removeFromWishlist } = useWishlist();
+  const { wishlist, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
   const supabase = createClient();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -76,7 +79,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       if (data) {
         // Fetch images for each related product
         const productsWithImages = await Promise.all(
-          data.map(async (product) => {
+          data.map(async (product: any) => {
             const { data: images } = await supabase
               .from('product_images')
               .select('*')
@@ -272,12 +275,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       return;
     }
     
-    if (product && wishlistItems) {
-      const isInWishlist = wishlistItems.some(item => item.id === product.id);
-      if (isInWishlist) {
+    if (product && wishlist) {
+      const inWishlist = isInWishlist(product.id);
+      if (inWishlist) {
         removeFromWishlist(product.id);
       } else {
-        addToWishlist(product);
+        addToWishlist(product as any);
       }
     }
   };
@@ -478,7 +481,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 >
                   <svg 
                     className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
-                      wishlistItems?.some(item => item.id === product.id) 
+                      product && isInWishlist(product.id) 
                         ? 'text-red-500 fill-current' 
                         : 'text-gray-600 hover:text-red-500'
                     }`} 
@@ -632,7 +635,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </div>
 
 
-            <div className="grid grid-cols-2 gap-4 text-sm">
+            <div className="hidden sm:grid sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="font-medium text-gray-900">Category:</span>
                 <span className="ml-2 text-gray-600">
@@ -738,10 +741,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </div>
           ) : relatedProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {relatedProducts.map((relatedProduct) => (
+              {relatedProducts.map((relatedProduct: any) => (
                 <ProductCard 
                   key={relatedProduct.id} 
-                  product={relatedProduct}
+                  product={relatedProduct as ProductCardProduct}
                 />
               ))}
             </div>

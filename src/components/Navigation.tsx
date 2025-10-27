@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
@@ -34,6 +34,7 @@ export default function Navigation() {
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const router = useRouter();
+  const pathname = usePathname();
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
@@ -318,14 +319,14 @@ export default function Navigation() {
         </div>
       </nav>
 
-      {/* Mobile Subcategories Section - Only visible on mobile */}
-      {!showMobileSearch && (
-        <div className="lg:hidden bg-white border-t border-gray-100">
-          <div className="px-4 pt-0 pb-0">
+      {/* Mobile Subcategories Section - Only visible on mobile and home page */}
+      {!showMobileSearch && pathname === '/' && (
+        <div className="md:hidden bg-white border-t border-gray-100">
+          <div className="pl-2.5 pr-2.5 pt-1 -mb-12">
             {categoriesLoading ? (
               <div className="text-gray-500 text-xs text-center">Loading...</div>
             ) : getAllSubcategories().length > 0 ? (
-              <div className="grid grid-cols-5 gap-0.5">
+              <div className="grid grid-cols-5 gap-1.5">
                 {getAllSubcategories().slice(0, 20).map((subcategory) => {
                   // Find parent category for the link
                   const parentCategory = categories.find(cat => cat.id === subcategory.parent_category_id);
@@ -335,7 +336,7 @@ export default function Navigation() {
                       href={`/products/${parentCategory?.slug || 'all'}/${subcategory.slug}`}
                       className="flex flex-col items-center text-center group"
                     >
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 overflow-hidden mb-1.5 rounded-[2px]">
+                      <div className="w-full h-20 sm:h-24 overflow-hidden mb-1.5 rounded-[2px] shadow-md">
                         <img
                           src={subcategory.image_url || '/images/categories/placeholder.svg'}
                           alt={subcategory.name}

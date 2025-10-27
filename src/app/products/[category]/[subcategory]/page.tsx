@@ -27,9 +27,12 @@ interface Product {
   price: number;
   category: string;
   subcategory: string;
+  subcategories: string[];
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
   product_images?: {
     id: string;
     image_url: string;
