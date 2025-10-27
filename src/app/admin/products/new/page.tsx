@@ -75,10 +75,10 @@ export default function NewProductPage() {
   // Get user ID and generate product UUID on mount
   useEffect(() => {
     const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        console.log('Logged in user ID:', user.id);
-        setUserId(user.id);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        console.log('Logged in user ID:', session.user.id);
+        setUserId(session.user.id);
       }
     };
     
@@ -150,8 +150,8 @@ export default function NewProductPage() {
 
         if (!productError && productSubcategories) {
           // Get unique subcategories from existing products
-          const uniqueSubcategories = [...new Set(productSubcategories.map(p => p.subcategory))];
-          subcategoriesData = uniqueSubcategories.map((name, index) => ({
+          const uniqueSubcategories = Array.from(new Set(productSubcategories.map((p: any) => p.subcategory)));
+          subcategoriesData = uniqueSubcategories.map((name: any, index: number) => ({
             id: `temp-${index}`,
             name: name,
             slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
