@@ -232,7 +232,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center py-12">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Category Not Found</h1>
-            <p className="text-gray-600 mb-8">The category you're looking for doesn't exist.</p>
+            <p className="text-gray-600 mb-8">The category you&apos;re looking for doesn&apos;t exist.</p>
             <Link
               href="/products"
               className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"

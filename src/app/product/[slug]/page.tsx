@@ -121,7 +121,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         
         console.log('Fetching product with slug:', params.slug);
         
-        // First try to find by slug
+        // First try to find by exact slug match
         let { data: product, error: productError } = await supabase
           .from('products')
           .select('*, product_images (id, image_url, alt_text, display_order)')
@@ -130,6 +130,28 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           .maybeSingle();
         
         console.log('First fetch result:', { product: !!product, error: productError });
+        
+        // If not found by exact slug, try partial match (removing trailing numbers like -1, -2, etc.)
+        if (!product && !productError) {
+          console.log('Trying partial slug match...');
+          const slugWithoutSuffix = params.slug.replace(/-\d+$/, '');
+          console.log('Searching for slug without suffix:', slugWithoutSuffix);
+          
+          const { data: partialProduct, error: partialError } = await supabase
+            .from('products')
+            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .ilike('slug', `${slugWithoutSuffix}%`)
+            .eq('is_active', true)
+            .limit(1)
+            .maybeSingle();
+          
+          console.log('Partial match result:', { product: !!partialProduct, error: partialError });
+          
+          if (!partialError && partialProduct) {
+            product = partialProduct;
+            productError = null;
+          }
+        }
         
         // If not found by slug, try by ID (for backward compatibility)
         if (!product && !productError && params.slug && params.slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
@@ -184,6 +206,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             price: product.price,
             category: product.category || '',
             subcategory: product.subcategory || '',
+            subcategories: product.subcategories || product.subcategory ? [product.subcategory] : [],
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity || 0,
             is_active: product.is_active || true,
@@ -352,9 +375,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   if (error || !product) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-2xl mx-auto px-4">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
-          <p className="text-gray-600 mb-6">The product you're looking for doesn't exist.</p>
+          <p className="text-gray-600 mb-4">The product you&apos;re looking for doesn&apos;t exist.</p>
+          <p className="text-sm text-gray-500 mb-6">
+            Slug: {params.slug}<br />
+            {error && `Error: ${error}`}
+          </p>
           <Link
             href="/products"
             className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"

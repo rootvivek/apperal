@@ -57,9 +57,9 @@ export default function AdminDashboard() {
 
       // Calculate stats
       const totalProducts = products?.length || 0;
-      const activeProducts = products?.filter(p => p.is_active).length || 0;
+      const activeProducts = products?.filter((p: any) => p.is_active).length || 0;
       const totalCategories = categories?.length || 0;
-      const totalRevenue = products?.reduce((sum, p) => sum + (p.price || 0), 0) || 0;
+      const totalRevenue = products?.reduce((sum: number, p: any) => sum + (p.price || 0), 0) || 0;
 
       setStats({
         totalProducts,
@@ -70,7 +70,7 @@ export default function AdminDashboard() {
 
       // Get recent products (last 5)
       const recent = products
-        ?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        ?.sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5) || [];
 
       setRecentProducts(recent);
