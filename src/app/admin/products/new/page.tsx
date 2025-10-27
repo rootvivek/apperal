@@ -259,7 +259,7 @@ export default function NewProductPage() {
         .from('products')
         .select('id')
         .eq('slug', slug)
-        .single();
+        .maybeSingle();
       
       // If no product found with this slug, it's unique
       if (error || !data) {
