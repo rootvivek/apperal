@@ -55,7 +55,7 @@ export default function ProductsPage() {
       if (productsError) throw productsError;
 
       // Transform the data to include subcategories array
-      const transformedProducts = productsData?.map(product => ({
+      const transformedProducts = productsData?.map((product: any) => ({
         ...product,
         subcategories: product.subcategory ? [product.subcategory] : []
       })) || [];
@@ -109,7 +109,7 @@ export default function ProductsPage() {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = [...new Set(products.map(p => p.category))];
+  const categories = Array.from(new Set(products.map((p: any) => p.category)));
 
   if (loading) {
     return (

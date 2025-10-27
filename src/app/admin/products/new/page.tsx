@@ -358,10 +358,12 @@ export default function NewProductPage() {
           is_active: formData.is_active,
           show_in_hero: formData.show_in_hero,
         }])
-        .select()
-        .single();
+        .select();
 
       if (productError) throw productError;
+      if (!productData || productData.length === 0) throw new Error('Product creation failed');
+
+      const productDataSingle = productData[0];
 
       // Note: Subcategories are stored in the products table's 'subcategory' field
       // which handles the first subcategory. Multiple subcategories are stored
@@ -370,7 +372,7 @@ export default function NewProductPage() {
       // Then, insert product images if any
       if (formData.images.length > 0) {
         const imageInserts = formData.images.map(image => ({
-          product_id: productData.id,
+          product_id: productDataSingle.id,
           image_url: image.image_url,
           alt_text: image.alt_text || '',
           display_order: image.display_order
