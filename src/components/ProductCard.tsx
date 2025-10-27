@@ -9,6 +9,7 @@ interface ProductCardProduct {
   id: string;
   slug?: string; // Product slug for friendly URLs
   name: string;
+  description?: string; // Optional description field
   price: number; // Current selling price
   original_price?: number; // Original price before discount
   discount_percentage?: number; // Discount percentage

@@ -17,6 +17,7 @@ interface Product {
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  subcategories: string[];
   created_at: string;
   updated_at: string;
   product_images?: {
@@ -88,6 +89,7 @@ export default function SearchPage() {
         // Transform products to include images array
         products = (searchData || []).map((product: any) => ({
           ...product,
+          subcategories: product.subcategory ? [product.subcategory] : [],
           images: product.product_images || []
         }));
       } else {
@@ -102,6 +104,7 @@ export default function SearchPage() {
           image_url: product.main_image_url || product.image_url,
           stock_quantity: product.stock_quantity || 0,
           is_active: product.is_active !== undefined ? product.is_active : true,
+          subcategories: product.subcategory ? [product.subcategory] : [],
           created_at: product.created_at,
           updated_at: product.updated_at || product.created_at,
           images: product.additional_images || []

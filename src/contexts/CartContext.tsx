@@ -61,19 +61,22 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       if (!cart) {
         // Create cart if it doesn't exist
-        const { data: newCart, error: createError } = await supabase
+        const { data: newCartData, error: createError } = await supabase
           .from('carts')
           .insert({ user_id: user.id })
-          .select('id')
-          .single();
+          .select('id');
 
-        if (createError) {
-          console.error('Error creating cart:', createError);
-          if (createError.message.includes('Could not find the table')) {
-            console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+        if (createError || !newCartData || newCartData.length === 0) {
+          if (createError) {
+            console.error('Error creating cart:', createError);
+            if (createError.message.includes('Could not find the table')) {
+              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+            }
           }
           return;
         }
+
+        const newCart = newCartData[0];
 
         setCartItems([]);
         return;
@@ -102,7 +105,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Transform the data to match our interface
-      const transformedItems: CartItem[] = items?.map(item => ({
+      const transformedItems: CartItem[] = items?.map((item: any) => ({
         id: item.id,
         product_id: item.product_id,
         quantity: item.quantity,
