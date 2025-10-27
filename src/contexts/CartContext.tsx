@@ -146,29 +146,34 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     try {
       // Get user's cart
-      let { data: cart, error: cartError } = await supabase
+      let { data: cartData, error: cartError } = await supabase
         .from('carts')
         .select('id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
+
+      let cart = cartData;
 
 
       if (cartError && cartError.code === 'PGRST116') {
         // Create cart if it doesn't exist
-        const { data: newCart, error: createError } = await supabase
+        const { data: newCartData, error: createError } = await supabase
           .from('carts')
           .insert({ user_id: user.id })
-          .select('id')
-          .single();
+          .select('id');
 
-        if (createError) {
-          console.error('Error creating cart:', createError);
-          if (createError.message.includes('Could not find the table')) {
-            console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-            alert('❌ Cart table missing! Please contact admin to fix this issue.');
+        if (createError || !newCartData || newCartData.length === 0) {
+          if (createError) {
+            console.error('Error creating cart:', createError);
+            if (createError.message.includes('Could not find the table')) {
+              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+              alert('❌ Cart table missing! Please contact admin to fix this issue.');
+            }
           }
           return;
         }
+
+        const newCart = newCartData[0];
         cart = newCart;
       } else if (cartError) {
         console.error('Error fetching cart:', cartError);
@@ -214,7 +219,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             cart_id: cart.id,
             product_id: productId,
             quantity: quantity
-          });
+          })
+          .select();
 
 
         if (insertError) {
