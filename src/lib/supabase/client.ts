@@ -105,5 +105,18 @@ function createMockClient() {
         message: 'RPC functions not available in mock mode. Please set up your Supabase project first.' 
       } 
     }),
+    storage: {
+      from: () => ({
+        upload: () => Promise.resolve({ 
+          data: null, 
+          error: { 
+            message: 'Storage not available in mock mode. Please set up your Supabase project first.' 
+          } 
+        }),
+        getPublicUrl: () => ({ 
+          data: { publicUrl: '' } 
+        }),
+      }),
+    },
   }
 }
