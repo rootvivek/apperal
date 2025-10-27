@@ -72,9 +72,7 @@ export default function Home() {
       const { data: result, error } = await supabase.rpc('get_home_page_data');
 
       if (error) {
-        console.error('Error fetching home data:', error);
-        
-        // FALLBACK: Use original query method if optimized function fails
+        // Silently fallback to regular queries if RPC function is not available
         await fetchDataFallback();
         return;
       }
