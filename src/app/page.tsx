@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
 import HeroCarousel from '@/components/HeroCarousel';
+import HomePageSkeleton from '@/components/HomePageSkeleton';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -227,25 +228,7 @@ export default function Home() {
   };
 
   if (loading) {
-    return (
-      <main className="min-h-screen">
-        <HeroCarousel />
-        {/* Show skeleton loading for better UX */}
-        <div className="px-2 sm:px-4 md:px-6 lg:px-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {[...Array(8)].map((_, index) => (
-              <div key={index} className="bg-gray-200 animate-pulse rounded-lg">
-                <div className="aspect-[4/5] bg-gray-300 rounded-t-lg"></div>
-                <div className="p-4 space-y-2">
-                  <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-                  <div className="h-3 bg-gray-300 rounded w-1/2"></div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </main>
-    );
+    return <HomePageSkeleton />;
   }
 
   return (
@@ -267,7 +250,7 @@ export default function Home() {
           {allProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
               {allProducts.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product as any} />
               ))}
             </div>
           ) : (
@@ -314,7 +297,7 @@ export default function Home() {
               {section.products.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
                   {section.products.map((product) => (
-                    <ProductCard key={product.id} product={product} />
+                    <ProductCard key={product.id} product={product as any} />
                   ))}
                 </div>
               ) : (

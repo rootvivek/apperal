@@ -46,6 +46,7 @@ export default function Navigation() {
     if (!dataFetched) {
       fetchCategories();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataFetched]);
 
   useEffect(() => {
@@ -176,7 +177,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-white shadow-sm border-b sticky top-0 z-50">
+      <nav className="bg-white shadow-sm border-b sticky top-0 z-50 min-h-[64px] sm:min-h-[80px]">
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center h-16 sm:h-20 relative">
           {/* Logo */}
@@ -321,10 +322,17 @@ export default function Navigation() {
 
       {/* Mobile Subcategories Section - Only visible on mobile and home page */}
       {!showMobileSearch && pathname === '/' && (
-        <div className="md:hidden bg-white border-t border-gray-100">
+        <div className="md:hidden bg-white border-t border-gray-100 min-h-[180px]">
           <div className="pl-2.5 pr-2.5 pt-1 -mb-12">
             {categoriesLoading ? (
-              <div className="text-gray-500 text-xs text-center">Loading...</div>
+              <div className="grid grid-cols-5 gap-1.5">
+                {[...Array(10)].map((_, index) => (
+                  <div key={index} className="flex flex-col items-center text-center">
+                    <div className="w-full h-20 sm:h-24 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
+                    <div className="h-3 w-12 bg-gray-200 animate-pulse rounded"></div>
+                  </div>
+                ))}
+              </div>
             ) : getAllSubcategories().length > 0 ? (
               <div className="grid grid-cols-5 gap-1.5">
                 {getAllSubcategories().slice(0, 20).map((subcategory) => {
@@ -336,7 +344,7 @@ export default function Navigation() {
                       href={`/products/${parentCategory?.slug || 'all'}/${subcategory.slug}`}
                       className="flex flex-col items-center text-center group"
                     >
-                      <div className="w-full h-20 sm:h-24 overflow-hidden mb-1.5 rounded-[2px] shadow-md">
+                      <div className="w-full h-20 sm:h-24 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
                         <img
                           src={subcategory.image_url || '/images/categories/placeholder.svg'}
                           alt={subcategory.name}
