@@ -66,7 +66,12 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     if (selectedSubcategory === 'all') {
       setFilteredProducts(products);
     } else {
-      const filtered = products.filter(product => product.subcategory === selectedSubcategory);
+      // Filter by exact subcategory name match
+      const filtered = products.filter(product => {
+        if (!product.subcategory) return false;
+        // Case-insensitive comparison for better matching
+        return product.subcategory.toLowerCase() === selectedSubcategory.toLowerCase();
+      });
       setFilteredProducts(filtered);
     }
   }, [selectedSubcategory, products]);
@@ -214,9 +219,11 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       }
 
       // Get subcategory names map for UUID-based products
+      // Fetch ALL subcategories (active and inactive) for products that already have subcategory_id
+      // This ensures products are still displayed even if their subcategory becomes inactive
       const subcategoryIds = Array.from(new Set(
         productsData
-          .filter((p: any) => p.subcategory_id && !p.subcategory)
+          .filter((p: any) => p.subcategory_id)
           .map((p: any) => p.subcategory_id)
       ));
       
@@ -224,10 +231,10 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       if (subcategoryIds.length > 0) {
         const { data: subcats } = await supabase
           .from('subcategories')
-          .select('id, name')
-          .in('id', subcategoryIds)
-          .eq('is_active', true);
+          .select('id, name, is_active')
+          .in('id', subcategoryIds);
         if (subcats) {
+          // Map all subcategories (we'll filter the display list, but keep products accessible)
           subcategoryNameMap = Object.fromEntries(
             subcats.map((sc: any) => [sc.id, sc.name])
           );
@@ -332,7 +339,8 @@ export default function CategoryPage({ params }: CategoryPageProps) {
                 </button>
                 {subcategories.map((subcategory) => {
                   const subcategoryProductCount = products.filter(
-                    product => product.subcategory === subcategory.name
+                    product => product.subcategory && 
+                    product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
                   ).length;
                   
                   return (

@@ -39,6 +39,7 @@ export default function Navigation() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
+  const [showUserDropdown, setShowUserDropdown] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -50,10 +51,11 @@ export default function Navigation() {
   }, [dataFetched]);
 
   useEffect(() => {
-    // Close mobile search when clicking outside (but keep open when keyboard is active)
+    // Close mobile search and user dropdown when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Element;
+      
       if (showMobileSearch) {
-        const target = event.target as Element;
         const searchContainer = document.getElementById('mobile-search-container');
         const searchInput = document.getElementById('mobile-search-input');
         
@@ -61,16 +63,24 @@ export default function Navigation() {
           closeMobileSearch();
         }
       }
+
+      if (showUserDropdown) {
+        const userDropdown = document.getElementById('user-dropdown');
+        
+        if (userDropdown && !userDropdown.contains(target)) {
+          setShowUserDropdown(false);
+        }
+      }
     };
 
-    if (showMobileSearch) {
+    if (showMobileSearch || showUserDropdown) {
       document.addEventListener('mousedown', handleClickOutside);
     }
 
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showMobileSearch]);
+  }, [showMobileSearch, showUserDropdown]);
 
   const fetchCategories = async () => {
     try {
@@ -179,24 +189,24 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-white shadow-sm border-b sticky top-0 z-50 min-h-[64px] sm:min-h-[80px]">
+      <nav className="shadow-sm border-b sticky top-0 z-50" style={{ backgroundColor: '#4736FE', paddingTop: '12px', paddingBottom: '12px' }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
-          <div className="flex justify-between items-center h-16 sm:h-20 relative">
+          <div className="flex justify-between items-center relative">
           {/* Logo */}
           <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
-            <span className="text-2xl sm:text-3xl font-bold text-gray-900 mr-0">Apperal</span>
+            <span className="text-3xl sm:text-4xl font-normal text-white mr-0">Apperal</span>
           </Link>
 
           {/* Categories Navigation - Hidden on mobile, visible on larger screens */}
           <div className={`hidden lg:flex items-center space-x-6 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {categoriesLoading ? (
-              <div className="text-gray-500 text-sm">Loading...</div>
+              <div className="text-white text-sm opacity-70">Loading...</div>
             ) : (
               categories.map((category) => (
                 <div key={category.id} className="relative group">
                   <Link
                     href={`/products/${category.slug}`}
-                    className="text-gray-700 hover:text-blue-600 text-sm font-medium transition-colors flex items-center"
+                    className="text-white hover:text-blue-200 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
@@ -246,7 +256,7 @@ export default function Navigation() {
                   console.log('Mobile search icon clicked');
                   openMobileSearch();
                 }}
-                className="sm:hidden text-gray-700 hover:text-blue-600 p-2"
+                className="sm:hidden text-white hover:text-blue-200 p-2"
               >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -255,13 +265,13 @@ export default function Navigation() {
             )}
 
             {/* Wishlist Icon */}
-            <Link href="/wishlist" className={`text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/wishlist" className={`text-white hover:text-blue-200 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
 
             {/* Orders Icon - Show only for logged in users */}
             {user && (
-              <Link href="/orders" className={`text-gray-700 hover:text-blue-600 nav-orders-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+              <Link href="/orders" className={`text-white hover:text-blue-200 nav-orders-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
                 <div className="relative">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
@@ -271,38 +281,70 @@ export default function Navigation() {
             )}
             
             {/* Cart Icon - Show for all users (logged in and guests) */}
-            <Link href="/cart" className={`text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/cart" className={`text-white hover:text-blue-200 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <CartIcon showCount={true} count={cartCount} />
             </Link>
             
             {/* Auth Section */}
             <div className={`flex items-center space-x-2 sm:space-x-3 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`}>
               {loading ? (
-                <div className="text-gray-500 text-xs sm:text-sm flex items-center h-full">Loading...</div>
+                <div className="text-white text-sm sm:text-base flex items-center h-full opacity-70">Loading...</div>
               ) : user ? (
-                <div className="flex items-center space-x-1 sm:space-x-3 h-full">
+                <div id="user-dropdown" className="relative flex items-center h-full">
                   <div className="hidden sm:flex items-center space-x-2 h-full">
-                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <button
+                      onClick={() => setShowUserDropdown(!showUserDropdown)}
+                      className="flex items-center space-x-2 text-white hover:text-blue-200 transition-colors"
+                    >
+                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      <span className="text-sm sm:text-base">
+                        {getUserDisplayName()}
+                      </span>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </button>
+                  </div>
+                  {/* Mobile: Show user icon only */}
+                  <button
+                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    className="sm:hidden text-white hover:text-blue-200 p-2"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                    <span className="text-gray-700 text-xs sm:text-sm">
-                      Welcome, {getUserDisplayName()}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => signOut()}
-                    disabled={signingOut}
-                    className="text-gray-700 hover:text-blue-600 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center h-full"
-                  >
-                    {signingOut ? 'Signing Out...' : 'Sign Out'}
                   </button>
+                  
+                  {/* Dropdown Menu */}
+                  {showUserDropdown && (
+                    <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
+                      <div className="py-2">
+                        <div className="px-4 py-2 border-b border-gray-200">
+                          <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
+                          <p className="text-xs text-gray-500">{user.email}</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setShowUserDropdown(false);
+                            signOut();
+                          }}
+                          disabled={signingOut}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {signingOut ? 'Signing Out...' : 'Sign Out'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
                   {/* Mobile: User Icon */}
                   <Link
                     href="/login"
-                    className="sm:hidden text-gray-700 hover:text-blue-600 p-2"
+                    className="sm:hidden text-white hover:text-blue-200 p-2"
                   >
                     <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -313,13 +355,13 @@ export default function Navigation() {
                   <div className="hidden sm:flex items-center space-x-2">
                     <Link
                       href="/login"
-                      className="text-gray-700 hover:text-blue-600 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium transition-colors"
+                      className="text-white hover:text-blue-200 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal transition-colors"
                     >
                       Sign In
                     </Link>
                     <Link
                       href="/signup"
-                      className="bg-blue-600 text-white px-3 sm:px-4 py-1 sm:py-2 rounded-md text-xs sm:text-sm font-medium hover:bg-blue-700 transition-colors"
+                      className="bg-white text-[#4736FE] px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-blue-100 transition-colors"
                     >
                       Sign Up
                     </Link>
