@@ -140,6 +140,7 @@ export default function EditProductPage() {
     if (hasInitialFetched.current) {
       return;
     }
+    hasInitialFetched.current = true;
 
     const supabaseInstance = supabase;
 
@@ -212,29 +213,50 @@ export default function EditProductPage() {
         const review_count = detailRecord?.review_count !== undefined ? detailRecord.review_count : ((product as any).review_count || 0);
         const in_stock = detailRecord?.in_stock !== undefined ? detailRecord.in_stock : ((product as any).in_stock !== undefined ? (product as any).in_stock : (product.stock_quantity > 0));
 
+        // Ensure empty strings from database are converted to empty strings for form (not null)
+        // This way when user clears a field, it stays empty
         setFormData({
           id: product.id,
-          name: product.name,
-          description: product.description,
+          name: product.name || '',
+          description: product.description || '',
           price: product.price.toString(),
           original_price: product.original_price?.toString() || '',
           badge: product.badge || '',
           category: categoryName,
           subcategories: subcategoryName ? [subcategoryName] : [],
           image_url: '', // Will be set from product images below
-          stock_quantity: product.stock_quantity.toString(),
+          stock_quantity: product.stock_quantity?.toString() || '',
           is_active: product.is_active,
           show_in_hero: product.show_in_hero || false,
           images: [],
           // Common product fields (from products table)
-          brand: brand,
+          brand: brand || '',
           is_new: is_new,
-          rating: rating,
-          review_count: review_count,
+          rating: rating || 0,
+          review_count: review_count || 0,
           in_stock: in_stock,
-          mobileDetails: mobileDetails || {},
-          apparelDetails: apparelDetails || {},
-          accessoriesDetails: accessoriesDetails || {},
+          // Detail fields - convert null/undefined to empty strings for form inputs
+          mobileDetails: {
+            brand: mobileDetails?.brand || '',
+            compatible_model: mobileDetails?.compatible_model || '',
+            type: mobileDetails?.type || '',
+            color: mobileDetails?.color || '',
+          },
+          apparelDetails: {
+            brand: apparelDetails?.brand || '',
+            material: apparelDetails?.material || '',
+            fit_type: apparelDetails?.fit_type || '',
+            pattern: apparelDetails?.pattern || '',
+            color: apparelDetails?.color || '',
+            size: apparelDetails?.size || '',
+            sku: apparelDetails?.sku || '',
+          },
+          accessoriesDetails: {
+            accessory_type: accessoriesDetails?.accessory_type || '',
+            compatible_with: accessoriesDetails?.compatible_with || '',
+            material: accessoriesDetails?.material || '',
+            color: accessoriesDetails?.color || '',
+          },
         });
 
         const { data: productImages, error: imagesError } = await supabaseInstance
@@ -303,8 +325,6 @@ export default function EditProductPage() {
             }
           }
         }
-
-        hasInitialFetched.current = true;
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -342,18 +362,21 @@ export default function EditProductPage() {
     fetchCategories();
   }, []);
 
-  // Handle success redirect
+  // Handle success redirect - but don't redirect immediately, let user see success message
+  // User can manually navigate or we redirect after delay
   useEffect(() => {
     if (!success) return;
 
-    const redirectTimer = setTimeout(() => {
-      router.push('/admin/products');
-    }, 2000);
-
-    return () => {
-      clearTimeout(redirectTimer);
-    };
-  }, [success, router]);
+    // Optional: Redirect after delay, but user can also stay and continue editing
+    // Removed auto-redirect to prevent form reset - user can manually navigate
+    // const redirectTimer = setTimeout(() => {
+    //   router.push('/admin/products');
+    // }, 3000);
+    
+    // return () => {
+    //   clearTimeout(redirectTimer);
+    // };
+  }, [success]);
 
   const fetchSubcategories = async (categoryName: string) => {
     if (!categoryName) {
@@ -462,12 +485,19 @@ export default function EditProductPage() {
       errors.subcategories = 'At least one subcategory is required';
     }
 
-    if (!formData.stock_quantity || isNaN(parseInt(formData.stock_quantity)) || parseInt(formData.stock_quantity) < 0) {
-      errors.stock_quantity = 'Valid stock quantity is required';
+    if (formData.stock_quantity && (isNaN(parseInt(formData.stock_quantity)) || parseInt(formData.stock_quantity) < 0)) {
+      errors.stock_quantity = 'Stock quantity must be a valid positive number';
     }
 
     setValidationErrors(errors);
     return { isValid: Object.keys(errors).length === 0, errors };
+  };
+
+  // Helper function to convert empty strings to null for database
+  const toNullIfEmpty = (value: string | undefined | null): string | null => {
+    if (!value || typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -532,20 +562,20 @@ export default function EditProductPage() {
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-        badge: formData.badge.trim() || null,
+        badge: toNullIfEmpty(formData.badge),
         image_url: newImageUrl,
-        stock_quantity: parseInt(formData.stock_quantity),
+        stock_quantity: formData.stock_quantity ? parseInt(formData.stock_quantity) : 0,
         is_active: formData.is_active,
         show_in_hero: formData.show_in_hero,
         // UUID foreign keys - all in same update
         category_id: categoryId,
         subcategory_id: subcategoryId,
         // Common product fields (saved to products table)
-        brand: formData.brand?.trim() || null,
+        brand: toNullIfEmpty(formData.brand),
         is_new: formData.is_new || false,
         rating: formData.rating || 0,
         review_count: formData.review_count || 0,
-        in_stock: formData.in_stock !== undefined ? formData.in_stock : (parseInt(formData.stock_quantity) > 0),
+        in_stock: formData.in_stock !== undefined ? formData.in_stock : ((formData.stock_quantity && parseInt(formData.stock_quantity) > 0) || false),
       };
       
       // Best-effort: Add legacy string fields only if columns exist
@@ -555,8 +585,10 @@ export default function EditProductPage() {
       const stripFK = (obj: any) => { const { category_id, subcategory_id, ...rest } = obj; return rest; };
 
       // Try 1: full update
-      let upd = await supabase.from('products').update(fullUpdate).eq('id', productId);
-      let updateError = upd.error as any;
+      const { error: updateError } = await supabase
+        .from('products')
+        .update(fullUpdate)
+        .eq('id', productId);
 
       if (updateError) {
         const msg = updateError.message || '';
@@ -580,13 +612,16 @@ export default function EditProductPage() {
           attemptObj = stripFK(attemptObj);
         }
         if (attemptObj !== fullUpdate) {
-          const retry1 = await supabase.from('products').update(attemptObj).eq('id', productId);
-          updateError = retry1.error as any;
+          const { error: retryError } = await supabase
+            .from('products')
+            .update(attemptObj)
+            .eq('id', productId);
+          if (retryError) {
+            throw new Error(`Failed to update product: ${retryError.message}`);
+          }
+        } else {
+          throw new Error(`Failed to update product: ${updateError.message}`);
         }
-      }
-
-      if (updateError) {
-        throw new Error(`Failed to update product: ${updateError.message}`);
       }
 
       if (formData.images.length > 0) {
@@ -620,10 +655,11 @@ export default function EditProductPage() {
           const mobileInsert: any = {
             product_id: productId,
             // Cover-specific details only (common fields are in products table)
-            brand: formData.mobileDetails?.brand || 'Not Specified',
-            compatible_model: formData.mobileDetails?.compatible_model || 'Not Specified',
-            type: formData.mobileDetails?.type || 'Not Specified',
-            color: formData.mobileDetails?.color || 'Not Specified',
+            brand: formData.mobileDetails?.brand?.trim() || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            compatible_model: toNullIfEmpty(formData.mobileDetails?.compatible_model),
+            type: toNullIfEmpty(formData.mobileDetails?.type),
+            color: toNullIfEmpty(formData.mobileDetails?.color),
           };
           
           const { data: existing } = await supabase
@@ -633,9 +669,15 @@ export default function EditProductPage() {
             .single();
           
           if (existing) {
-            await supabase.from('product_cover_details').update(mobileInsert).eq('id', existing.id);
+            const { error: updateError } = await supabase.from('product_cover_details').update(mobileInsert).eq('id', existing.id);
+            if (updateError) {
+              throw new Error(`Failed to update cover details: ${updateError.message}`);
+            }
           } else {
-            await supabase.from('product_cover_details').insert(mobileInsert).select();
+            const { error: insertError } = await supabase.from('product_cover_details').insert(mobileInsert).select();
+            if (insertError) {
+              throw new Error(`Failed to insert cover details: ${insertError.message}`);
+            }
           }
         }
         // AUTO-SAVE to apparel table if parent category detail_type is 'apparel'
@@ -646,13 +688,13 @@ export default function EditProductPage() {
             product_id: productId,
             // Apparel-specific details only (common fields are in products table)
             brand: formData.apparelDetails?.brand || 'Not Specified',
-            gender: formData.apparelDetails?.gender || 'Not Specified',
-            material: formData.apparelDetails?.material || 'Not Specified',
-            fit_type: formData.apparelDetails?.fit_type || 'Not Specified',
-            pattern: formData.apparelDetails?.pattern || 'Not Specified',
-            color: formData.apparelDetails?.color || 'Not Specified',
-            size: formData.apparelDetails?.size || 'Not Specified',
-            sku: formData.apparelDetails?.sku || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            material: toNullIfEmpty(formData.apparelDetails?.material),
+            fit_type: toNullIfEmpty(formData.apparelDetails?.fit_type),
+            pattern: toNullIfEmpty(formData.apparelDetails?.pattern),
+            color: toNullIfEmpty(formData.apparelDetails?.color),
+            size: toNullIfEmpty(formData.apparelDetails?.size),
+            sku: toNullIfEmpty(formData.apparelDetails?.sku),
           };
           
           const { data: existing } = await supabase
@@ -662,9 +704,18 @@ export default function EditProductPage() {
             .single();
           
           if (existing) {
-            await supabase.from('product_apparel_details').update(apparelInsert).eq('id', existing.id);
+            const { error: updateError } = await supabase
+              .from('product_apparel_details')
+              .update(apparelInsert)
+              .eq('id', existing.id);
+            if (updateError) {
+              throw new Error(`Failed to update apparel details: ${updateError.message}`);
+            }
           } else {
-            await supabase.from('product_apparel_details').insert(apparelInsert).select();
+            const { error: insertError } = await supabase.from('product_apparel_details').insert(apparelInsert).select();
+            if (insertError) {
+              throw new Error(`Failed to insert apparel details: ${insertError.message}`);
+            }
           }
         }
         // AUTO-SAVE to accessories table if parent category detail_type is 'accessories'
@@ -674,10 +725,11 @@ export default function EditProductPage() {
           const accessoriesInsert: any = {
             product_id: productId,
             // Accessories-specific details only (common fields are in products table)
-            accessory_type: formData.accessoriesDetails?.accessory_type || 'Not Specified',
-            compatible_with: formData.accessoriesDetails?.compatible_with || 'Not Specified',
-            material: formData.accessoriesDetails?.material || 'Not Specified',
-            color: formData.accessoriesDetails?.color || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            accessory_type: toNullIfEmpty(formData.accessoriesDetails?.accessory_type),
+            compatible_with: toNullIfEmpty(formData.accessoriesDetails?.compatible_with),
+            material: toNullIfEmpty(formData.accessoriesDetails?.material),
+            color: toNullIfEmpty(formData.accessoriesDetails?.color),
           };
           
           const { data: existing } = await supabase
@@ -687,15 +739,29 @@ export default function EditProductPage() {
             .single();
           
           if (existing) {
-            await supabase.from('product_accessories_details').update(accessoriesInsert).eq('id', existing.id);
+            const { error: updateError } = await supabase
+              .from('product_accessories_details')
+              .update(accessoriesInsert)
+              .eq('id', existing.id);
+            if (updateError) {
+              throw new Error(`Failed to update accessories details: ${updateError.message}`);
+            }
           } else {
-            await supabase.from('product_accessories_details').insert(accessoriesInsert).select();
+            const { error: insertError } = await supabase.from('product_accessories_details').insert(accessoriesInsert).select();
+            if (insertError) {
+              throw new Error(`Failed to insert accessories details: ${insertError.message}`);
+            }
           }
         }
       }
 
+      // IMPORTANT: Keep form data exactly as user left it - don't refetch or reset
+      // The form state already reflects what was saved to database
       setSuccess(true);
       setError(null);
+      
+      // Explicitly preserve form state - ensure no refetch happens
+      // Form data in state already matches what was saved
 
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving the product');
@@ -939,7 +1005,7 @@ export default function EditProductPage() {
               {/* Stock Quantity */}
               <div>
                 <label htmlFor="stock_quantity" className="block text-sm font-medium text-gray-700">
-                  Stock Quantity *
+                  Stock Quantity
                 </label>
                 <input
                   type="number"
@@ -1035,41 +1101,6 @@ export default function EditProductPage() {
                 {formData.subcategories.length > 0 && (
                   <div className="mt-2">
                     <p className="text-xs text-gray-500">Selected: {formData.subcategories.join(', ')}</p>
-                  </div>
-                )}
-                
-                {/* Custom Subcategory Input */}
-                {formData.category && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Add Custom Subcategory
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={customSubcategory}
-                        onChange={(e) => setCustomSubcategory(e.target.value)}
-                        placeholder="Enter custom subcategory name"
-                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addCustomSubcategory();
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={addCustomSubcategory}
-                        disabled={!customSubcategory.trim() || formData.subcategories.includes(customSubcategory.trim())}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Add custom subcategories that aren&apos;t in the list above
-                    </p>
                   </div>
                 )}
               </div>
@@ -1255,23 +1286,7 @@ export default function EditProductPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Gender *</label>
-                      <input
-                        type="text"
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., Men, Women, Unisex"
-                        value={formData.apparelDetails.gender || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            apparelDetails: { ...prev.apparelDetails, gender: e.target.value },
-                          }))
-                        }
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <label className="block text-sm font-medium text-gray-700">Material</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1283,11 +1298,10 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, material: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Fit Type *</label>
+                      <label className="block text-sm font-medium text-gray-700">Fit Type</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1299,11 +1313,10 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, fit_type: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Pattern *</label>
+                      <label className="block text-sm font-medium text-gray-700">Pattern</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1315,11 +1328,10 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, pattern: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <label className="block text-sm font-medium text-gray-700">Color</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1331,15 +1343,12 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, color: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Size *</label>
-                      <input
-                        type="text"
+                      <label className="block text-sm font-medium text-gray-700">Size</label>
+                      <select
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., S, M, L, XL"
                         value={formData.apparelDetails.size || ''}
                         onChange={(e) =>
                           setFormData((prev) => ({
@@ -1347,11 +1356,15 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, size: e.target.value },
                           }))
                         }
-                        required
-                      />
+                      >
+                        <option value="">Select Size</option>
+                        <option value="Small">Small</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Large">Large</option>
+                      </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">SKU *</label>
+                      <label className="block text-sm font-medium text-gray-700">SKU</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1363,7 +1376,6 @@ export default function EditProductPage() {
                             apparelDetails: { ...prev.apparelDetails, sku: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                   </div>
