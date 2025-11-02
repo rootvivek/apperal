@@ -7,6 +7,7 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
 import { deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
+import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
 
 interface ProductImage {
   id?: string;
@@ -29,6 +30,16 @@ interface ProductFormData {
   is_active: boolean;
   show_in_hero: boolean;
   images: ProductImage[];
+  // Additional product fields
+  brand?: string;
+  is_new?: boolean;
+  rating?: number;
+  review_count?: number;
+  in_stock?: boolean;
+  // Product detail fields
+  mobileDetails: Partial<MobileDetails>;
+  apparelDetails: Partial<ApparelDetails>;
+  accessoriesDetails: Partial<AccessoriesDetails>;
 }
 
 interface Category {
@@ -37,6 +48,7 @@ interface Category {
   slug: string;
   description: string;
   parent_category_id: string | null;
+  detail_type?: string | null;
 }
 
 export default function EditProductPage() {
@@ -78,9 +90,27 @@ export default function EditProductPage() {
     is_active: true,
     show_in_hero: false,
     images: [],
+    brand: '',
+    is_new: false,
+    rating: 0,
+    review_count: 0,
+    in_stock: true,
+    mobileDetails: {},
+    apparelDetails: {},
+    accessoriesDetails: {},
   });
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+
+  // Determine detail type from PARENT CATEGORY (detail_type column set in category admin)
+  // All subcategories inherit the detail_type from their parent category
+  const selectedCategory = categories.find(c => c.name === formData.category);
+  
+  // Use parent category's detail_type (subcategories inherit from parent)
+  const detailType = selectedCategory?.detail_type === 'mobile' ? 'mobile' 
+    : selectedCategory?.detail_type === 'apparel' ? 'apparel' 
+    : selectedCategory?.detail_type === 'accessories' ? 'accessories'
+    : 'none';
 
   // Cleanup on unmount
   useEffect(() => {
@@ -119,7 +149,12 @@ export default function EditProductPage() {
         
         const { data: product, error: productError } = await supabaseInstance
           .from('products')
-          .select('*')
+          .select(`
+            *,
+            product_cover_details (*),
+            product_apparel_details (*),
+            product_accessories_details (*)
+          `)
           .eq('id', productId)
           .single();
 
@@ -155,6 +190,28 @@ export default function EditProductPage() {
           }
         }
 
+        // Extract detail data (Supabase returns as arrays)
+        const mobileDetails = Array.isArray(product.product_cover_details) && product.product_cover_details.length > 0
+          ? product.product_cover_details[0]
+          : (product.product_cover_details || {});
+        
+        const apparelDetails = Array.isArray(product.product_apparel_details) && product.product_apparel_details.length > 0
+          ? product.product_apparel_details[0]
+          : (product.product_apparel_details || {});
+        
+        const accessoriesDetails = Array.isArray(product.product_accessories_details) && product.product_accessories_details.length > 0
+          ? product.product_accessories_details[0]
+          : (product.product_accessories_details || {});
+        
+        // Get additional product fields from detail tables (they're saved there, not in products table)
+        // Priority: mobile > apparel > accessories > products table (fallback)
+        const detailRecord = mobileDetails || apparelDetails || accessoriesDetails;
+        const brand = detailRecord?.brand || (product as any).brand || '';
+        const is_new = detailRecord?.is_new !== undefined ? detailRecord.is_new : ((product as any).is_new || false);
+        const rating = detailRecord?.rating !== undefined ? detailRecord.rating : ((product as any).rating || 0);
+        const review_count = detailRecord?.review_count !== undefined ? detailRecord.review_count : ((product as any).review_count || 0);
+        const in_stock = detailRecord?.in_stock !== undefined ? detailRecord.in_stock : ((product as any).in_stock !== undefined ? (product as any).in_stock : (product.stock_quantity > 0));
+
         setFormData({
           id: product.id,
           name: product.name,
@@ -169,6 +226,15 @@ export default function EditProductPage() {
           is_active: product.is_active,
           show_in_hero: product.show_in_hero || false,
           images: [],
+          // Common product fields (from products table)
+          brand: brand,
+          is_new: is_new,
+          rating: rating,
+          review_count: review_count,
+          in_stock: in_stock,
+          mobileDetails: mobileDetails || {},
+          apparelDetails: apparelDetails || {},
+          accessoriesDetails: accessoriesDetails || {},
         });
 
         const { data: productImages, error: imagesError } = await supabaseInstance
@@ -451,28 +517,39 @@ export default function EditProductPage() {
       }
 
       const newImageUrl = formData.images.length > 0 ? formData.images[0].image_url : null;
+      
+      // Get category and subcategory IDs
+      const categoryId = categories.find(c => c.name === formData.category)?.id || null;
+      const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
+      const subcategoryId = selectedFirstName 
+        ? (subcategories.find(s => s.name === selectedFirstName)?.id || null)
+        : null;
+      
+      // Update product with COMMON fields in products table
+      // Category-specific fields go to detail tables
       const fullUpdate: any = {
         name: formData.name.trim(),
         description: formData.description.trim(),
         price: parseFloat(formData.price),
         original_price: formData.original_price ? parseFloat(formData.original_price) : null,
         badge: formData.badge.trim() || null,
-        // Legacy string fields
-        category: formData.category,
-        subcategory: formData.subcategories.length > 0 ? formData.subcategories[0] : null,
-        // New UUID relations
-        category_id: (categories.find(c => c.name === formData.category)?.id) || null,
-        subcategory_id: (() => {
-          const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
-          if (!selectedFirstName) return null;
-          const sub = subcategories.find(s => s.name === selectedFirstName);
-          return sub ? sub.id : null;
-        })(),
         image_url: newImageUrl,
         stock_quantity: parseInt(formData.stock_quantity),
         is_active: formData.is_active,
         show_in_hero: formData.show_in_hero,
+        // UUID foreign keys - all in same update
+        category_id: categoryId,
+        subcategory_id: subcategoryId,
+        // Common product fields (saved to products table)
+        brand: formData.brand?.trim() || null,
+        is_new: formData.is_new || false,
+        rating: formData.rating || 0,
+        review_count: formData.review_count || 0,
+        in_stock: formData.in_stock !== undefined ? formData.in_stock : (parseInt(formData.stock_quantity) > 0),
       };
+      
+      // Best-effort: Add legacy string fields only if columns exist
+      // These will be stripped by the adaptive retry logic if they don't exist
 
       const stripLegacy = (obj: any) => { const { category, subcategory, ...rest } = obj; return rest; };
       const stripFK = (obj: any) => { const { category_id, subcategory_id, ...rest } = obj; return rest; };
@@ -527,6 +604,93 @@ export default function EditProductPage() {
 
         if (imagesError) {
           throw new Error(`Failed to insert images: ${imagesError.message}`);
+        }
+      }
+
+      // AUTO-SAVE: Use detail_type from PARENT CATEGORY (set in category admin page)
+      // Get category to determine detail_type
+      const selectedCategory = categories.find(c => c.name === formData.category);
+      const detailTypeFromDB = selectedCategory?.detail_type;
+
+      if (subcategoryId) {
+        // AUTO-SAVE to mobile table if parent category detail_type is 'mobile'
+        if (detailTypeFromDB === 'mobile') {
+          // Save ONLY cover-specific details to product_cover_details table
+          // Common fields are already in products table
+          const mobileInsert: any = {
+            product_id: productId,
+            // Cover-specific details only (common fields are in products table)
+            brand: formData.mobileDetails?.brand || 'Not Specified',
+            compatible_model: formData.mobileDetails?.compatible_model || 'Not Specified',
+            type: formData.mobileDetails?.type || 'Not Specified',
+            color: formData.mobileDetails?.color || 'Not Specified',
+          };
+          
+          const { data: existing } = await supabase
+            .from('product_cover_details')
+            .select('id')
+            .eq('product_id', productId)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_cover_details').update(mobileInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_cover_details').insert(mobileInsert).select();
+          }
+        }
+        // AUTO-SAVE to apparel table if parent category detail_type is 'apparel'
+        else if (detailTypeFromDB === 'apparel') {
+          // Save ONLY apparel-specific details to product_apparel_details table
+          // Common fields are already in products table
+          const apparelInsert: any = {
+            product_id: productId,
+            // Apparel-specific details only (common fields are in products table)
+            brand: formData.apparelDetails?.brand || 'Not Specified',
+            gender: formData.apparelDetails?.gender || 'Not Specified',
+            material: formData.apparelDetails?.material || 'Not Specified',
+            fit_type: formData.apparelDetails?.fit_type || 'Not Specified',
+            pattern: formData.apparelDetails?.pattern || 'Not Specified',
+            color: formData.apparelDetails?.color || 'Not Specified',
+            size: formData.apparelDetails?.size || 'Not Specified',
+            sku: formData.apparelDetails?.sku || 'Not Specified',
+          };
+          
+          const { data: existing } = await supabase
+            .from('product_apparel_details')
+            .select('id')
+            .eq('product_id', productId)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_apparel_details').update(apparelInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_apparel_details').insert(apparelInsert).select();
+          }
+        }
+        // AUTO-SAVE to accessories table if parent category detail_type is 'accessories'
+        else if (detailTypeFromDB === 'accessories') {
+          // Save ONLY accessories-specific details to product_accessories_details table
+          // Common fields are already in products table
+          const accessoriesInsert: any = {
+            product_id: productId,
+            // Accessories-specific details only (common fields are in products table)
+            accessory_type: formData.accessoriesDetails?.accessory_type || 'Not Specified',
+            compatible_with: formData.accessoriesDetails?.compatible_with || 'Not Specified',
+            material: formData.accessoriesDetails?.material || 'Not Specified',
+            color: formData.accessoriesDetails?.color || 'Not Specified',
+          };
+          
+          const { data: existing } = await supabase
+            .from('product_accessories_details')
+            .select('id')
+            .eq('product_id', productId)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_accessories_details').update(accessoriesInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_accessories_details').insert(accessoriesInsert).select();
+          }
         }
       }
 
@@ -982,6 +1146,316 @@ export default function EditProductPage() {
                   </label>
                 </div>
               </div>
+
+              {/* Product Details - Phone Cover - Based on category detail_type relationship */}
+              {detailType === 'mobile' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Phone Cover Details</h3>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      Will save to: product_cover_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Brand *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        value={formData.mobileDetails.brand || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            mobileDetails: { ...prev.mobileDetails, brand: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Compatible Model *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., iPhone 15, Samsung Galaxy S24"
+                        value={formData.mobileDetails.compatible_model || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            mobileDetails: { ...prev.mobileDetails, compatible_model: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Type *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Clear Case, Wallet Case, Silicone"
+                        value={formData.mobileDetails.type || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            mobileDetails: { ...prev.mobileDetails, type: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Black, Transparent, Blue"
+                        value={formData.mobileDetails.color || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            mobileDetails: { ...prev.mobileDetails, color: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-xs text-blue-800 font-medium">
+                      ✓ Phone Cover Details → Saved to <strong>product_cover_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Product Details - Apparel - Based on category detail_type relationship */}
+              {detailType === 'apparel' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Apparel Details</h3>
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                      Will save to: product_apparel_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Brand *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        value={formData.apparelDetails.brand || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, brand: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Gender *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Men, Women, Unisex"
+                        value={formData.apparelDetails.gender || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, gender: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Cotton, Polyester, Silk"
+                        value={formData.apparelDetails.material || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, material: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Fit Type *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Regular, Slim, Loose"
+                        value={formData.apparelDetails.fit_type || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, fit_type: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Pattern *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Solid, Striped, Printed"
+                        value={formData.apparelDetails.pattern || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, pattern: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Red, Blue, Black"
+                        value={formData.apparelDetails.color || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, color: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Size *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., S, M, L, XL"
+                        value={formData.apparelDetails.size || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, size: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">SKU *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., APL-001-RED-M"
+                        value={formData.apparelDetails.sku || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            apparelDetails: { ...prev.apparelDetails, sku: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                    <p className="text-xs text-green-800 font-medium">
+                      ✓ Apparel Details → Saved to <strong>product_apparel_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Product Details - Accessories - Based on category detail_type relationship */}
+              {detailType === 'accessories' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Accessories Details</h3>
+                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                      Will save to: product_accessories_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Accessory Type *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        value={formData.accessoriesDetails.accessory_type || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            accessoriesDetails: { ...prev.accessoriesDetails, accessory_type: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Compatible With *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., iPhone, Samsung, Universal"
+                        value={formData.accessoriesDetails.compatible_with || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            accessoriesDetails: { ...prev.accessoriesDetails, compatible_with: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Plastic, Metal, Silicone"
+                        value={formData.accessoriesDetails.material || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            accessoriesDetails: { ...prev.accessoriesDetails, material: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Black, White, Silver"
+                        value={formData.accessoriesDetails.color || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            accessoriesDetails: { ...prev.accessoriesDetails, color: e.target.value },
+                          }))
+                        }
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded">
+                    <p className="text-xs text-purple-800 font-medium">
+                      ✓ Accessories Details → Saved to <strong>product_accessories_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Form Actions */}

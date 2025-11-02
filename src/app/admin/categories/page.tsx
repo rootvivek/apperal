@@ -43,7 +43,8 @@ export default function CategoriesPage() {
     slug: '',
     description: '',
     image_url: '',
-    is_active: true
+    is_active: true,
+    detail_type: '' as string | null // For subcategories: 'mobile', 'apparel', or null
   });
 
   useEffect(() => {
@@ -256,19 +257,42 @@ export default function CategoriesPage() {
         is_active: formData.is_active,
       };
       
+      // Add detail_type for CATEGORIES (parent categories)
+      // All subcategories under this category will use this detail table
+      if (!isCreatingSubcategory && !editingCategory?.parent_category_id) {
+        // This is a parent category - set detail_type here
+        if (formData.detail_type && formData.detail_type !== '') {
+          categoryData.detail_type = formData.detail_type;
+        }
+      }
+
       if (isCreatingSubcategory && parentCategoryId) {
         categoryData.parent_category_id = parentCategoryId;
+        // Subcategories inherit detail_type from parent category - don't set it here
       } else if (editingCategory && editingCategory.parent_category_id) {
         categoryData.parent_category_id = editingCategory.parent_category_id;
+        // Subcategories inherit detail_type from parent category - don't set it here
       }
 
       if (editingCategory) {
         if (editingCategory.parent_category_id) {
           // Update subcategory in subcategories table
-          const { error: updateError } = await supabase
+          // Try with detail_type first, fallback without it if column doesn't exist
+          let updateData = { ...categoryData };
+          let { error: updateError } = await supabase
             .from('subcategories')
-            .update(categoryData)
+            .update(updateData)
             .eq('id', editingCategory.id);
+
+          // If error about detail_type column, retry without it
+          if (updateError && updateError.message?.includes('detail_type')) {
+            const { detail_type, ...dataWithoutDetailType } = updateData;
+            const { error: retryError } = await supabase
+              .from('subcategories')
+              .update(dataWithoutDetailType)
+              .eq('id', editingCategory.id);
+            updateError = retryError;
+          }
 
           if (updateError) throw updateError;
 
@@ -283,10 +307,22 @@ export default function CategoriesPage() {
           }
         } else {
           // Update parent category in categories table
-          const { error: updateError } = await supabase
+          // Try with detail_type first, fallback without it if column doesn't exist
+          let updateData = { ...categoryData };
+          let { error: updateError } = await supabase
             .from('categories')
-            .update(categoryData)
+            .update(updateData)
             .eq('id', editingCategory.id);
+
+          // If error about detail_type column, retry without it
+          if (updateError && updateError.message?.includes('detail_type')) {
+            const { detail_type, ...dataWithoutDetailType } = updateData;
+            const { error: retryError } = await supabase
+              .from('categories')
+              .update(dataWithoutDetailType)
+              .eq('id', editingCategory.id);
+            updateError = retryError;
+          }
 
           if (updateError) throw updateError;
 
@@ -302,12 +338,26 @@ export default function CategoriesPage() {
         }
 
         if (isCreatingSubcategory && parentCategoryId) {
-          const { data, error: insertError } = await supabase
+          // Try insert with detail_type first
+          let insertData = { ...categoryData };
+          let { data, error: insertError } = await supabase
             .from('subcategories')
-            .insert([categoryData])
+            .insert([insertData])
             .select();
 
+          // If error about detail_type column, retry without it
+          if (insertError && insertError.message?.includes('detail_type')) {
+            const { detail_type, ...dataWithoutDetailType } = insertData;
+            const result = await supabase
+              .from('subcategories')
+              .insert([dataWithoutDetailType])
+              .select();
+            data = result.data;
+            insertError = result.error;
+          }
+
           if (insertError) throw insertError;
+          if (!data || !data[0]) throw new Error('Failed to create subcategory');
 
           const newSubcategory: Category = {
             ...data[0],
@@ -318,12 +368,27 @@ export default function CategoriesPage() {
             [parentCategoryId]: [...(prev[parentCategoryId] || []), newSubcategory]
           }));
         } else {
-          const { data, error: insertError } = await supabase
+          // Insert parent category (with detail_type)
+          // Try with detail_type first, fallback without it if column doesn't exist
+          let insertData = { ...categoryData };
+          let { data, error: insertError } = await supabase
             .from('categories')
-            .insert([categoryData])
+            .insert([insertData])
             .select();
 
+          // If error about detail_type column, retry without it
+          if (insertError && insertError.message?.includes('detail_type')) {
+            const { detail_type, ...dataWithoutDetailType } = insertData;
+            const result = await supabase
+              .from('categories')
+              .insert([dataWithoutDetailType])
+              .select();
+            data = result.data;
+            insertError = result.error;
+          }
+
           if (insertError) throw insertError;
+          if (!data || !data[0]) throw new Error('Failed to create category');
 
           setCategories([...categories, data[0]]);
         }
@@ -346,7 +411,8 @@ export default function CategoriesPage() {
       slug: category.slug,
       description: category.description || '',
       image_url: category.image_url ? addCacheBusting(category.image_url, category.updated_at) : '',
-      is_active: category.is_active !== undefined ? category.is_active : true
+      is_active: category.is_active !== undefined ? category.is_active : true,
+      detail_type: (category as any).detail_type || ''
     });
     setShowEditModal(true);
   };
@@ -562,7 +628,7 @@ export default function CategoriesPage() {
         try {
           const { data, error } = await supabase
             .from('subcategories')
-            .select('*')
+            .select('*, detail_type')
             .eq('parent_category_id', categoryId)
             .order('name', { ascending: true });
 
@@ -692,7 +758,8 @@ export default function CategoriesPage() {
       slug: '',
       description: '',
       image_url: '',
-      is_active: true
+      is_active: true,
+      detail_type: ''
     });
     setShowEditModal(false);
     setEditingCategory(null);
@@ -752,6 +819,31 @@ export default function CategoriesPage() {
                       placeholder="Enter category description"
                     />
                   </div>
+
+                  {/* Detail Type - Only for PARENT CATEGORIES (not subcategories) */}
+                  {/* This creates the RELATIONSHIP: Category → Detail Table Type */}
+                  {/* All subcategories under this category will inherit this setting */}
+                  {!isCreatingSubcategory && (!editingCategory || !editingCategory.parent_category_id) && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Product Detail Table Type
+                      </label>
+                      <select
+                        value={formData.detail_type || ''}
+                        onChange={(e) => setFormData(prev => ({ ...prev, detail_type: e.target.value || null }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">None (Generic Products)</option>
+                        <option value="mobile">Mobile Details → All products use product_mobile_details table</option>
+                        <option value="apparel">Apparel Details → All products use product_apparel_details table</option>
+                        <option value="accessories">Accessories Details → All products use product_accessories_details table</option>
+                      </select>
+                      <p className="mt-1 text-xs text-gray-500">
+                        <strong>This creates a direct relationship:</strong> When you set this on a category, ALL subcategories and products under this category will automatically save their details to the selected table. 
+                        Set this once when creating/editing the parent category.
+                      </p>
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">

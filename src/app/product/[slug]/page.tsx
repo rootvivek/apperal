@@ -13,22 +13,57 @@ import ProductCard from '@/components/ProductCard';
 interface ProductCardProduct {
   id: string;
   name: string;
+  slug?: string;
   description: string;
   price: number;
+  original_price?: number | null;
+  badge?: string | null;
   category: string | { id: string; name: string; slug: string; description: string; image: string; subcategories: any[] };
+  category_id?: string | null;
   subcategory: string;
+  subcategory_id?: string | null;
   subcategories: string[];
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
+  show_in_hero?: boolean;
   created_at: string;
   updated_at: string;
+  // Additional product fields
+  brand?: string | null;
+  is_new?: boolean | null;
+  rating?: number | null;
+  review_count?: number | null;
+  in_stock?: boolean | null;
   images?: {
     id: string;
     image_url: string;
     alt_text?: string;
     display_order: number;
   }[];
+  // Product detail fields (category-specific only, common fields are in products table)
+  product_cover_details?: {
+    brand: string; // Cover-specific brand field (different from common brand)
+    compatible_model: string;
+    type: string;
+    color: string;
+  };
+  product_apparel_details?: {
+    brand: string;
+    gender: string;
+    material: string;
+    fit_type: string;
+    pattern: string;
+    color: string;
+    size: string;
+    sku: string;
+  };
+  product_accessories_details?: {
+    accessory_type: string;
+    compatible_with: string;
+    material: string;
+    color: string;
+  };
 }
 
 interface ProductDetailPageProps {
@@ -121,10 +156,16 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         
         console.log('Fetching product with slug:', params.slug);
         
-        // First try to find by exact slug match
+        // First try to find by exact slug match - include all detail tables
         let { data: product, error: productError } = await supabase
           .from('products')
-          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .select(`
+            *, 
+            product_images (id, image_url, alt_text, display_order),
+            product_cover_details (*),
+            product_apparel_details (*),
+            product_accessories_details (*)
+          `)
           .eq('slug', params.slug)
           .eq('is_active', true)
           .maybeSingle();
@@ -139,7 +180,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           
           const { data: partialProduct, error: partialError } = await supabase
             .from('products')
-            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .select(`
+              *, 
+              product_images (id, image_url, alt_text, display_order),
+              product_cover_details (*),
+              product_apparel_details (*),
+              product_accessories_details (*)
+            `)
             .ilike('slug', `${slugWithoutSuffix}%`)
             .eq('is_active', true)
             .limit(1)
@@ -158,7 +205,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           console.log('Trying to fetch by ID:', params.slug);
           const { data, error } = await supabase
             .from('products')
-            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .select(`
+              *, 
+              product_images (id, image_url, alt_text, display_order),
+              product_cover_details (*),
+              product_apparel_details (*),
+              product_accessories_details (*)
+            `)
             .eq('id', params.slug)
             .eq('is_active', true)
             .maybeSingle();
@@ -197,24 +250,46 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           const productWithImages = {
             id: product.id,
             name: product.name,
+            slug: product.slug,
             description: product.description || '',
             price: product.price,
+            original_price: product.original_price || null,
+            badge: product.badge || null,
             category: product.category || '',
+            category_id: product.category_id || null,
             subcategory: product.subcategory || '',
+            subcategory_id: product.subcategory_id || null,
             subcategories: Array.isArray(product.subcategories)
               ? product.subcategories
               : (product.subcategory ? [product.subcategory] : []),
             image_url: product.image_url || '',
             stock_quantity: product.stock_quantity || 0,
             is_active: typeof product.is_active === 'boolean' ? product.is_active : true,
+            show_in_hero: product.show_in_hero || false,
             created_at: product.created_at,
             updated_at: product.updated_at,
+            // Common product fields (from products table)
+            brand: product.brand || null,
+            is_new: product.is_new || false,
+            rating: product.rating || null,
+            review_count: product.review_count || null,
+            in_stock: product.in_stock !== undefined ? product.in_stock : (product.stock_quantity > 0),
             images: images && images.length > 0 ? images : (product.image_url ? [{
               id: 'main-image',
               image_url: product.image_url,
               alt_text: product.name,
               display_order: 0
-            }] : [])
+            }] : []),
+            // Include detail tables (only one will have data based on category)
+            product_cover_details: (product.product_cover_details && Array.isArray(product.product_cover_details) && product.product_cover_details.length > 0) 
+              ? product.product_cover_details[0] 
+              : (product.product_cover_details || undefined),
+            product_apparel_details: (product.product_apparel_details && Array.isArray(product.product_apparel_details) && product.product_apparel_details.length > 0) 
+              ? product.product_apparel_details[0] 
+              : (product.product_apparel_details || undefined),
+            product_accessories_details: (product.product_accessories_details && Array.isArray(product.product_accessories_details) && product.product_accessories_details.length > 0) 
+              ? product.product_accessories_details[0] 
+              : (product.product_accessories_details || undefined),
           };
           
           console.log('Transformed product:', productWithImages);
@@ -729,27 +804,234 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Product Features */}
             <div className="border-t border-gray-200 pt-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Product Details</h3>
-              <div className="space-y-2 text-sm text-gray-600">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div className="flex justify-between">
-                  <span>Category:</span>
-                  <span>{typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}</span>
+                  <span className="font-medium text-gray-700">Product ID:</span>
+                  <span className="text-gray-600 font-mono text-xs break-all">{product.id}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Subcategory:</span>
-                  <span>{product.subcategory}</span>
+                  <span className="font-medium text-gray-700">Name:</span>
+                  <span className="text-gray-600">{product.name}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Stock:</span>
-                  <span>{product.stock_quantity} available</span>
+                  <span className="font-medium text-gray-700">Slug:</span>
+                  <span className="text-gray-600 font-mono text-xs break-all">{params.slug}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Status:</span>
+                  <span className="font-medium text-gray-700">Description:</span>
+                  <span className="text-gray-600">{product.description || 'No description'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Price:</span>
+                  <span className="text-gray-600">₹{product.price.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Badge:</span>
+                  <span className={product.badge 
+                    ? "inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
+                    : "text-gray-600"}>
+                    {product.badge || 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Image URL:</span>
+                  <span className="text-gray-600 font-mono text-xs break-all truncate max-w-xs">{product.image_url || 'No image'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Stock Quantity:</span>
+                  <span className="text-gray-600">{product.stock_quantity} available</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Status:</span>
                   <span className={product.is_active ? 'text-green-600' : 'text-red-600'}>
                     {product.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Show in Hero:</span>
+                  <span className={product.show_in_hero ? 'text-green-600' : 'text-gray-600'}>
+                    {product.show_in_hero ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Category:</span>
+                  <span className="text-gray-600">
+                    {typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Subcategory:</span>
+                  <span className="text-gray-600">{product.subcategory}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Category ID (UUID):</span>
+                  <span className="text-gray-600 font-mono text-xs break-all">{product.category_id || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Subcategory ID (UUID):</span>
+                  <span className="text-gray-600 font-mono text-xs break-all">{product.subcategory_id || 'Not set'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Original Price:</span>
+                  <span className="text-gray-600">
+                    {product.original_price ? `₹${product.original_price.toFixed(2)}` : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Created At:</span>
+                  <span className="text-gray-600">
+                    {product.created_at 
+                      ? new Date(product.created_at).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'Not set'}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Updated At:</span>
+                  <span className="text-gray-600">
+                    {product.updated_at 
+                      ? new Date(product.updated_at).toLocaleString('en-US', {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })
+                      : 'Not set'}
+                  </span>
+                </div>
+                {product.brand && (
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Brand:</span>
+                    <span className="text-gray-600">{product.brand}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="font-medium text-gray-700">Is New:</span>
+                  <span className={product.is_new ? 'text-green-600' : 'text-gray-600'}>
+                    {product.is_new ? 'Yes' : 'No'}
+                  </span>
+                </div>
+                {product.rating !== null && product.rating !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Rating:</span>
+                    <span className="text-gray-600">
+                      {product.rating.toFixed(1)} ⭐
+                    </span>
+                  </div>
+                )}
+                {product.review_count !== null && product.review_count !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Review Count:</span>
+                    <span className="text-gray-600">{product.review_count} reviews</span>
+                  </div>
+                )}
+                {product.in_stock !== null && product.in_stock !== undefined && (
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">In Stock:</span>
+                    <span className={product.in_stock ? 'text-green-600' : 'text-red-600'}>
+                      {product.in_stock ? 'Yes' : 'No'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Phone Cover Details */}
+            {product.product_cover_details && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Phone Cover Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Brand:</span>
+                    <span className="text-gray-600">{product.product_cover_details.brand || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Compatible Model:</span>
+                    <span className="text-gray-600">{product.product_cover_details.compatible_model || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Type:</span>
+                    <span className="text-gray-600">{product.product_cover_details.type || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Color:</span>
+                    <span className="text-gray-600">{product.product_cover_details.color || 'Not Specified'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Apparel Details */}
+            {product.product_apparel_details && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Apparel Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Brand:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.brand || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Gender:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.gender || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Material:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.material || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Fit Type:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.fit_type || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Pattern:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.pattern || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Color:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.color || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Size:</span>
+                    <span className="text-gray-600">{product.product_apparel_details.size || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">SKU:</span>
+                    <span className="text-gray-600 font-mono text-xs">{product.product_apparel_details.sku || 'Not Specified'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Accessories Details */}
+            {product.product_accessories_details && (
+              <div className="border-t border-gray-200 pt-6">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Accessories Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Accessory Type:</span>
+                    <span className="text-gray-600">{product.product_accessories_details.accessory_type || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Compatible With:</span>
+                    <span className="text-gray-600">{product.product_accessories_details.compatible_with || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Material:</span>
+                    <span className="text-gray-600">{product.product_accessories_details.material || 'Not Specified'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-700">Color:</span>
+                    <span className="text-gray-600">{product.product_accessories_details.color || 'Not Specified'}</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 

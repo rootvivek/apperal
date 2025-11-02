@@ -6,6 +6,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
+import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
 
 interface ProductImage {
   id?: string;
@@ -27,6 +28,16 @@ interface ProductFormData {
   is_active: boolean;
   show_in_hero: boolean;
   images: ProductImage[];
+  // Additional product fields
+  brand?: string;
+  is_new?: boolean;
+  rating?: number;
+  review_count?: number;
+  in_stock?: boolean;
+  // Product detail fields
+  mobileDetails: Partial<MobileDetails>;
+  apparelDetails: Partial<ApparelDetails>;
+  accessoriesDetails: Partial<AccessoriesDetails>;
 }
 
 // Categories will be fetched from database
@@ -36,6 +47,8 @@ interface Category {
   slug: string;
   description: string;
   parent_category_id: string | null;
+  detail_type?: string | null; // Added for subcategories to indicate which detail table to use
+  is_active?: boolean;
 }
 
 
@@ -68,7 +81,21 @@ export default function NewProductPage() {
     is_active: true,
     show_in_hero: false,
     images: [],
+    mobileDetails: {},
+    apparelDetails: {},
+    accessoriesDetails: {},
   });
+
+  // Determine detail type from PARENT CATEGORY (detail_type column set in category admin)
+  // All subcategories inherit the detail_type from their parent category
+  const selectedCategory = categories.find(c => c.name === formData.category);
+  const selectedSubcategory = subcategories.find(s => formData.subcategories.includes(s.name));
+  
+  // Use parent category's detail_type (subcategories inherit from parent)
+  const detailType = selectedCategory?.detail_type === 'mobile' ? 'mobile' 
+    : selectedCategory?.detail_type === 'apparel' ? 'apparel' 
+    : selectedCategory?.detail_type === 'accessories' ? 'accessories'
+    : 'none';
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
@@ -115,24 +142,49 @@ export default function NewProductPage() {
     try {
       setSubcategoriesLoading(true);
       
-      // First, try to get subcategories from the categories table (parent-child relationship)
+      // Find the selected category
       const selectedCategory = categories.find(cat => cat.name === categoryName);
-      let subcategoriesData = [];
+      
+      if (!selectedCategory) {
+        setSubcategories([]);
+        setSubcategoriesLoading(false);
+        return;
+      }
 
-      if (selectedCategory) {
-        const { data: categorySubcategories, error: categoryError } = await supabase
+      // Fetch subcategories from subcategories table
+      // Try with is_active filter first, fallback without it if column doesn't exist
+      let { data: categorySubcategories, error: categoryError } = await supabase
           .from('subcategories')
-          .select('*')
+        .select('id, name, slug, description, parent_category_id, detail_type')
           .eq('parent_category_id', selectedCategory.id)
           .order('name', { ascending: true });
 
-        if (!categoryError && categorySubcategories) {
-          subcategoriesData = categorySubcategories;
+      // If error about is_active column, retry without the filter
+      if (categoryError && categoryError.message?.includes('is_active')) {
+        const { data, error } = await supabase
+          .from('subcategories')
+          .select('id, name, slug, description, parent_category_id, detail_type')
+          .eq('parent_category_id', selectedCategory.id)
+          .order('name', { ascending: true });
+        categorySubcategories = data;
+        categoryError = error;
+      } else {
+        // If no error, filter by is_active if the column exists
+        if (categorySubcategories) {
+          categorySubcategories = categorySubcategories.filter((sub: any) => 
+            sub.is_active === undefined || sub.is_active === true
+          );
         }
       }
 
-      setSubcategories(subcategoriesData);
+      if (categoryError) {
+        setError(`Failed to load subcategories: ${categoryError.message}`);
+        setSubcategories([]);
+      } else {
+        setSubcategories(categorySubcategories || []);
+      }
     } catch (err: any) {
+      setError(`Failed to load subcategories: ${err.message}`);
       setSubcategories([]);
     } finally {
       setSubcategoriesLoading(false);
@@ -282,8 +334,16 @@ export default function NewProductPage() {
       // Generate unique slug
       const uniqueSlug = await generateUniqueSlug(formData.name.trim());
       
-      // First, create the product with a minimal, schema-safe payload
-      const minimalInsert: any = {
+      // Get category and subcategory IDs
+      const categoryId = categories.find(c => c.name === formData.category)?.id || null;
+      const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
+      const subcategoryId = selectedFirstName 
+        ? (subcategories.find(s => s.name === selectedFirstName)?.id || null)
+        : null;
+      
+      // Create product with COMMON fields in products table
+      // Category-specific fields go to detail tables
+      const productInsert: any = {
         ...(productUuid ? { id: productUuid } : {}),
         name: formData.name.trim(),
         slug: uniqueSlug,
@@ -295,41 +355,154 @@ export default function NewProductPage() {
         stock_quantity: parseInt(formData.stock_quantity),
         is_active: formData.is_active,
         show_in_hero: formData.show_in_hero,
+        // UUID foreign keys
+        category_id: categoryId,
+        subcategory_id: subcategoryId,
+        // Common product fields (saved to products table)
+        brand: formData.brand?.trim() || null,
+        is_new: formData.is_new || false,
+        rating: formData.rating || 0,
+        review_count: formData.review_count || 0,
+        in_stock: formData.in_stock !== undefined ? formData.in_stock : (parseInt(formData.stock_quantity) > 0),
       };
 
-      const ins = await supabase.from('products').insert([minimalInsert]).select('id');
-      if (ins.error) throw ins.error;
-      const productDataSingle = ins.data?.[0];
-      if (!productDataSingle) throw new Error('Product creation failed');
+      // Best-effort: Add legacy string fields if they exist in schema
+      // These are optional and won't cause errors if columns don't exist
 
-      // Best-effort: update legacy string columns (ignore if missing)
-      try {
-        const legacyUpdate: any = {
-          category: formData.category,
-          subcategory: formData.subcategories.length > 0 ? formData.subcategories[0] : null,
-        };
-        await supabase.from('products').update(legacyUpdate).eq('id', productDataSingle.id);
-      } catch {}
+      const ins = await supabase.from('products').insert([productInsert]).select('id');
+      let productDataSingle;
+      
+      if (ins.error) {
+        const errorMsg = ins.error.message || '';
+        // If error is about missing columns, strip them and retry
+        let retryInsert: any = { ...productInsert };
+        
+        // Remove FK columns if they don't exist
+        if (errorMsg.includes('category_id') || errorMsg.includes('subcategory_id') || 
+            errorMsg.includes('schema cache') || errorMsg.includes('does not exist')) {
+          delete retryInsert.category_id;
+          delete retryInsert.subcategory_id;
+        }
+        
+        // Remove legacy string columns if they don't exist
+        if (errorMsg.includes("'category' column") || errorMsg.includes("'subcategory' column") ||
+            errorMsg.includes('products.category') || errorMsg.includes('products.subcategory')) {
+          delete retryInsert.category;
+          delete retryInsert.subcategory;
+        }
+        
+        const retry = await supabase.from('products').insert([retryInsert]).select('id');
+        if (retry.error) throw retry.error;
+        productDataSingle = retry.data?.[0];
+        if (!productDataSingle) throw new Error('Product creation failed');
+        
+        // Try to update with FK separately if they were removed
+        if (!retryInsert.category_id && (categoryId || subcategoryId)) {
+          try {
+            await supabase.from('products').update({
+              category_id: categoryId,
+              subcategory_id: subcategoryId,
+            }).eq('id', productDataSingle.id);
+          } catch {}
+        }
+      } else {
+        productDataSingle = ins.data?.[0];
+        if (!productDataSingle) throw new Error('Product creation failed');
+      }
 
-      // Best-effort: update FK UUID columns (ignore if missing)
-      try {
-        const fkUpdate: any = {
-          category_id: (categories.find(c => c.name === formData.category)?.id) || null,
-          subcategory_id: (() => {
-            const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
-            if (!selectedFirstName) return null;
-            const sub = subcategories.find(s => s.name === selectedFirstName);
-            return sub ? sub.id : null;
-          })(),
-        };
-        await supabase.from('products').update(fkUpdate).eq('id', productDataSingle.id);
-      } catch {}
+      // AUTO-SAVE: Use detail_type from PARENT CATEGORY (set in category admin page)
+      // If category has detail_type='mobile' → product_cover_details
+      // If category has detail_type='apparel' → product_apparel_details
+      // Subcategories inherit detail_type from their parent category
+      if (subcategoryId) {
+        const selectedCategory = categories.find(c => c.name === formData.category);
+        const detailTypeFromDB = selectedCategory?.detail_type;
+        
+        // AUTO-SAVE to mobile table if parent category detail_type is 'mobile'
+        if (detailTypeFromDB === 'mobile') {
+          // Save ONLY cover-specific details to product_cover_details table
+          // Common fields are already in products table
+          const mobileInsert: any = {
+            product_id: productDataSingle.id,
+            // Cover-specific details only (common fields are in products table)
+            brand: formData.mobileDetails?.brand || 'Not Specified',
+            compatible_model: formData.mobileDetails?.compatible_model || 'Not Specified',
+            type: formData.mobileDetails?.type || 'Not Specified',
+            color: formData.mobileDetails?.color || 'Not Specified',
+          };
+          
+          // Try to update first, if not found then insert
+          const { data: existing } = await supabase
+            .from('product_cover_details')
+            .select('id')
+            .eq('product_id', productDataSingle.id)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_cover_details').update(mobileInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_cover_details').insert(mobileInsert).select();
+          }
+        } 
+        // AUTO-SAVE to apparel table if parent category detail_type is 'apparel'
+        else if (detailTypeFromDB === 'apparel') {
+          // Save ONLY apparel-specific details to product_apparel_details table
+          // Common fields are already in products table
+          const apparelInsert: any = {
+            product_id: productDataSingle.id,
+            // Apparel-specific details only (common fields are in products table)
+            brand: formData.apparelDetails?.brand || 'Not Specified',
+            gender: formData.apparelDetails?.gender || 'Not Specified',
+            material: formData.apparelDetails?.material || 'Not Specified',
+            fit_type: formData.apparelDetails?.fit_type || 'Not Specified',
+            pattern: formData.apparelDetails?.pattern || 'Not Specified',
+            color: formData.apparelDetails?.color || 'Not Specified',
+            size: formData.apparelDetails?.size || 'Not Specified',
+            sku: formData.apparelDetails?.sku || 'Not Specified',
+          };
+          
+          // Try to update first, if not found then insert
+          const { data: existing } = await supabase
+            .from('product_apparel_details')
+            .select('id')
+            .eq('product_id', productDataSingle.id)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_apparel_details').update(apparelInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_apparel_details').insert(apparelInsert).select();
+          }
+        }
+        // AUTO-SAVE to accessories table if parent category detail_type is 'accessories'
+        else if (detailTypeFromDB === 'accessories') {
+          // Save ONLY accessories-specific details to product_accessories_details table
+          // Common fields are already in products table
+          const accessoriesInsert: any = {
+            product_id: productDataSingle.id,
+            // Accessories-specific details only (common fields are in products table)
+            accessory_type: formData.accessoriesDetails?.accessory_type || 'Not Specified',
+            compatible_with: formData.accessoriesDetails?.compatible_with || 'Not Specified',
+            material: formData.accessoriesDetails?.material || 'Not Specified',
+            color: formData.accessoriesDetails?.color || 'Not Specified',
+          };
+          
+          // Try to update first, if not found then insert
+          const { data: existing } = await supabase
+            .from('product_accessories_details')
+            .select('id')
+            .eq('product_id', productDataSingle.id)
+            .single();
+          
+          if (existing) {
+            await supabase.from('product_accessories_details').update(accessoriesInsert).eq('id', existing.id);
+          } else {
+            await supabase.from('product_accessories_details').insert(accessoriesInsert).select();
+          }
+        }
+      }
 
-      // Note: Subcategories are stored in the products table's 'subcategory' field
-      // which handles the first subcategory. Multiple subcategories are stored
-      // in the subcategories field as an array (stored in formData.subcategories).
-
-      // Then, insert product images if any
+      // Insert product images if any
       if (formData.images.length > 0) {
         const imageInserts = formData.images.map(image => ({
           product_id: productDataSingle.id,
@@ -547,6 +720,287 @@ export default function NewProductPage() {
                   <p className="mt-1 text-sm text-red-600">{validationErrors.stock_quantity}</p>
                 )}
               </div>
+
+              {/* Product Details - Mobile - Based on subcategory detail_type relationship */}
+              {detailType === 'mobile' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Phone Cover Details</h3>
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                      Will save to: product_cover_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Brand *</label>
+                      <input
+                        type="text"
+                        value={formData.mobileDetails.brand || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          mobileDetails: { ...prev.mobileDetails, brand: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Apple, Samsung"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Compatible Model *</label>
+                      <input
+                        type="text"
+                        value={formData.mobileDetails.compatible_model || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          mobileDetails: { ...prev.mobileDetails, compatible_model: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., iPhone 15, Samsung Galaxy S24"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Type *</label>
+                      <input
+                        type="text"
+                        value={formData.mobileDetails.type || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          mobileDetails: { ...prev.mobileDetails, type: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Clear Case, Wallet Case, Silicone"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        value={formData.mobileDetails.color || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          mobileDetails: { ...prev.mobileDetails, color: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Black, Transparent, Blue"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
+                    <p className="text-xs text-blue-800 font-medium">
+                      ✓ Auto-detected: Mobile subcategory → Details will be saved to <strong>product_cover_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Product Details - Apparel - Based on subcategory detail_type relationship */}
+              {detailType === 'apparel' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Apparel Details</h3>
+                    <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">
+                      Will save to: product_apparel_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Brand *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.brand || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, brand: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Nike, Adidas, Zara"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Gender *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.gender || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, gender: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Men, Women, Unisex"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.material || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, material: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Cotton, Polyester, Silk"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Fit Type *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.fit_type || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, fit_type: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Regular, Slim, Loose"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Pattern *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.pattern || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, pattern: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Solid, Striped, Printed"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.color || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, color: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Red, Blue, Black"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Size *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.size || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, size: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., S, M, L, XL"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">SKU *</label>
+                      <input
+                        type="text"
+                        value={formData.apparelDetails.sku || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          apparelDetails: { ...prev.apparelDetails, sku: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., APL-001-RED-M"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
+                    <p className="text-xs text-green-800 font-medium">
+                      ✓ Auto-detected: Apparel subcategory → Details will be saved to <strong>product_apparel_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Product Details - Accessories - Based on category detail_type relationship */}
+              {detailType === 'accessories' && (
+                <div className="sm:col-span-2 border-t pt-6">
+                  <div className="mb-4 flex items-center justify-between">
+                    <h3 className="text-lg font-medium text-gray-900">Accessories Details</h3>
+                    <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">
+                      Will save to: product_accessories_details
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Accessory Type *</label>
+                      <input
+                        type="text"
+                        value={formData.accessoriesDetails?.accessory_type || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          accessoriesDetails: { ...prev.accessoriesDetails, accessory_type: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Charger, Cable, Case, Stand"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Compatible With *</label>
+                      <input
+                        type="text"
+                        value={formData.accessoriesDetails?.compatible_with || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          accessoriesDetails: { ...prev.accessoriesDetails, compatible_with: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., iPhone, Samsung, Universal"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <input
+                        type="text"
+                        value={formData.accessoriesDetails?.material || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          accessoriesDetails: { ...prev.accessoriesDetails, material: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Plastic, Metal, Silicone"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <input
+                        type="text"
+                        value={formData.accessoriesDetails?.color || ''}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          accessoriesDetails: { ...prev.accessoriesDetails, color: e.target.value }
+                        }))}
+                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Black, White, Silver"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="mt-2 p-2 bg-purple-50 border border-purple-200 rounded">
+                    <p className="text-xs text-purple-800 font-medium">
+                      ✓ Auto-detected: Accessories subcategory → Details will be saved to <strong>product_accessories_details</strong> table
+                    </p>
+                  </div>
+                </div>
+              )}
 
               {/* Category */}
               <div>
