@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ImageUpload from '@/components/ImageUpload';
+import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
-import { uploadImageToSupabase } from '@/utils/imageUpload';
+import { uploadImageToSupabase, deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
 
 interface Category {
   id: string;
@@ -19,100 +19,205 @@ interface Category {
   updated_at: string;
 }
 
-// Removed predefined categories to ensure we only fetch from database
-
 export default function CategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
-  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [categorySearch, setCategorySearch] = useState('');
+  const [editLoading, setEditLoading] = useState(false);
+  const [tempCategoryId, setTempCategoryId] = useState<string | null>(null);
+  const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+  const [subcategoriesList, setSubcategoriesList] = useState<{ [key: string]: Category[] }>({});
+  const [loadingSubcats, setLoadingSubcats] = useState<string[]>([]);
+  const [isCreatingSubcategory, setIsCreatingSubcategory] = useState(false);
+  const [parentCategoryId, setParentCategoryId] = useState<string | null>(null);
   const supabase = createClient();
 
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     description: '',
-    image_url: '',
-    parent_category_id: ''
+    image_url: ''
   });
 
   useEffect(() => {
-    console.log('🚀 Categories page loaded, starting fetch...');
     fetchCategories();
   }, []);
 
   const fetchCategories = async () => {
     try {
       setLoading(true);
-      console.log('🔍 Starting to fetch categories from database...');
       
-      // Fetch main categories
-      const { data: categoriesData, error: categoriesError } = await supabase
+      // Fetch only top-level categories (no parent)
+      const { data, error: fetchError } = await supabase
         .from('categories')
         .select('*')
+        .is('parent_category_id', null)
         .order('name', { ascending: true });
 
-      if (categoriesError) {
-        console.error('❌ Categories error:', categoriesError);
-        throw categoriesError;
-      }
-
-      // Fetch subcategories
-      const { data: subcategoriesData, error: subcategoriesError } = await supabase
-        .from('subcategories')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (subcategoriesError) {
-        console.error('❌ Subcategories error:', subcategoriesError);
-      }
+      if (fetchError) throw fetchError;
       
-      console.log('✅ Database query successful');
-      console.log('📊 Categories:', categoriesData?.length || 0);
-      console.log('📊 Subcategories:', subcategoriesData?.length || 0);
-      
-      setCategories(categoriesData || []);
-      setSubcategories(subcategoriesData || []);
+      setCategories(data || []);
+      setError(null);
     } catch (err: any) {
-      console.error('💥 Error fetching:', err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateSlug = (name: string) => {
-    return name.toLowerCase()
+  const generateSlug = (name: string, isSubcategory: boolean = false, parentCatId?: string) => {
+    let slug = name.toLowerCase()
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
+    
+    if (isSubcategory && parentCatId) {
+      const parentContext = parentCatId.substring(0, 8);
+      slug = `${slug}-${parentContext}`;
+    }
+    
+    return slug;
   };
 
-  // Handle image upload for categories
+  const cleanImageUrl = (url: string): string => {
+    return url.split('?')[0];
+  };
+
+  const addCacheBusting = (url: string | null, updatedAt?: string): string => {
+    if (!url) return '';
+    const baseUrl = url.split('?')[0];
+    const timestamp = updatedAt ? new Date(updatedAt).getTime() : Date.now();
+    return `${baseUrl}?v=${timestamp}`;
+  };
+
   const handleImageUpload = async (file: File) => {
     setUploadingImage(true);
     setError(null);
     
     try {
-      // Generate UUID for category folder
-      const categoryUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
+      let imageFolder: string = '';
+      let imageBucket: string = 'category-images';
       
-      console.log('Generated category UUID:', categoryUuid);
+      if (editingCategory && editingCategory.id) {
+        const isSubcategory = !!editingCategory.parent_category_id;
+        imageBucket = isSubcategory ? 'subcategory-images' : 'category-images';
+        imageFolder = editingCategory.id;
+      } else if (showEditModal && formData.name) {
+        const foundCategory = categories.find(cat => 
+          cat.name === formData.name || cat.slug === formData.slug
+        ) || Object.values(subcategoriesList).flat().find(cat => 
+          cat.name === formData.name || cat.slug === formData.slug
+        );
+        
+        if (foundCategory && foundCategory.id) {
+          const isSubcategory = !!foundCategory.parent_category_id;
+          imageBucket = isSubcategory ? 'subcategory-images' : 'category-images';
+          imageFolder = foundCategory.id;
+        }
+      } else if (formData.image_url) {
+        try {
+          const url = formData.image_url;
+          const categoryMatch = url.match(/category-images\/([^/]+)\//) || url.match(/subcategory-images\/([^/]+)\//);
+          if (categoryMatch && categoryMatch[1]) {
+            imageFolder = categoryMatch[1];
+            imageBucket = url.includes('subcategory-images') ? 'subcategory-images' : 'category-images';
+          } else {
+            throw new Error('Could not extract folder ID from URL');
+          }
+        } catch (err) {
+          imageFolder = '';
+        }
+      }
       
-      const result = await uploadImageToSupabase(file, 'category-images', `categories/${categoryUuid}`);
+      if (!imageFolder) {
+        if (isCreatingSubcategory) {
+          if (!tempCategoryId) {
+            const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+              const r = Math.random() * 16 | 0;
+              const v = c === 'x' ? r : (r & 0x3 | 0x8);
+              return v.toString(16);
+            });
+            setTempCategoryId(newId);
+            imageFolder = newId;
+          } else {
+            imageFolder = tempCategoryId;
+          }
+          imageBucket = 'subcategory-images';
+        } else if (tempCategoryId) {
+          imageFolder = tempCategoryId;
+          imageBucket = 'category-images';
+        } else {
+          const categoryTempId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+            const r = Math.random() * 16 | 0;
+            const v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+          });
+          imageFolder = categoryTempId;
+          imageBucket = 'category-images';
+          setTempCategoryId(categoryTempId);
+        }
+      }
+      
+      if (!imageFolder) {
+        throw new Error('Failed to determine folder ID for image upload. Please try saving the category first, then upload the image.');
+      }
+      
+      const result = await uploadImageToSupabase(file, imageBucket, imageFolder, true);
       
       if (result.success && result.url) {
         setFormData(prev => ({
           ...prev,
           image_url: result.url!
         }));
+        
+        if (editingCategory) {
+          try {
+            const cleanUrl = cleanImageUrl(result.url!);
+            
+            const isSubcategory = !!editingCategory.parent_category_id;
+            const tableName = isSubcategory ? 'subcategories' : 'categories';
+            
+            const { error: imgUpdateError } = await supabase
+              .from(tableName)
+              .update({ image_url: cleanUrl, updated_at: new Date().toISOString() })
+              .eq('id', editingCategory.id);
+            
+            if (imgUpdateError) {
+              setError(`Image uploaded but failed to save to database: ${imgUpdateError.message}`);
+            } else {
+              const newUpdatedAt = new Date().toISOString();
+              const updatedCategory = { 
+                ...editingCategory, 
+                image_url: cleanUrl,
+                updated_at: newUpdatedAt
+              };
+              
+              if (editingCategory.parent_category_id && subcategoriesList[editingCategory.parent_category_id]) {
+                setSubcategoriesList(prev => ({
+                  ...prev,
+                  [editingCategory.parent_category_id!]: prev[editingCategory.parent_category_id!].map(cat =>
+                    cat.id === editingCategory.id ? updatedCategory : cat
+                  )
+                }));
+              } else {
+                setCategories(prev => prev.map(cat => 
+                  cat.id === editingCategory.id ? updatedCategory : cat
+                ));
+              }
+              
+              setEditingCategory(updatedCategory);
+              setFormData(prev => ({
+                ...prev,
+                image_url: addCacheBusting(cleanUrl, newUpdatedAt)
+              }));
+            }
+          } catch (persistErr: any) {
+            setError(`Image uploaded but failed to save to database: ${persistErr.message}`);
+          }
+        }
       } else {
         setError(result.error || 'Failed to upload image');
       }
@@ -126,102 +231,101 @@ export default function CategoriesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.name.trim()) {
+      setError('Category name is required');
+      return;
+    }
+    
     try {
-      const categoryData = {
+      setEditLoading(true);
+      
+      let categoryData: any = {
         name: formData.name.trim(),
-        slug: formData.slug.trim() || generateSlug(formData.name),
+        slug: generateSlug(formData.name, isCreatingSubcategory, parentCategoryId || undefined),
         description: formData.description.trim(),
-        image_url: formData.image_url.trim() || null,
-        parent_category_id: formData.parent_category_id || null,
+        image_url: formData.image_url.trim() ? cleanImageUrl(formData.image_url.trim()) : null,
       };
+      
+      if (isCreatingSubcategory && parentCategoryId) {
+        categoryData.parent_category_id = parentCategoryId;
+      } else if (editingCategory && editingCategory.parent_category_id) {
+        categoryData.parent_category_id = editingCategory.parent_category_id;
+      }
 
       if (editingCategory) {
-        // Update existing category or subcategory
-        // Check if it's currently in the wrong table and needs to be moved
-        const isSubcategory = !!categoryData.parent_category_id;
-        const wasSubcategory = subcategories.some(sub => sub.id === editingCategory.id);
-        const wasCategory = categories.some(cat => cat.id === editingCategory.id);
-        
-        if (isSubcategory && wasCategory) {
-          // Moving from categories to subcategories
-          // Delete from categories
-          await supabase.from('categories').delete().eq('id', editingCategory.id);
-          // Insert into subcategories
-          const { data } = await supabase
-            .from('subcategories')
-            .insert([categoryData])
-            .select();
-          setCategories(categories.filter(cat => cat.id !== editingCategory.id));
-          if (data && data[0]) {
-            setSubcategories([...subcategories, data[0]]);
-          }
-        } else if (!isSubcategory && wasSubcategory) {
-          // Moving from subcategories to categories
-          // Delete from subcategories
-          await supabase.from('subcategories').delete().eq('id', editingCategory.id);
-          // Insert into categories
-          const { data } = await supabase
-            .from('categories')
-            .insert([categoryData])
-            .select();
-          setSubcategories(subcategories.filter(sub => sub.id !== editingCategory.id));
-          if (data && data[0]) {
-            setCategories([...categories, data[0]]);
-          }
-        } else if (isSubcategory) {
-          // It's a subcategory - update in subcategories table
-          const { error } = await supabase
+        if (editingCategory.parent_category_id) {
+          // Update subcategory in subcategories table
+          const { error: updateError } = await supabase
             .from('subcategories')
             .update(categoryData)
             .eq('id', editingCategory.id);
 
-          if (error) throw error;
-          
-          setSubcategories(subcategories.map(sub => 
-            sub.id === editingCategory.id ? { ...sub, ...categoryData } : sub
-          ));
+          if (updateError) throw updateError;
+
+          // Update subcategories cache
+          if (subcategoriesList[editingCategory.parent_category_id]) {
+            setSubcategoriesList(prev => ({
+              ...prev,
+              [editingCategory.parent_category_id!]: prev[editingCategory.parent_category_id!].map(cat =>
+                cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
+              )
+            }));
+          }
         } else {
-          // It's a category - update in categories table
-          const { error } = await supabase
+          // Update parent category in categories table
+          const { error: updateError } = await supabase
             .from('categories')
             .update(categoryData)
             .eq('id', editingCategory.id);
 
-          if (error) throw error;
-          
+          if (updateError) throw updateError;
+
+          // Update main categories list
           setCategories(categories.map(cat => 
             cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
           ));
         }
         setEditingCategory(null);
       } else {
-        // Create new category or subcategory
-        if (categoryData.parent_category_id) {
-          // It's a subcategory - insert into subcategories table
-          const { data, error } = await supabase
+        if (tempCategoryId) {
+          categoryData.id = tempCategoryId;
+        }
+
+        if (isCreatingSubcategory && parentCategoryId) {
+          const { data, error: insertError } = await supabase
             .from('subcategories')
             .insert([categoryData])
             .select();
 
-          if (error) throw error;
-          
-          setSubcategories([...subcategories, data[0]]);
+          if (insertError) throw insertError;
+
+          const newSubcategory: Category = {
+            ...data[0],
+            parent_category_id: parentCategoryId
+          };
+          setSubcategoriesList(prev => ({
+            ...prev,
+            [parentCategoryId]: [...(prev[parentCategoryId] || []), newSubcategory]
+          }));
         } else {
-          // It's a main category - insert into categories table
-          const { data, error } = await supabase
+          const { data, error: insertError } = await supabase
             .from('categories')
             .insert([categoryData])
             .select();
 
-          if (error) throw error;
-          
+          if (insertError) throw insertError;
+
           setCategories([...categories, data[0]]);
         }
       }
 
       resetForm();
+      setEditLoading(false);
+      setIsCreatingSubcategory(false);
+      setParentCategoryId(null);
     } catch (err: any) {
       setError(err.message);
+      setEditLoading(false);
     }
   };
 
@@ -231,46 +335,243 @@ export default function CategoriesPage() {
       name: category.name,
       slug: category.slug,
       description: category.description || '',
-      image_url: category.image_url || '',
-      parent_category_id: category.parent_category_id || ''
+      image_url: category.image_url ? addCacheBusting(category.image_url, category.updated_at) : ''
     });
-    setShowAddForm(true);
+    setShowEditModal(true);
   };
 
   const handleDelete = async (categoryId: string) => {
-    if (!confirm('Are you sure you want to delete this category? This action cannot be undone.')) return;
+    if (!confirm('Are you sure you want to delete this category? This will also delete all subcategories and products under it.')) return;
 
     try {
-      const { error } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
+      let categoryToDelete = categories.find(cat => cat.id === categoryId);
+      let isSubcategoryToDelete = false;
 
-      if (error) throw error;
+      if (!categoryToDelete) {
+        const { data: subcat, error: subcatFetchError } = await supabase
+          .from('subcategories')
+          .select('*')
+          .eq('id', categoryId)
+          .single();
+        if (subcatFetchError) throw new Error('Category not found: ' + subcatFetchError.message);
+        categoryToDelete = subcat as any as Category;
+        isSubcategoryToDelete = true;
+      }
       
-      setCategories(categories.filter(cat => cat.id !== categoryId));
+      if (!categoryToDelete?.parent_category_id) {
+        const { data: subcats, error: subcatError } = await supabase
+          .from('subcategories')
+          .select('*')
+          .eq('parent_category_id', categoryId);
+
+        if (!subcatError && subcats && subcats.length > 0) {
+          for (const subcat of subcats) {
+            try {
+              let prodIdsRes = await supabase
+                .from('products')
+                .select('id')
+                .eq('subcategory_id', subcat.id);
+              let prodIdsError = prodIdsRes.error as any;
+              let prodIds = prodIdsRes.data as any[] | null;
+              if (prodIdsError && (prodIdsError.message?.includes('column') || prodIdsError.message?.includes('does not exist'))) {
+                const legacy = await supabase
+                  .from('products')
+                  .select('id')
+                  .eq('subcategory', subcat.name);
+                prodIds = legacy.data as any[] | null;
+              }
+              if (prodIds && prodIds.length > 0) {
+                for (const p of prodIds) {
+                  try { await deleteFolderContents('product-images', p.id); } catch {}
+                }
+              }
+            } catch {}
+            
+            let del = await supabase
+              .from('products')
+              .delete()
+              .eq('subcategory_id', subcat.id);
+            let prodDeleteError = del.error as any;
+            if (prodDeleteError && (prodDeleteError.message?.includes('column') || prodDeleteError.message?.includes('does not exist'))) {
+              await supabase
+                .from('products')
+                .delete()
+                .eq('subcategory', subcat.name);
+            }
+            
+            try {
+              await deleteFolderContents('subcategory-images', subcat.id);
+            } catch {}
+            try {
+              await deleteFolderContents('category-images', subcat.id);
+            } catch {}
+          }
+
+          const { error: subcatDeleteError } = await supabase
+            .from('subcategories')
+            .delete()
+            .eq('parent_category_id', categoryId);
+
+          if (subcatDeleteError) throw subcatDeleteError;
+        }
+
+        try {
+          let catProdRes = await supabase
+            .from('products')
+            .select('id')
+            .eq('category_id', categoryId);
+          let catProdErr = catProdRes.error as any;
+          let catProds = catProdRes.data as any[] | null;
+          if (catProdErr && (catProdErr.message?.includes('column') || catProdErr.message?.includes('does not exist'))) {
+            const legacy = await supabase
+              .from('products')
+              .select('id')
+              .eq('category', categoryToDelete?.name as string);
+            catProds = legacy.data as any[] | null;
+          }
+          if (catProds && catProds.length > 0) {
+            for (const p of catProds) { try { await deleteFolderContents('product-images', p.id); } catch {} }
+            let del = await supabase.from('products').delete().eq('category_id', categoryId);
+            let delErr = del.error as any;
+            if (delErr && (delErr.message?.includes('column') || delErr.message?.includes('does not exist'))) {
+              await supabase.from('products').delete().eq('category', categoryToDelete?.name as string);
+            }
+          }
+        } catch {}
+      } else {
+        try {
+          let prodIdsRes = await supabase
+            .from('products')
+            .select('id')
+            .eq('subcategory_id', categoryToDelete.id);
+          let prodIdsErr = prodIdsRes.error as any;
+          let prodIds = prodIdsRes.data as any[] | null;
+          if (prodIdsErr && (prodIdsErr.message?.includes('column') || prodIdsErr.message?.includes('does not exist'))) {
+            const legacy = await supabase
+              .from('products')
+              .select('id')
+              .eq('subcategory', categoryToDelete.name);
+            prodIds = legacy.data as any[] | null;
+          }
+          if (prodIds && prodIds.length > 0) {
+            for (const p of prodIds) { try { await deleteFolderContents('product-images', p.id); } catch {} }
+          }
+          try { await deleteFolderContents('subcategory-images', categoryToDelete.id); } catch {}
+          try { await deleteFolderContents('category-images', categoryToDelete.id); } catch {}
+        } catch {}
+        
+        let del = await supabase
+          .from('products')
+          .delete()
+          .eq('subcategory_id', categoryToDelete.id);
+        let prodError = del.error as any;
+        if (prodError && (prodError.message?.includes('column') || prodError.message?.includes('does not exist'))) {
+          await supabase
+            .from('products')
+            .delete()
+            .eq('subcategory', categoryToDelete.name);
+        }
+      }
+
+      if (isSubcategoryToDelete || categoryToDelete?.parent_category_id) {
+        const { error: deleteError } = await supabase
+          .from('subcategories')
+          .delete()
+          .eq('id', categoryId);
+        if (deleteError) throw deleteError;
+      } else {
+        const { error: deleteError } = await supabase
+          .from('categories')
+          .delete()
+          .eq('id', categoryId);
+        if (deleteError) throw deleteError;
+      }
+      
+      if (!categoryToDelete?.parent_category_id) {
+        try {
+          await deleteFolderContents('category-images', categoryId);
+        } catch {}
+      }
+      if (isSubcategoryToDelete || categoryToDelete?.parent_category_id) {
+        if (categoryToDelete?.parent_category_id && subcategoriesList[categoryToDelete.parent_category_id]) {
+          setSubcategoriesList(prev => ({
+            ...prev,
+            [categoryToDelete.parent_category_id!]: prev[categoryToDelete.parent_category_id!].filter(cat => cat.id !== categoryId)
+          }));
+        }
+      } else {
+        setCategories(categories.filter(cat => cat.id !== categoryId));
+        if (subcategoriesList[categoryId]) {
+          const newSubcats = { ...subcategoriesList } as any;
+          delete newSubcats[categoryId];
+          setSubcategoriesList(newSubcats);
+        }
+      }
     } catch (err: any) {
       setError(err.message);
     }
   };
 
-  // Group categories by parent-child relationship
-  const groupedCategories = () => {
-    console.log('🔄 Grouping categories...');
-    console.log('📦 Main categories:', categories);
-    console.log('📦 Subcategories:', subcategories);
-    
-    // Map subcategories to their parent categories
-    const grouped = categories.map(mainCat => ({
-      ...mainCat,
-      subcategories: subcategories.filter(sub => sub.parent_category_id === mainCat.id)
-    }));
-    
-    console.log('🎯 Final grouped data:', grouped);
-    return grouped;
+  const handleAddSubcategory = (parentId: string) => {
+    setIsCreatingSubcategory(true);
+    setParentCategoryId(parentId);
+    if (!tempCategoryId) {
+      const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+      setTempCategoryId(newId);
+    }
+    resetForm();
+    setShowEditModal(true);
   };
 
-  const groupedData = groupedCategories();
+  const filteredCategories = categories.filter(cat =>
+    cat.name?.toLowerCase().includes(categorySearch.toLowerCase()) ||
+    cat.slug?.toLowerCase().includes(categorySearch.toLowerCase())
+  );
+
+  const formatDate = (date: string) => new Date(date).toLocaleDateString();
+
+  // Categories are now flat (no hierarchy in this table)
+  // Simply use filteredCategories
+
+  const toggleExpandCategory = async (categoryId: string) => {
+    const isExpanded = expandedCategories.includes(categoryId);
+    
+    if (isExpanded) {
+      // Collapse
+      const newExpanded = expandedCategories.filter(id => id !== categoryId);
+      setExpandedCategories(newExpanded);
+    } else {
+      // Expand - fetch subcategories if not already cached
+      if (!subcategoriesList[categoryId]) {
+        setLoadingSubcats(prev => [...prev, categoryId]);
+        try {
+          const { data, error } = await supabase
+            .from('subcategories')
+            .select('*')
+            .eq('parent_category_id', categoryId)
+            .order('name', { ascending: true });
+
+          if (!error && data) {
+            setSubcategoriesList(prev => ({
+              ...prev,
+              [categoryId]: data
+            }));
+          }
+        } catch (err) {
+          // Error handled silently
+        } finally {
+          setLoadingSubcats(prev => prev.filter(id => id !== categoryId));
+        }
+      }
+      
+      const newExpanded = [...expandedCategories, categoryId];
+      setExpandedCategories(newExpanded);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -278,393 +579,253 @@ export default function CategoriesPage() {
       slug: '',
       description: '',
       image_url: '',
-      parent_category_id: ''
     });
-    setShowAddForm(false);
+    setShowEditModal(false);
     setEditingCategory(null);
+    setTempCategoryId(null);
   };
-
-  // Toggle category expansion
-  const toggleCategoryExpansion = (categoryId: string) => {
-    setExpandedCategories(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(categoryId)) {
-        newSet.delete(categoryId);
-      } else {
-        newSet.add(categoryId);
-      }
-      return newSet;
-    });
-  };
-
-  if (loading) {
-    return (
-      <AdminGuard>
-        <AdminLayout>
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading categories...</p>
-            </div>
-          </div>
-        </AdminLayout>
-      </AdminGuard>
-    );
-  }
 
   return (
     <AdminGuard>
       <AdminLayout>
         <div className="space-y-6">
-          {/* Page Header */}
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Categories</h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Manage product categories and subcategories.
-              </p>
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={() => setShowAddForm(true)}
-                className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                ➕ Add Category
-              </button>
-            </div>
-          </div>
-
-          {/* Error Message */}
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <span className="text-red-400">⚠️</span>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-red-800">Error</h3>
-                  <div className="mt-2 text-sm text-red-700">
-                    <p>{error}</p>
-                  </div>
-                </div>
-              </div>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <p className="text-red-700">{error}</p>
             </div>
           )}
 
-          {/* Add/Edit Category Form */}
-          {showAddForm && (
-            <div className="bg-white shadow rounded-lg p-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">
-                {editingCategory ? 'Edit Category' : 'Add New Category'}
-              </h3>
-              
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+          {showEditModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                  <h2 className="text-xl font-bold">
+                    {editingCategory ? 'Edit Category' : isCreatingSubcategory ? 'Add New Subcategory' : 'Add New Category'}
+                  </h2>
+                  <button onClick={() => { setShowEditModal(false); resetForm(); setIsCreatingSubcategory(false); setParentCategoryId(null); }} className="text-2xl">✕</button>
+                </div>
+                
+                <form onSubmit={handleSubmit} className="p-6 space-y-4">
                   <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
                       Category Name *
                     </label>
                     <input
                       type="text"
-                      name="name"
-                      id="name"
                       value={formData.name}
                       onChange={(e) => {
                         setFormData(prev => ({
                           ...prev,
                           name: e.target.value,
-                          slug: prev.slug || generateSlug(e.target.value)
+                          slug: generateSlug(e.target.value, isCreatingSubcategory, parentCategoryId || undefined)
                         }));
                       }}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="Enter category name"
                       required
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="slug" className="block text-sm font-medium text-gray-700">
-                      Slug *
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Description
                     </label>
-                    <input
-                      type="text"
-                      name="slug"
-                      id="slug"
-                      value={formData.slug}
-                      onChange={(e) => setFormData(prev => ({ ...prev, slug: e.target.value }))}
-                      className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="category-slug"
-                      required
+                    <textarea
+                      rows={3}
+                      value={formData.description}
+                      onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter category description"
                     />
                   </div>
-                </div>
 
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700">
-                    Description
-                  </label>
-                  <textarea
-                    name="description"
-                    id="description"
-                    rows={3}
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    placeholder="Enter category description"
-                  />
-                </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Category Image
+                    </label>
+                    <ImageUpload
+                      onImageUpload={handleImageUpload}
+                      currentImageUrl={formData.image_url}
+                      placeholder="Upload category image"
+                    />
+                    {uploadingImage && (
+                      <p className="mt-2 text-sm text-blue-600">Uploading image...</p>
+                    )}
+                  </div>
 
-                <div>
-                  <label htmlFor="parent_category_id" className="block text-sm font-medium text-gray-700">
-                    Parent Category
-                  </label>
-                  <select
-                    name="parent_category_id"
-                    id="parent_category_id"
-                    value={formData.parent_category_id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, parent_category_id: e.target.value }))}
-                    className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  >
-                    <option value="">Main Category (No Parent)</option>
-                    {categories.filter(cat => !cat.parent_category_id).map(category => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Leave empty to create a main category, or select a parent to create a subcategory
-                  </p>
-                </div>
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category Image
-                  </label>
-                  <ImageUpload
-                    onImageUpload={handleImageUpload}
-                    currentImageUrl={formData.image_url}
-                    placeholder="Upload category image"
-                    className="w-full"
-                  />
-                  {uploadingImage && (
-                    <p className="mt-2 text-sm text-blue-600">Uploading image...</p>
-                  )}
-                </div>
-
-                <div className="flex justify-end space-x-3">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                  >
-                    {editingCategory ? 'Update Category' : 'Create Category'}
-                  </button>
-                </div>
-              </form>
+                  <div className="p-6 border-t border-gray-200 flex space-x-3 sticky bottom-0 bg-white -m-6 mt-0">
+                    <button
+                      type="button"
+                      onClick={() => { setShowEditModal(false); resetForm(); }}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={editLoading}
+                      className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {editLoading ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
           )}
 
-          {/* Categories List */}
-          <div className="bg-white shadow rounded-lg overflow-hidden">
-            <div className="px-4 py-5 sm:p-6">
-              <h3 className="text-lg leading-6 font-medium text-gray-900 mb-4">
-                All Categories
-              </h3>
-              
-              {categories.length === 0 ? (
-                <div className="text-center py-12">
-                  <div className="text-gray-400 text-6xl mb-4">📂</div>
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">No categories found</h3>
-                  <p className="text-gray-500 mb-4">
-                    It looks like there are no categories in your database yet.
-                  </p>
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4 mb-4">
-                    <div className="flex">
-                      <div className="flex-shrink-0">
-                        <span className="text-yellow-400">⚠️</span>
-                      </div>
-                      <div className="ml-3">
-                        <h3 className="text-sm font-medium text-yellow-800">Database Issue</h3>
-                        <div className="mt-2 text-sm text-yellow-700">
-                          <p>If you expected to see categories, please check:</p>
-                          <ul className="list-disc list-inside mt-2 space-y-1">
-                            <li>Your Supabase connection is working</li>
-                            <li>The &apos;categories&apos; table exists in your database</li>
-                            <li>You have data in the categories table</li>
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-center space-x-3">
-                    <button
-                      onClick={() => setShowAddForm(true)}
-                      className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-                    >
-                      ➕ Add Category
-                    </button>
-                  </div>
-                </div>
+          {/* Accordion View */}
+            <div className="bg-white rounded-lg shadow p-6 space-y-4">
+              {/* Header with Add Button and Search */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setShowEditModal(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                >
+                  ➕ Add Category
+                </button>
+                <button
+                  onClick={() => fetchCategories()}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
+                  title="Refresh categories from database"
+                >
+                  🔄 Refresh
+                </button>
+                <input
+                  type="text"
+                  placeholder="Search categories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <span className="text-sm text-gray-600 whitespace-nowrap">
+                  {filteredCategories.length} found
+                </span>
+              </div>
+
+              {/* Categories Accordion */}
+            <div className="space-y-2">
+              {loading ? (
+                <div className="text-center py-8 text-gray-500">Loading categories...</div>
+              ) : filteredCategories.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">No categories found</div>
               ) : (
-                <div className="space-y-6">
-                  {groupedData.map((mainCategory) => (
-                    <div key={mainCategory.id} className="border border-gray-200 rounded-lg overflow-hidden">
-                      {/* Main Category Header */}
-                      <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center flex-1">
-                            <div className="flex-shrink-0 h-10 w-10">
-                              <div className="h-10 w-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                                <span className="text-blue-600 text-sm">📁</span>
-                              </div>
-                            </div>
-                            <div className="ml-4 flex-1">
-                              <div className="flex items-center">
-                                <h3 className="text-lg font-medium text-gray-900">
-                                  {mainCategory.name}
-                                </h3>
-                                {mainCategory.subcategories.length > 0 && (
-                                  <button
-                                    onClick={() => toggleCategoryExpansion(mainCategory.id)}
-                                    className="ml-3 flex items-center text-sm text-gray-500 hover:text-gray-700"
-                                  >
-                                    <span className="mr-1">
-                                      {expandedCategories.has(mainCategory.id) ? 'Hide' : 'Show'} subcategories
-                                    </span>
-                                    <span className={`transform transition-transform duration-200 ${
-                                      expandedCategories.has(mainCategory.id) ? 'rotate-180' : ''
-                                    }`}>
-                                      ▼
-                                    </span>
-                                  </button>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {mainCategory.slug} • {mainCategory.subcategories.length} subcategories
-                              </p>
-                            </div>
+                filteredCategories.map((category) => (
+                  <div key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
+                    {/* Category Row */}
+                    <div className="flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition">
+                      <div className="flex items-center flex-1 gap-4">
+                        {/* Expand Button */}
+                        <button
+                          onClick={() => toggleExpandCategory(category.id)}
+                          className="text-gray-600 hover:text-gray-900 transition"
+                          title={expandedCategories.includes(category.id) ? "Collapse" : "Expand"}
+                        >
+                          <svg 
+                            className={`w-5 h-5 transition-transform ${expandedCategories.includes(category.id) ? 'rotate-90' : ''}`}
+                            fill="none" 
+                            stroke="currentColor" 
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+
+                        {/* Category Image */}
+                        {category.image_url ? (
+                          <img
+                            src={addCacheBusting(category.image_url, category.updated_at)}
+                            alt={category.name}
+                            className="h-10 w-10 object-cover rounded"
+                            key={`img-${category.id}-${category.updated_at}`}
+                          />
+                        ) : (
+                          <div className="h-10 w-10 bg-gray-200 rounded flex items-center justify-center">
+                            <span className="text-xs text-gray-500">No</span>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                              Main Category
-                            </span>
-                            <div className="flex space-x-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEdit(mainCategory);
-                                }}
-                                className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                              >
-                                Edit
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDelete(mainCategory.id);
-                                }}
-                                className="text-red-600 hover:text-red-900 text-sm font-medium"
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                        {mainCategory.description && (
-                          <p className="mt-2 text-sm text-gray-600">
-                            {mainCategory.description}
-                          </p>
                         )}
+
+                        {/* Category Info */}
+                        <div className="flex-1">
+                          <h3 className="font-semibold text-gray-900">{category.name}</h3>
+                          <p className="text-sm text-gray-600">{category.description || 'No description'}</p>
+                        </div>
+
+                        {/* Date */}
+                        <div className="text-sm text-gray-500 hidden md:block">
+                          {formatDate(category.created_at)}
+                        </div>
                       </div>
 
-                      {/* Subcategories */}
-                      {mainCategory.subcategories.length > 0 && expandedCategories.has(mainCategory.id) ? (
-                        <div className="bg-white">
-                          <div className="px-6 py-3 bg-gray-25 border-b border-gray-100">
-                            <h4 className="text-sm font-medium text-gray-700">Subcategories</h4>
-                          </div>
-                          <div className="divide-y divide-gray-100">
-                            {mainCategory.subcategories.map((subcategory) => (
-                              <div key={subcategory.id} className="px-6 py-4 hover:bg-gray-50">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center">
-                                    <div className="flex-shrink-0 h-8 w-8">
-                                      <div className="h-8 w-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                                        <span className="text-gray-600 text-xs">📄</span>
-                                      </div>
-                                    </div>
-                                    <div className="ml-4">
-                                      <div className="text-sm font-medium text-gray-900">
-                                        {subcategory.name}
-                                      </div>
-                                      <div className="text-xs text-gray-500">
-                                        {subcategory.slug}
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
-                                      Subcategory
-                                    </span>
-                                    <div className="flex space-x-2">
-                                      <button
-                                        onClick={() => handleEdit(subcategory)}
-                                        className="text-blue-600 hover:text-blue-900 text-sm font-medium"
-                                      >
-                                        Edit
-                                      </button>
-                                      <button
-                                        onClick={() => handleDelete(subcategory.id)}
-                                        className="text-red-600 hover:text-red-900 text-sm font-medium"
-                                      >
-                                        Delete
-                                      </button>
-                                    </div>
-                                  </div>
+                      {/* Actions */}
+                      <div className="flex items-center space-x-2 ml-4">
+                        <button
+                          onClick={() => handleAddSubcategory(category.id)}
+                          className="px-3 py-1 text-sm text-green-600 hover:text-green-900 font-medium"
+                          title="Add Subcategory"
+                        >
+                          ➕ SubCat
+                        </button>
+                        <button
+                          onClick={() => handleEdit(category)}
+                          className="px-3 py-1 text-sm text-blue-600 hover:text-blue-900 font-medium"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDelete(category.id)}
+                          className="px-3 py-1 text-sm text-red-600 hover:text-red-900 font-medium"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Subcategories (Expandable) */}
+                    {expandedCategories.includes(category.id) && (
+                      <div className="bg-gray-50 border-t border-gray-200">
+                        {loadingSubcats.includes(category.id) ? (
+                          <div className="p-4 text-center text-gray-500">Loading subcategories...</div>
+                        ) : (subcategoriesList[category.id]?.length || 0) > 0 ? (
+                          <div className="divide-y divide-gray-200">
+                            {subcategoriesList[category.id].map((subcat) => (
+                              <div key={subcat.id} className="p-4 flex items-center justify-between ml-12 bg-gray-50 hover:bg-gray-100">
+                                <div className="flex-1">
+                                  <h4 className="font-medium text-gray-800">{subcat.name}</h4>
+                                  <p className="text-sm text-gray-600">{subcat.description || 'No description'}</p>
                                 </div>
-                                {subcategory.description && (
-                                  <p className="mt-2 ml-12 text-xs text-gray-600">
-                                    {subcategory.description}
-                                  </p>
-                                )}
+                                <div className="flex items-center space-x-2 ml-4">
+                                  <button
+                                    onClick={() => handleEdit(subcat)}
+                                    className="px-2 py-1 text-xs text-blue-600 hover:text-blue-900"
+                                  >
+                                    Edit
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(subcat.id)}
+                                    className="px-2 py-1 text-xs text-red-600 hover:text-red-900"
+                                  >
+                                    Delete
+                                  </button>
+                                </div>
                               </div>
                             ))}
                           </div>
-                        </div>
-                      ) : mainCategory.subcategories.length > 0 ? (
-                        <div className="px-6 py-4 text-center bg-gray-25">
-                          <p className="text-sm text-gray-500">
-                            Click &quot;Show subcategories&quot; to view {mainCategory.subcategories.length} subcategories
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="px-6 py-8 text-center bg-gray-25">
-                          <div className="text-gray-400 text-4xl mb-2">📄</div>
-                          <p className="text-sm text-gray-500">No subcategories yet</p>
-                          <button
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, parent_category_id: mainCategory.id }));
-                              setShowAddForm(true);
-                            }}
-                            className="mt-2 text-sm text-blue-600 hover:text-blue-900 font-medium"
-                          >
-                            Add subcategory
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                        ) : (
+                          <div className="p-4 text-center text-gray-500 ml-12">
+                            No subcategories yet
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))
               )}
             </div>
-          </div>
+            </div>
         </div>
       </AdminLayout>
     </AdminGuard>

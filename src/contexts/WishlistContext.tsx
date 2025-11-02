@@ -27,55 +27,76 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     const loadWishlist = async () => {
       setLoading(true);
       
-      // Temporarily use localStorage for all users until database is set up
-      try {
-        const storageKey = user ? `wishlist-${user.id}` : 'guest-wishlist';
-        const savedWishlist = localStorage.getItem(storageKey);
-        if (savedWishlist) {
-          const parsedWishlist = JSON.parse(savedWishlist);
-          setWishlist(parsedWishlist);
-        } else {
-          setWishlist([]);
-        }
-      } catch (error) {
-        console.error('Error loading wishlist:', error);
-        setWishlist([]);
-      }
-      
-      setLoading(false);
-
-      // TODO: Uncomment when database is ready
-      /*
       if (user) {
         // Load from database for logged-in users
         try {
-          const { data: wishlistData, error } = await supabase
+          const { data: wishlistRows, error } = await supabase
             .from('wishlist')
-            .select(`
-              product_id,
-              products (
-                id,
-                name,
-                description,
-                price,
-                category,
-                subcategory,
-                image_url,
-                stock_quantity,
-                is_active,
-                created_at,
-                updated_at
-              )
-            `)
+            .select('product_id')
             .eq('user_id', user.id);
 
           if (error) {
             console.error('Error loading wishlist from database:', error);
             setWishlist([]);
           } else {
-            const products = wishlistData?.map(item => item.products).filter(Boolean) as Product[] || [];
-            setWishlist(products);
-            console.log('Loaded wishlist from database:', products);
+            const productIds = (wishlistRows || []).map((r: any) => r.product_id).filter(Boolean);
+            if (productIds.length === 0) {
+              setWishlist([]);
+            } else {
+              const { data: productsData, error: productsError } = await supabase
+                .from('products')
+                .select(`
+                  id,
+                  name,
+                  slug,
+                  description,
+                  price,
+                  category_id,
+                  brand,
+                  in_stock,
+                  stock_quantity,
+                  rating,
+                  review_count,
+                  created_at,
+                  updated_at
+                `)
+                .in('id', productIds);
+
+              if (productsError) {
+                console.error('Error loading wishlist products:', productsError);
+                setWishlist([]);
+              } else {
+                // Transform to Product type
+                const products = (productsData || []).map((dbProduct: any) => ({
+                  id: dbProduct.id,
+                  name: dbProduct.name,
+                  description: dbProduct.description || '',
+                  price: dbProduct.price,
+                  originalPrice: dbProduct.price,
+                  images: [],
+                  category: {
+                    id: dbProduct.category_id || 'unknown',
+                    name: 'Uncategorized',
+                    slug: 'uncategorized',
+                    description: '',
+                    image: '',
+                    subcategories: []
+                  },
+                  subcategories: [],
+                  brand: dbProduct.brand || '',
+                  sizes: [],
+                  colors: [],
+                  inStock: dbProduct.in_stock,
+                  rating: dbProduct.rating || 0,
+                  reviewCount: dbProduct.review_count || 0,
+                  tags: [],
+                  createdAt: new Date(dbProduct.created_at),
+                  updatedAt: new Date(dbProduct.updated_at)
+                })) as Product[];
+                setWishlist(products);
+                console.log('Loaded wishlist from database:', products);
+              }
+            }
           }
         } catch (error) {
           console.error('Error loading wishlist:', error);
@@ -97,26 +118,14 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           setWishlist([]);
         }
       }
-      */
+      
+      setLoading(false);
     };
 
     loadWishlist();
   }, [user, supabase]);
 
   const addToWishlist = async (product: Product) => {
-    // Temporarily use localStorage for all users until database is set up
-    setWishlist(prev => {
-      if (prev.find(item => item.id === product.id)) {
-        return prev; // Already in wishlist
-      }
-      const newWishlist = [...prev, product];
-      const storageKey = user ? `wishlist-${user.id}` : 'guest-wishlist';
-      localStorage.setItem(storageKey, JSON.stringify(newWishlist));
-      return newWishlist;
-    });
-
-    // TODO: Uncomment when database is ready
-    /*
     if (!user) {
       // For guest users, save to localStorage
       setWishlist(prev => {
@@ -132,15 +141,15 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
     // For logged-in users, save to database
     try {
-      const { error } = await supabase
+      const response = await (supabase
         .from('wishlist')
         .insert({
           user_id: user.id,
           product_id: product.id
-        });
+        }) as any);
 
-      if (error) {
-        console.error('Error adding to wishlist:', error);
+      if (response.error) {
+        console.error('Error adding to wishlist:', response.error);
         return;
       }
 
@@ -156,20 +165,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error adding to wishlist:', error);
     }
-    */
   };
 
   const removeFromWishlist = async (productId: string) => {
-    // Temporarily use localStorage for all users until database is set up
-    setWishlist(prev => {
-      const newWishlist = prev.filter(item => item.id !== productId);
-      const storageKey = user ? `wishlist-${user.id}` : 'guest-wishlist';
-      localStorage.setItem(storageKey, JSON.stringify(newWishlist));
-      return newWishlist;
-    });
-
-    // TODO: Uncomment when database is ready
-    /*
     if (!user) {
       // For guest users, remove from localStorage
       setWishlist(prev => {
@@ -182,14 +180,16 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
 
     // For logged-in users, remove from database
     try {
-      const { error } = await supabase
+      const deleteQuery = supabase
         .from('wishlist')
-        .delete()
+        .delete() as any;
+      
+      const response = await deleteQuery
         .eq('user_id', user.id)
         .eq('product_id', productId);
 
-      if (error) {
-        console.error('Error removing from wishlist:', error);
+      if (response.error) {
+        console.error('Error removing from wishlist:', response.error);
         return;
       }
 
@@ -199,7 +199,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Error removing from wishlist:', error);
     }
-    */
   };
 
   const isInWishlist = (productId: string) => {

@@ -341,29 +341,48 @@ export default function NewProductPage() {
       // Generate unique slug
       const uniqueSlug = await generateUniqueSlug(formData.name.trim());
       
-      // First, create the product
-      const { data: productData, error: productError } = await supabase
-        .from('products')
-        .insert([{
-          name: formData.name.trim(),
-          slug: uniqueSlug,
-          description: formData.description.trim(),
-          price: parseFloat(formData.price),
-          original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-          badge: formData.badge.trim() || null,
+      // First, create the product with a minimal, schema-safe payload
+      const minimalInsert: any = {
+        ...(productUuid ? { id: productUuid } : {}),
+        name: formData.name.trim(),
+        slug: uniqueSlug,
+        description: formData.description.trim(),
+        price: parseFloat(formData.price),
+        original_price: formData.original_price ? parseFloat(formData.original_price) : null,
+        badge: formData.badge.trim() || null,
+        image_url: formData.image_url.trim() || null,
+        stock_quantity: parseInt(formData.stock_quantity),
+        is_active: formData.is_active,
+        show_in_hero: formData.show_in_hero,
+      };
+
+      const ins = await supabase.from('products').insert([minimalInsert]).select('id');
+      if (ins.error) throw ins.error;
+      const productDataSingle = ins.data?.[0];
+      if (!productDataSingle) throw new Error('Product creation failed');
+
+      // Best-effort: update legacy string columns (ignore if missing)
+      try {
+        const legacyUpdate: any = {
           category: formData.category,
           subcategory: formData.subcategories.length > 0 ? formData.subcategories[0] : null,
-          image_url: formData.image_url.trim() || null,
-          stock_quantity: parseInt(formData.stock_quantity),
-          is_active: formData.is_active,
-          show_in_hero: formData.show_in_hero,
-        }])
-        .select();
+        };
+        await supabase.from('products').update(legacyUpdate).eq('id', productDataSingle.id);
+      } catch {}
 
-      if (productError) throw productError;
-      if (!productData || productData.length === 0) throw new Error('Product creation failed');
-
-      const productDataSingle = productData[0];
+      // Best-effort: update FK UUID columns (ignore if missing)
+      try {
+        const fkUpdate: any = {
+          category_id: (categories.find(c => c.name === formData.category)?.id) || null,
+          subcategory_id: (() => {
+            const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
+            if (!selectedFirstName) return null;
+            const sub = subcategories.find(s => s.name === selectedFirstName);
+            return sub && !sub.id.startsWith('temp-') && !sub.id.startsWith('common-') ? sub.id : null;
+          })(),
+        };
+        await supabase.from('products').update(fkUpdate).eq('id', productDataSingle.id);
+      } catch {}
 
       // Note: Subcategories are stored in the products table's 'subcategory' field
       // which handles the first subcategory. Multiple subcategories are stored
@@ -378,10 +397,18 @@ export default function NewProductPage() {
           display_order: image.display_order
         }));
 
-        const { error: imagesError } = await supabase
-          .from('product_images')
-          .insert(imageInserts)
-          .select();
+        let imgRes = await supabase.from('product_images').insert(imageInserts).select('id');
+        let imagesError = imgRes.error as any;
+        if (imagesError && (imagesError.message?.includes("product_id' column") || imagesError.message?.includes('product_id') || imagesError.message?.includes('schema cache') || imagesError.message?.includes('does not exist'))) {
+          // Fallback: attempt insert without product_id if legacy schema differs (will likely fail silently)
+          const legacyInserts = formData.images.map(image => ({
+            image_url: image.image_url,
+            alt_text: image.alt_text || '',
+            display_order: image.display_order
+          }));
+          imgRes = await supabase.from('product_images').insert(legacyInserts).select('id');
+          imagesError = imgRes.error as any;
+        }
 
         if (imagesError) {
           console.error('Error inserting product images:', imagesError);

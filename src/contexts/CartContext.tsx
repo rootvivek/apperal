@@ -347,26 +347,61 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           alert('Error updating cart. Please try again.');
           return;
         }
+
+        // Optimistically update local state instead of full refetch
+        setCartItems(prevItems =>
+          prevItems.map(item =>
+            item.id === existingItem.id
+              ? { ...item, quantity: item.quantity + quantity }
+              : item
+          )
+        );
       } else {
         // Add new item to cart
-        const { error: insertError } = await supabase
+        const { data: productData, error: productError } = await supabase
+          .from('products')
+          .select('id, name, price, image_url, stock_quantity')
+          .eq('id', productId)
+          .single();
+
+        if (productError || !productData) {
+          console.error('Error fetching product:', productError);
+          alert('Error fetching product details. Please try again.');
+          return;
+        }
+
+        const { data: insertData, error: insertError } = await supabase
           .from('cart_items')
           .insert({
             cart_id: cart.id,
             product_id: productId,
             quantity: quantity
           })
-          .select();
+          .select('id');
 
         if (insertError) {
           console.error('Error adding to cart:', insertError);
           alert('Error adding item to cart. Please try again.');
           return;
         }
-      }
 
-      // Refresh cart items
-      await fetchCartItems();
+        if (insertData && insertData.length > 0) {
+          // Optimistically add item to local state instead of full refetch
+          const newItem: CartItem = {
+            id: insertData[0].id,
+            product_id: productId,
+            quantity: quantity,
+            product: {
+              id: productData.id,
+              name: productData.name,
+              price: productData.price,
+              image_url: productData.image_url,
+              stock_quantity: productData.stock_quantity,
+            }
+          };
+          setCartItems(prevItems => [...prevItems, newItem]);
+        }
+      }
       
       // Show success notification
       console.log('Item added to cart successfully!');
@@ -405,8 +440,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Refresh cart items
-      await fetchCartItems();
+      // Optimistically update local state instead of full refetch
+      setCartItems(prevItems => prevItems.filter(item => item.id !== cartItemId));
     } catch (error) {
       console.error('Error removing from cart:', error);
     }
@@ -448,8 +483,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Refresh cart items
-      await fetchCartItems();
+      // Optimistically update local state instead of full refetch
+      setCartItems(prevItems =>
+        prevItems.map(item =>
+          item.id === cartItemId ? { ...item, quantity } : item
+        )
+      );
     } catch (error) {
       console.error('Error updating quantity:', error);
     }

@@ -267,9 +267,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const handleAddToCart = () => {
     if (!product) return;
+    
     // Do not block the click handler on network I/O
+    // Show brief feedback but don't disable the button
     setIsAddedToCart(true);
-    setTimeout(() => setIsAddedToCart(false), 2000);
+    setTimeout(() => setIsAddedToCart(false), 1500);
     void addToCart(product.id, quantity);
   };
 
@@ -700,7 +702,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <div className="flex space-x-4">
                 <button
                   onClick={handleAddToCart}
-                  disabled={product.stock_quantity === 0 || isAddedToCart}
+                  disabled={product.stock_quantity === 0}
                   className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
                 >
                   <CartIcon className="w-5 h-5 flex-shrink-0" />

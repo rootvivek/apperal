@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
+import { deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
 
 interface ProductImage {
   id?: string;
@@ -15,13 +16,14 @@ interface ProductImage {
 }
 
 interface ProductFormData {
+  id: string;
   name: string;
   description: string;
   price: string;
   original_price: string;
   badge: string;
   category: string;
-  subcategory: string;
+  subcategories: string[];
   image_url: string;
   stock_quantity: string;
   is_active: boolean;
@@ -29,7 +31,6 @@ interface ProductFormData {
   images: ProductImage[];
 }
 
-// Categories will be fetched from database
 interface Category {
   id: string;
   name: string;
@@ -38,14 +39,20 @@ interface Category {
   parent_category_id: string | null;
 }
 
-
 export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
   
+  // Create supabase client once at component level
+  const supabase = createClient();
+  
+  // Track whether we've already fetched the product to prevent duplicate fetches
+  const hasInitialFetched = useRef(false);
+  const isMountedRef = useRef(true);
+  
   const [loading, setLoading] = useState(false);
-  const [initialLoading, setInitialLoading] = useState(true);
+  const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -53,16 +60,19 @@ export default function EditProductPage() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [subcategoriesLoading, setSubcategoriesLoading] = useState(false);
-  const supabase = createClient();
+  const [customSubcategory, setCustomSubcategory] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Flag to prevent double submissions
 
   const [formData, setFormData] = useState<ProductFormData>({
+    id: productId,
     name: '',
     description: '',
     price: '',
     original_price: '',
     badge: '',
     category: '',
-    subcategory: '',
+    subcategories: [],
     image_url: '',
     stock_quantity: '',
     is_active: true,
@@ -72,66 +82,125 @@ export default function EditProductPage() {
 
   const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
 
-  // Get available subcategories based on selected category
-  const getAvailableSubcategories = () => {
-    return subcategories;
-  };
+  // Cleanup on unmount
+  useEffect(() => {
+    // Set to true when component mounts
+    isMountedRef.current = true;
+    console.log('Component mounted, isMountedRef set to true');
 
-  // Fetch subcategories when category changes
-  const fetchSubcategories = async (categoryName: string) => {
-    if (!categoryName) {
-      setSubcategories([]);
+    return () => {
+      // Only set to false on actual unmount
+      isMountedRef.current = false;
+      console.log('Component unmounting, isMountedRef set to false');
+    };
+  }, []);
+
+  // Fetch product data - only on initial load
+  useEffect(() => {
+    // Prevent duplicate fetches
+    if (hasInitialFetched.current) {
+      console.log('Product already fetched, skipping duplicate fetch');
       return;
     }
 
-    try {
-      setSubcategoriesLoading(true);
-      // Find the selected category to get its ID
-      const selectedCategory = categories.find(cat => cat.name === categoryName);
-      if (!selectedCategory) {
-        setSubcategories([]);
-        return;
+    const supabaseInstance = supabase; // Use the constant supabase
+
+    const fetchProduct = async () => {
+      try {
+        setPageLoading(true);
+        console.log('1. Starting to fetch product:', productId);
+        
+        const { data: product, error: productError } = await supabaseInstance
+          .from('products')
+          .select('*')
+          .eq('id', productId)
+          .single();
+
+        console.log('2. Product fetch result:', { product, productError });
+
+        if (productError) throw productError;
+        if (!product) throw new Error('Product not found');
+
+        console.log('3. Setting initial form data');
+        // Only update state if component is still mounted
+        if (!isMountedRef.current) return;
+
+        setFormData({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          price: product.price.toString(),
+          original_price: product.original_price?.toString() || '',
+          badge: product.badge || '',
+          category: product.category,
+          subcategories: product.subcategory ? [product.subcategory] : [],
+          image_url: '', // Will be set from product images below
+          stock_quantity: product.stock_quantity.toString(),
+          is_active: product.is_active,
+          show_in_hero: product.show_in_hero || false,
+          images: [],
+        });
+
+        console.log('4. Fetching product images');
+        // Fetch product images
+        const { data: productImages, error: imagesError } = await supabaseInstance
+          .from('product_images')
+          .select('*')
+          .eq('product_id', productId)
+          .order('display_order', { ascending: true });
+
+        console.log('5. Images fetch result:', { imagesError, imageCount: productImages?.length });
+
+        if (!isMountedRef.current) return;
+
+        if (!imagesError && productImages && productImages.length > 0) {
+          const loadedImages = productImages.map((img: any) => ({
+            id: img.id,
+            image_url: img.image_url,
+            alt_text: img.alt_text,
+            display_order: img.display_order
+          }));
+          
+          setFormData(prev => ({
+            ...prev,
+            images: loadedImages,
+            image_url: loadedImages[0].image_url // Set first image as main
+          }));
+        } else {
+          // No images found, set to placeholder fallback
+          setFormData(prev => ({
+            ...prev,
+            images: [],
+            image_url: '' // Empty means use placeholder
+          }));
+        }
+
+        console.log('6. Fetching subcategories for category:', product.category);
+        // Fetch subcategories for the product's category
+        if (product.category) {
+          await fetchSubcategories(product.category);
+        }
+
+        console.log('7. Product fetch complete');
+        // Mark as fetched only after successful fetch
+        hasInitialFetched.current = true;
+      } catch (err: any) {
+        console.error('Product fetch error:', err);
+        setError(err.message);
+      } finally {
+        console.log('8. Setting page loading to false');
+        if (isMountedRef.current) {
+          setPageLoading(false);
+        }
       }
+    };
 
-      // Fetch subcategories that have this category as parent from subcategories table
-      const { data, error } = await supabase
-        .from('subcategories')
-        .select('*')
-        .eq('parent_category_id', selectedCategory.id)
-        .order('name', { ascending: true });
+    // Only fetch on initial mount, not on every render
+    fetchProduct();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty dependency array - only run once on mount
 
-      if (error) throw error;
-      setSubcategories(data || []);
-    } catch (err: any) {
-      console.error('Error fetching subcategories:', err);
-      setSubcategories([]);
-    } finally {
-      setSubcategoriesLoading(false);
-    }
-  };
-
-  // Reset subcategory when category changes
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newCategory = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      category: newCategory,
-      subcategory: '' // Reset subcategory when category changes
-    }));
-    
-    // Fetch subcategories for the new category
-    fetchSubcategories(newCategory);
-    
-    // Clear subcategory validation error
-    if (validationErrors.subcategory) {
-      setValidationErrors(prev => ({
-        ...prev,
-        subcategory: ''
-      }));
-    }
-  };
-
-  // Fetch categories from database
+  // Fetch categories
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -139,7 +208,7 @@ export default function EditProductPage() {
         const { data, error } = await supabase
           .from('categories')
           .select('*')
-          .is('parent_category_id', null) // Only main categories
+          .is('parent_category_id', null)
           .order('name', { ascending: true });
 
         if (error) throw error;
@@ -153,107 +222,172 @@ export default function EditProductPage() {
     };
 
     fetchCategories();
-  }, [supabase]);
+  }, []);
 
-  // Fetch subcategories when form data is loaded and category is set
+  // Handle success redirect
   useEffect(() => {
-    if (formData.category && categories.length > 0) {
-      fetchSubcategories(formData.category);
-    }
-  }, [formData.category, categories]);
+    if (!success) return;
 
-  // Function to generate slug from product name
-  const generateSlug = (name: string): string => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9 -]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-  };
+    console.log('Success state detected, will redirect in 2 seconds');
+    
+    const redirectTimer = setTimeout(() => {
+      console.log('Redirecting to products page');
+      router.push('/admin/products');
+    }, 2000);
 
-  // Load existing product data
+    // Cleanup timer on unmount or if success changes
+    return () => {
+      clearTimeout(redirectTimer);
+      console.log('Cleared redirect timer');
+    };
+  }, [success, router]);
+
+  // Debug: Log whenever formData.images changes
   useEffect(() => {
-    const loadProduct = async () => {
-      try {
-        setInitialLoading(true);
-        
-        // Load product data
-        const { data: product, error: productError } = await supabase
-          .from('products')
-          .select('*')
-          .eq('id', productId)
-          .single();
+    console.log('DEBUG: formData.images changed:', formData.images.length, 'images');
+    formData.images.forEach((img, idx) => {
+      console.log(`  Image ${idx}:`, {
+        hasId: !!img.id,
+        id: img.id,
+        url: img.image_url.substring(img.image_url.length - 30)
+      });
+    });
+  }, [formData.images]);
 
-        if (productError) {
-          console.error('Error loading product:', productError);
-          setError('Failed to load product data');
-          return;
-        }
-
-        // Load product images
-        const { data: images, error: imagesError } = await supabase
-          .from('product_images')
-          .select('*')
-          .eq('product_id', productId)
-          .order('display_order', { ascending: true });
-
-        if (imagesError) {
-          console.error('Error loading product images:', imagesError);
-        }
-
-        if (product) {
-          setFormData({
-            name: product.name || '',
-            description: product.description || '',
-            price: product.price?.toString() || '',
-            original_price: product.original_price?.toString() || '',
-            badge: product.badge || '',
-            category: product.category || '',
-            subcategory: product.subcategory || '',
-            image_url: product.image_url || '',
-            stock_quantity: product.stock_quantity?.toString() || '',
-            is_active: product.is_active ?? true,
-            show_in_hero: product.show_in_hero ?? false,
-            images: images || [],
-          });
-        }
-      } catch (error) {
-        console.error('Error loading product:', error);
-        setError('Failed to load product data');
-      } finally {
-        setInitialLoading(false);
-      }
+  const getCommonSubcategories = (categoryName: string) => {
+    const subcategoryMap: { [key: string]: string[] } = {
+      "Men's Clothing": ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Jackets", "Hoodies", "Sweaters"],
+      "Women's Clothing": ["Dresses", "Tops", "Blouses", "Pants", "Jeans", "Skirts", "Jackets", "Sweaters"],
+      "Kids' Clothing": ["T-Shirts", "Dresses", "Pants", "Shorts", "Jackets", "Sleepwear", "School Uniforms"],
+      "Accessories": ["Bags", "Wallets", "Belts", "Hats", "Scarves", "Jewelry", "Watches", "Sunglasses"],
+      "Electronics": ["Phones", "Laptops", "Tablets", "Headphones", "Chargers", "Cases", "Cables"],
+      "Mobile Covers": ["iPhone Cases", "Samsung Cases", "Google Cases", "OnePlus Cases", "Generic Cases"],
+      "Footwear": ["Sneakers", "Boots", "Sandals", "Heels", "Flats", "Athletic Shoes", "Dress Shoes"]
     };
 
-    if (productId) {
-      loadProduct();
-    }
-  }, [productId, supabase]);
+    return subcategoryMap[categoryName] || ["General", "Popular", "New Arrivals", "Best Sellers"];
+  };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    
-    if (type === 'checkbox') {
-      const checked = (e.target as HTMLInputElement).checked;
-      setFormData(prev => ({ ...prev, [name]: checked }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
+  const fetchSubcategories = async (categoryName: string) => {
+    if (!categoryName) {
+      setSubcategories([]);
+      return;
     }
-    
-    // Clear validation error for this field
-    if (validationErrors[name]) {
-      setValidationErrors(prev => ({ ...prev, [name]: '' }));
+
+    try {
+      setSubcategoriesLoading(true);
+      
+      const selectedCategory = categories.find(cat => cat.name === categoryName);
+      let subcategoriesData = [];
+
+      if (selectedCategory) {
+        const { data: categorySubcategories, error: categoryError } = await supabase
+          .from('subcategories')
+          .select('*')
+          .eq('parent_category_id', selectedCategory.id)
+          .order('name', { ascending: true });
+
+        if (!categoryError && categorySubcategories) {
+          subcategoriesData = categorySubcategories;
+        }
+      }
+
+      if (subcategoriesData.length === 0) {
+        const { data: productSubcategories, error: productError } = await supabase
+          .from('products')
+          .select('subcategory')
+          .eq('category', categoryName)
+          .not('subcategory', 'is', null)
+          .not('subcategory', 'eq', '');
+
+        if (!productError && productSubcategories) {
+          const uniqueSubcategories = Array.from(new Set(productSubcategories.map((p: any) => p.subcategory)));
+          subcategoriesData = uniqueSubcategories.map((name: any, index: number) => ({
+            id: `temp-${index}`,
+            name: name,
+            slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+            description: '',
+            parent_category_id: selectedCategory?.id || null
+          }));
+        }
+      }
+
+      if (subcategoriesData.length === 0) {
+        const commonSubcategories = getCommonSubcategories(categoryName);
+        subcategoriesData = commonSubcategories.map((name, index) => ({
+          id: `common-${index}`,
+          name: name,
+          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+          description: '',
+          parent_category_id: selectedCategory?.id || null
+        }));
+      }
+
+      setSubcategories(subcategoriesData);
+    } catch (err: any) {
+      console.error('Error fetching subcategories:', err);
+      setSubcategories([]);
+    } finally {
+      setSubcategoriesLoading(false);
     }
   };
 
-  // Handle multiple images change
-  const handleImagesChange = (images: ProductImage[]) => {
+  const addCustomSubcategory = () => {
+    if (customSubcategory.trim() && !formData.subcategories.includes(customSubcategory.trim())) {
+      setFormData(prev => ({
+        ...prev,
+        subcategories: [...prev.subcategories, customSubcategory.trim()]
+      }));
+      setCustomSubcategory('');
+    }
+  };
+
+  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newCategory = e.target.value;
     setFormData(prev => ({
       ...prev,
-      images: images,
-      image_url: images.length > 0 ? images[0].image_url : '' // Set first image as main image
+      category: newCategory,
+      subcategories: []
     }));
+    
+    fetchSubcategories(newCategory);
+    
+    if (validationErrors.subcategories) {
+      setValidationErrors(prev => ({
+        ...prev,
+        subcategories: ''
+      }));
+    }
+  };
+
+  const handleImagesChange = useCallback((images: ProductImage[]) => {
+    console.log('handleImagesChange called with images:', images.length);
+    console.trace('handleImagesChange call stack');
+    setFormData(prev => {
+      const updated = {
+        ...prev,
+        images: images,
+        image_url: images.length > 0 ? images[0].image_url : ''
+      };
+      console.log('Setting formData with', updated.images.length, 'images');
+      return updated;
+    });
+  }, []);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value, type } = e.target;
+    
+    setFormData(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
+    }));
+
+    if (validationErrors[name]) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
   };
 
   const validateForm = (): boolean => {
@@ -267,7 +401,7 @@ export default function EditProductPage() {
       errors.description = 'Product description is required';
     }
 
-    if (!formData.price || isNaN(Number(formData.price)) || Number(formData.price) <= 0) {
+    if (!formData.price || parseFloat(formData.price) <= 0) {
       errors.price = 'Valid price is required';
     }
 
@@ -275,11 +409,11 @@ export default function EditProductPage() {
       errors.category = 'Category is required';
     }
 
-    if (!formData.subcategory) {
-      errors.subcategory = 'Subcategory is required';
+    if (formData.subcategories.length === 0) {
+      errors.subcategories = 'At least one subcategory is required';
     }
 
-    if (!formData.stock_quantity || isNaN(Number(formData.stock_quantity)) || Number(formData.stock_quantity) < 0) {
+    if (!formData.stock_quantity || parseInt(formData.stock_quantity) < 0) {
       errors.stock_quantity = 'Valid stock quantity is required';
     }
 
@@ -290,87 +424,205 @@ export default function EditProductPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm()) {
+    console.log('=== FORM SUBMIT STARTED ===');
+    console.log('Current formData.images at submit start:', formData.images.length, 'images');
+    formData.images.forEach((img, idx) => {
+      console.log(`  Image ${idx}:`, { id: img.id, url: img.image_url.substring(img.image_url.length - 30) });
+    });
+    
+    // Prevent double submission
+    if (isSubmitting) {
+      console.log('Already submitting, ignoring duplicate submission');
       return;
     }
+    
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    setLoading(true);
+    setError(null);
+    setSuccess(false); // Reset success state at the beginning
 
     try {
-      setLoading(true);
-      setError(null);
-
-      const slug = generateSlug(formData.name);
-
-      // Update product
-      const { error: productError } = await supabase
-        .from('products')
-        .update({
-          name: formData.name.trim(),
-          description: formData.description.trim(),
-          price: parseFloat(formData.price),
-          original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-          badge: formData.badge.trim() || null,
-          category: formData.category,
-          subcategory: formData.subcategory,
-          image_url: formData.image_url,
-          stock_quantity: parseInt(formData.stock_quantity),
-          is_active: formData.is_active,
-          show_in_hero: formData.show_in_hero,
-          slug: slug,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', productId);
-
-      if (productError) {
-        console.error('Error updating product:', productError);
-        setError('Failed to update product. Please try again.');
-        return;
-      }
-
-      // Update product images
-      // First, delete existing images
-      const { error: deleteError } = await supabase
+      // Step 1: Delete ALL product images from database (we'll re-insert what we want)
+      console.log('Deleting all product images for product:', productId);
+      const { data: deletedData, error: deleteError } = await supabase
         .from('product_images')
         .delete()
         .eq('product_id', productId);
 
       if (deleteError) {
-        console.error('Error deleting existing images:', deleteError);
+        console.error('Critical error deleting images:', deleteError);
+        throw new Error(`Failed to delete old images: ${deleteError.message}`);
       }
 
-      // Then, insert new images
+      console.log('Deleted product images successfully');
+
+      // Step 2: Determine the new main image URL
+      const newImageUrl = formData.images.length > 0 ? formData.images[0].image_url : null;
+
+      // Step 3: Update the product with new image_url
+      console.log('Updating product with image_url:', newImageUrl);
+      const fullUpdate: any = {
+        name: formData.name.trim(),
+        description: formData.description.trim(),
+        price: parseFloat(formData.price),
+        original_price: formData.original_price ? parseFloat(formData.original_price) : null,
+        badge: formData.badge.trim() || null,
+        // Legacy string fields
+        category: formData.category,
+        subcategory: formData.subcategories.length > 0 ? formData.subcategories[0] : null,
+        // New UUID relations
+        category_id: (categories.find(c => c.name === formData.category)?.id) || null,
+        subcategory_id: (() => {
+          const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
+          if (!selectedFirstName) return null;
+          const sub = subcategories.find(s => s.name === selectedFirstName);
+          return sub && !sub.id.startsWith('temp-') && !sub.id.startsWith('common-') ? sub.id : null;
+        })(),
+        image_url: newImageUrl,
+        stock_quantity: parseInt(formData.stock_quantity),
+        is_active: formData.is_active,
+        show_in_hero: formData.show_in_hero,
+      };
+
+      const stripLegacy = (obj: any) => { const { category, subcategory, ...rest } = obj; return rest; };
+      const stripFK = (obj: any) => { const { category_id, subcategory_id, ...rest } = obj; return rest; };
+
+      // Try 1: full update
+      let upd = await supabase.from('products').update(fullUpdate).eq('id', productId);
+      let updateError = upd.error as any;
+
+      if (updateError) {
+        const msg = updateError.message || '';
+        let attemptObj: any = fullUpdate;
+        if (
+          msg.includes("category' column") ||
+          msg.includes("subcategory' column") ||
+          msg.includes('products.category') ||
+          msg.includes('products.subcategory') ||
+          (msg.includes('category') && msg.includes('does not exist')) ||
+          (msg.includes('subcategory') && msg.includes('does not exist'))
+        ) {
+          attemptObj = stripLegacy(attemptObj);
+        }
+        if (
+          msg.includes('category_id') ||
+          msg.includes('subcategory_id') ||
+          msg.includes('schema cache') ||
+          (msg.includes('column') && msg.includes('does not exist'))
+        ) {
+          attemptObj = stripFK(attemptObj);
+        }
+        if (attemptObj !== fullUpdate) {
+          const retry1 = await supabase.from('products').update(attemptObj).eq('id', productId);
+          updateError = retry1.error as any;
+        }
+      }
+
+      if (updateError) {
+        console.error('Error updating product:', updateError);
+        throw new Error(`Failed to update product: ${updateError.message}`);
+      }
+
+      console.log('Product updated successfully');
+
+      // Step 4: Re-insert ALL images that are in formData (including existing ones)
       if (formData.images.length > 0) {
-        const imageInserts = formData.images.map(image => ({
+        console.log('Re-inserting images:', formData.images.length);
+        console.log('Images to insert:', formData.images.map(img => ({
+          url: img.image_url,
+          hasId: !!img.id,
+          id: img.id
+        })));
+        
+        // Re-insert ALL images from formData, regardless of whether they have IDs
+        const newImagesToInsert = formData.images.map((image, index) => ({
           product_id: productId,
           image_url: image.image_url,
           alt_text: image.alt_text || '',
-          display_order: image.display_order
+          display_order: index
         }));
 
-        const { error: imagesError } = await supabase
+        console.log('Final images count to insert:', newImagesToInsert.length);
+        
+        const { data: insertedData, error: imagesError } = await supabase
           .from('product_images')
-          .insert(imageInserts)
+          .insert(newImagesToInsert)
           .select();
 
         if (imagesError) {
           console.error('Error inserting product images:', imagesError);
-          // Don't throw here, product was updated successfully
+          throw new Error(`Failed to insert images: ${imagesError.message}`);
         }
+
+        console.log('Images inserted successfully:', insertedData?.length || 0, 'images');
+      } else {
+        console.log('No images to insert');
       }
 
+      // Step 5: Set success ONLY after all operations complete
+      console.log('All operations completed successfully');
       setSuccess(true);
-      setTimeout(() => {
-        router.push('/admin/products');
-      }, 2000);
+      setError(null);
 
-    } catch (error) {
-      console.error('Error updating product:', error);
-      setError('Failed to update product. Please try again.');
+    } catch (err: any) {
+      console.error('Submit error:', err);
+      setError(err.message || 'An error occurred while saving the product');
+      setSuccess(false); // Ensure success is false on error
     } finally {
       setLoading(false);
+      setIsSubmitting(false); // Reset submitting flag
     }
   };
 
-  if (initialLoading) {
+  const handleDelete = async () => {
+    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      // Step 1: Delete product image folder from storage
+      if (productId) {
+        try {
+          console.log('Deleting product image folder from storage:', productId);
+          await deleteFolderContents('product-images', productId);
+          console.log('Product image folder deleted successfully');
+        } catch (storageErr) {
+          console.warn('Could not delete product image folder:', storageErr);
+          // Continue with product deletion even if storage deletion fails
+        }
+      }
+
+      // Step 2: Delete product images from database
+      const { error: imagesError } = await supabase
+        .from('product_images')
+        .delete()
+        .eq('product_id', productId);
+
+      if (imagesError) console.error('Error deleting images from database:', imagesError);
+
+      // Step 3: Delete the product from database
+      const { error: productError } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', productId);
+
+      if (productError) throw productError;
+
+      console.log('Product deleted successfully');
+      // Redirect to products list
+      router.push('/admin/products');
+    } catch (err: any) {
+      setError(err.message);
+      setDeleting(false);
+    }
+  };
+
+  if (pageLoading) {
     return (
       <AdminGuard>
         <AdminLayout>
@@ -388,292 +640,428 @@ export default function EditProductPage() {
   return (
     <AdminGuard>
       <AdminLayout>
-        <div className="w-full py-6" style={{ paddingLeft: '20px', paddingRight: '20px' }}>
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Edit Product</h1>
-            <p className="mt-2 text-gray-600">Update product information and settings</p>
+      <div className="space-y-6">
+        {/* Page Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Edit Product</h1>
+          <p className="mt-1 text-sm text-gray-500 flex items-center gap-2">
+            Update product details, images, and pricing.
+            {productId && (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-gray-400">•</span>
+                <span className="text-gray-600">UUID:</span>
+                <code className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-700 text-xs">
+                  {productId}
+                </code>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    try { await navigator.clipboard.writeText(productId); alert('Product ID copied'); } catch {}
+                  }}
+                  className="text-blue-600 hover:text-blue-800 text-xs"
+                  title="Copy UUID"
+                >
+                  Copy
+                </button>
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* Success Message */}
+        {success && (
+          <div className="bg-green-50 border border-green-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <span className="text-green-400">✅</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-green-800">Product Updated Successfully!</h3>
+                <div className="mt-2 text-sm text-green-700">
+                  <p>Your changes have been saved. Redirecting to products list...</p>
+                </div>
+              </div>
+            </div>
           </div>
+        )}
 
-          {error && (
-            <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
-              <p className="text-red-800">{error}</p>
+        {/* Error Message */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <span className="text-red-400">⚠️</span>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Error</h3>
+                <div className="mt-2 text-sm text-red-700">
+                  <p>{error}</p>
+                </div>
+              </div>
             </div>
-          )}
+          </div>
+        )}
 
-          {success && (
-            <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-green-800">Product updated successfully! Redirecting...</p>
-            </div>
-          )}
+        {/* Product Form */}
+        <div className="bg-white shadow rounded-lg">
+          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              {/* Product Name */}
+              <div className="sm:col-span-2">
+                <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                  Product Name *
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  id="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                    validationErrors.name ? 'border-red-300' : ''
+                  }`}
+                  placeholder="Enter product name"
+                />
+                {validationErrors.name && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+                )}
+              </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {/* Left Column */}
-              <div className="space-y-6">
-                {/* Product Name */}
-                <div>
-                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleInputChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.name ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter product name"
-                  />
-                  {validationErrors.name && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
-                  )}
-                </div>
+              {/* Description */}
+              <div className="sm:col-span-2">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+                  Description *
+                </label>
+                <textarea
+                  name="description"
+                  id="description"
+                  rows={4}
+                  value={formData.description}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                    validationErrors.description ? 'border-red-300' : ''
+                  }`}
+                  placeholder="Enter product description"
+                />
+                {validationErrors.description && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.description}</p>
+                )}
+              </div>
 
-                {/* Price */}
-                <div>
-                  <label htmlFor="price" className="block text-sm font-medium text-gray-700 mb-2">
-                    Current Price (₹) *
-                  </label>
-                  <input
-                    type="number"
-                    id="price"
-                    name="price"
-                    value={formData.price}
-                    onChange={handleInputChange}
-                    step="0.01"
-                    min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.price ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="0.00"
-                  />
-                  {validationErrors.price && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.price}</p>
-                  )}
-                </div>
+              {/* Price */}
+              <div>
+                <label htmlFor="price" className="block text-sm font-medium text-gray-700">
+                  Current Price (₹) *
+                </label>
+                <input
+                  type="number"
+                  name="price"
+                  id="price"
+                  step="0.01"
+                  min="0"
+                  value={formData.price}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                    validationErrors.price ? 'border-red-300' : ''
+                  }`}
+                  placeholder="0.00"
+                />
+                {validationErrors.price && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.price}</p>
+                )}
+              </div>
 
-                {/* Original Price */}
-                <div>
-                  <label htmlFor="original_price" className="block text-sm font-medium text-gray-700 mb-2">
-                    Original Price (₹)
-                  </label>
-                  <input
-                    type="number"
-                    id="original_price"
-                    name="original_price"
-                    value={formData.original_price}
-                    onChange={handleInputChange}
-                    step="0.01"
-                    min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="0.00"
-                  />
-                  <p className="mt-1 text-xs text-gray-500">Leave empty if no discount</p>
-                </div>
+              {/* Original Price */}
+              <div>
+                <label htmlFor="original_price" className="block text-sm font-medium text-gray-700">
+                  Original Price (₹)
+                </label>
+                <input
+                  type="number"
+                  name="original_price"
+                  id="original_price"
+                  step="0.01"
+                  min="0"
+                  value={formData.original_price}
+                  onChange={handleChange}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="0.00"
+                />
+                <p className="mt-1 text-xs text-gray-500">Leave empty if no discount</p>
+              </div>
 
+              {/* Product Badge */}
+              <div>
+                <label htmlFor="badge" className="block text-sm font-medium text-gray-700">
+                  Product Badge
+                </label>
+                <select
+                  name="badge"
+                  id="badge"
+                  value={formData.badge}
+                  onChange={handleChange}
+                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                >
+                  <option value="">No Badge</option>
+                  <option value="NEW">NEW</option>
+                  <option value="SALE">SALE</option>
+                  <option value="HOT">HOT</option>
+                  <option value="FEATURED">FEATURED</option>
+                  <option value="LIMITED">LIMITED</option>
+                </select>
+                <p className="mt-1 text-xs text-gray-500">Optional product badge</p>
+              </div>
 
-                {/* Product Badge */}
-                <div>
-                  <label htmlFor="badge" className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Badge
-                  </label>
-                  <select
-                    id="badge"
-                    name="badge"
-                    value={formData.badge}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">No Badge</option>
-                    <option value="NEW">NEW</option>
-                    <option value="SALE">SALE</option>
-                    <option value="HOT">HOT</option>
-                    <option value="FEATURED">FEATURED</option>
-                    <option value="LIMITED">LIMITED</option>
-                  </select>
-                  <p className="mt-1 text-xs text-gray-500">Optional product badge</p>
-                </div>
+              {/* Stock Quantity */}
+              <div>
+                <label htmlFor="stock_quantity" className="block text-sm font-medium text-gray-700">
+                  Stock Quantity *
+                </label>
+                <input
+                  type="number"
+                  name="stock_quantity"
+                  id="stock_quantity"
+                  min="0"
+                  value={formData.stock_quantity}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                    validationErrors.stock_quantity ? 'border-red-300' : ''
+                  }`}
+                  placeholder="0"
+                />
+                {validationErrors.stock_quantity && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.stock_quantity}</p>
+                )}
+              </div>
 
-                {/* Category */}
-                <div>
-                  <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
-                    Category *
-                  </label>
-                  <select
-                    id="category"
-                    name="category"
-                    value={formData.category}
-                    onChange={handleCategoryChange}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.category ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    disabled={categoriesLoading}
-                  >
-                    <option value="">
-                      {categoriesLoading ? 'Loading categories...' : 'Select a category'}
+              {/* Category */}
+              <div>
+                <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+                  Category *
+                </label>
+                <select
+                  name="category"
+                  id="category"
+                  value={formData.category}
+                  onChange={handleCategoryChange}
+                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
+                    validationErrors.category ? 'border-red-300' : ''
+                  }`}
+                  disabled={categoriesLoading}
+                >
+                  <option value="">
+                    {categoriesLoading ? 'Loading categories...' : 'Select a category'}
+                  </option>
+                  {categories.map(category => (
+                    <option key={category.id} value={category.name}>
+                      {category.name}
                     </option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.name}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                  {validationErrors.category && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.category}</p>
+                  ))}
+                </select>
+                {validationErrors.category && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.category}</p>
+                )}
+              </div>
+
+              {/* Subcategories */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700">
+                  Subcategories *
+                </label>
+                <div className="mt-1 space-y-2">
+                  {!formData.category ? (
+                    <p className="text-sm text-gray-500">Select a category first</p>
+                  ) : subcategoriesLoading ? (
+                    <p className="text-sm text-gray-500">Loading subcategories...</p>
+                  ) : subcategories.length === 0 ? (
+                    <p className="text-sm text-gray-500">No subcategories available</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {subcategories.map(subcategory => (
+                        <label key={subcategory.id} className="flex items-center">
+                          <input
+                            type="checkbox"
+                            value={subcategory.name}
+                            checked={formData.subcategories.includes(subcategory.name)}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (e.target.checked) {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  subcategories: [...prev.subcategories, value]
+                                }));
+                              } else {
+                                setFormData(prev => ({
+                                  ...prev,
+                                  subcategories: prev.subcategories.filter(s => s !== value)
+                                }));
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                          />
+                          <span className="ml-2 text-sm text-gray-700">{subcategory.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {validationErrors.subcategories && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.subcategories}</p>
+                )}
+                {formData.subcategories.length > 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-500">Selected: {formData.subcategories.join(', ')}</p>
+                  </div>
+                )}
+                
+                {/* Custom Subcategory Input */}
+                {formData.category && (
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Add Custom Subcategory
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={customSubcategory}
+                        onChange={(e) => setCustomSubcategory(e.target.value)}
+                        placeholder="Enter custom subcategory name"
+                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addCustomSubcategory();
+                          }
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={addCustomSubcategory}
+                        disabled={!customSubcategory.trim() || formData.subcategories.includes(customSubcategory.trim())}
+                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
+                      >
+                        Add
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Add custom subcategories that aren&apos;t in the list above
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Multiple Images Upload */}
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Product Images
+                </label>
+                
+                {/* Current Main Image Preview */}
+                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                  <p className="text-xs font-medium text-gray-600 mb-3">Main Product Image (First Image):</p>
+                  <div className="relative w-32 h-32 bg-white rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
+                    <img
+                      src={formData.images.length > 0 && formData.images[0].image_url ? formData.images[0].image_url : '/placeholder-product.jpg'}
+                      alt="Main product image"
+                      className="w-full h-full object-cover"
+                    />
+                    {formData.images.length === 0 && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-50">
+                        <span className="text-xs text-gray-500 text-center px-2">No image selected</span>
+                      </div>
+                    )}
+                  </div>
+                  {formData.images.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-2">✓ First image will be displayed as main</p>
                   )}
                 </div>
 
-                {/* Subcategory */}
-                <div>
-                  <label htmlFor="subcategory" className="block text-sm font-medium text-gray-700 mb-2">
-                    Subcategory *
-                  </label>
-                  <select
-                    id="subcategory"
-                    name="subcategory"
-                    value={formData.subcategory}
-                    onChange={handleInputChange}
-                    disabled={!formData.category || subcategoriesLoading}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.subcategory ? 'border-red-500' : 'border-gray-300'
-                    } ${!formData.category || subcategoriesLoading ? 'bg-gray-50' : ''}`}
-                  >
-                    <option value="">
-                      {!formData.category 
-                        ? 'Select a category first' 
-                        : subcategoriesLoading 
-                          ? 'Loading subcategories...' 
-                          : subcategories.length === 0
-                            ? 'No subcategories available'
-                            : 'Select a subcategory'
-                      }
-                    </option>
-                    {getAvailableSubcategories().map(subcategory => (
-                      <option key={subcategory.id} value={subcategory.name}>
-                        {subcategory.name}
-                      </option>
-                    ))}
-                  </select>
-                  {validationErrors.subcategory && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.subcategory}</p>
-                  )}
-                </div>
+                <MultiImageUpload
+                  onImagesChange={handleImagesChange}
+                  currentImages={formData.images}
+                  maxImages={5}
+                  className="w-full"
+                  productId={productId}
+                  userId={null}
+                />
+                <p className="mt-2 text-sm text-gray-500">
+                  Upload multiple images for your product. The first image will be used as the main product image.
+                </p>
+              </div>
 
-                {/* Stock Quantity */}
-                <div>
-                  <label htmlFor="stock_quantity" className="block text-sm font-medium text-gray-700 mb-2">
-                    Stock Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    id="stock_quantity"
-                    name="stock_quantity"
-                    value={formData.stock_quantity}
-                    onChange={handleInputChange}
-                    min="0"
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.stock_quantity ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="0"
-                  />
-                  {validationErrors.stock_quantity && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.stock_quantity}</p>
-                  )}
-                </div>
-
-                {/* Active Status */}
+              {/* Active Status */}
+              <div className="sm:col-span-2">
                 <div className="flex items-center">
                   <input
                     type="checkbox"
-                    id="is_active"
                     name="is_active"
+                    id="is_active"
                     checked={formData.is_active}
-                    onChange={handleInputChange}
+                    onChange={handleChange}
                     className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-700">
-                    Product is active
-                  </label>
-                </div>
-
-                {/* Hero Showcase */}
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="show_in_hero"
-                    name="show_in_hero"
-                    checked={formData.show_in_hero}
-                    onChange={handleInputChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-700">
-                    Show in hero section carousel
+                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                    Product is active and visible to customers
                   </label>
                 </div>
               </div>
 
-              {/* Right Column */}
-              <div className="space-y-6">
-                {/* Product Images */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Images
-                  </label>
-                  <MultiImageUpload
-                    onImagesChange={handleImagesChange}
-                    currentImages={formData.images}
-                    maxImages={5}
-                    className="w-full"
+              {/* Hero Showcase */}
+              <div className="sm:col-span-2">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    name="show_in_hero"
+                    id="show_in_hero"
+                    checked={formData.show_in_hero}
+                    onChange={handleChange}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   />
-                  <p className="mt-2 text-sm text-gray-500">
-                    Upload multiple images for your product. The first image will be used as the main product image.
-                  </p>
-                </div>
-
-                {/* Description */}
-                <div>
-                  <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-2">
-                    Description *
+                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-900">
+                    Show this product in hero section carousel
                   </label>
-                  <textarea
-                    id="description"
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    rows={6}
-                    className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
-                      validationErrors.description ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    placeholder="Enter product description"
-                  />
-                  {validationErrors.description && (
-                    <p className="mt-1 text-sm text-red-600">{validationErrors.description}</p>
-                  )}
                 </div>
               </div>
             </div>
 
-            {/* Submit Buttons */}
-            <div className="flex justify-end space-x-4 pt-6 border-t">
+            {/* Form Actions */}
+            <div className="flex justify-between items-center">
               <button
                 type="button"
-                onClick={() => router.push('/admin/products')}
-                className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                onClick={handleDelete}
+                disabled={deleting}
+                className={`px-4 py-2 border border-red-300 rounded-md text-sm font-medium text-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${
+                  deleting
+                    ? 'bg-red-50 cursor-not-allowed opacity-50'
+                    : 'bg-red-50 hover:bg-red-100'
+                }`}
               >
-                Cancel
+                {deleting ? 'Deleting...' : '🗑️ Delete Product'}
               </button>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {loading ? 'Updating...' : 'Update Product'}
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
+                    loading
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                >
+                  {loading ? 'Updating Product...' : 'Update Product'}
+                </button>
+              </div>
             </div>
           </form>
         </div>
+      </div>
       </AdminLayout>
     </AdminGuard>
   );

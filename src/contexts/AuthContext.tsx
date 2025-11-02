@@ -132,6 +132,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.log('OTP verification response:', { data, error });
       
       if (error) throw error;
+      
+      // Create user profile after successful OTP verification
+      if (data?.user?.id) {
+        console.log('Creating user profile for:', data.user.id);
+        
+        // Extract phone number without country code for first/last name if needed
+        const userPhone = phone.trim();
+        
+        // Try to create profile (it might already exist)
+        const response = await (supabase
+          .from('user_profiles')
+          .insert([{
+            id: data.user.id,
+            email: data.user.phone || userPhone,
+            phone: userPhone,
+            first_name: 'User',
+            last_name: data.user.id.substring(0, 8),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]) as any);
+        
+        const profileError = response.error;
+        
+        if (profileError && profileError.code !== '23505') {
+          // 23505 is unique constraint violation (profile already exists)
+          console.error('Error creating user profile:', profileError);
+        } else {
+          console.log('✅ User profile created successfully!');
+        }
+      }
+      
       return { data, error: null };
     } catch (error: any) {
       console.error('OTP verification error:', error);

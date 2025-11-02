@@ -9,14 +9,14 @@ import { useSearchParams } from 'next/navigation';
 
 interface CheckoutFormData {
   email: string;
-  firstName: string;
-  lastName: string;
+  fullName: string;
   address: string;
   apartment: string;
   city: string;
   state: string;
   zipCode: string;
   phone: string;
+  paymentMethod: 'card' | 'cod';
   cardNumber: string;
   expiryDate: string;
   cvv: string;
@@ -26,21 +26,21 @@ interface CheckoutFormData {
 
 function CheckoutContent() {
   const { user } = useAuth();
-  const { cartItems, loading: cartLoading } = useCart();
+  const { cartItems, loading: cartLoading, clearCart } = useCart();
   const searchParams = useSearchParams();
   
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
   const [isDirectPurchase, setIsDirectPurchase] = useState(false);
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
-    firstName: '',
-    lastName: '',
+    fullName: '',
     address: '',
     apartment: '',
     city: '',
     state: '',
     zipCode: '',
     phone: '',
+    paymentMethod: 'card',
     cardNumber: '',
     expiryDate: '',
     cvv: '',
@@ -121,11 +121,88 @@ function CheckoutContent() {
     e.preventDefault();
     setIsProcessing(true);
     
-    // Simulate processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Handle checkout logic here
-    setIsProcessing(false);
+    try {
+      const { createClient } = await import('@/lib/supabase/client');
+      const supabase = createClient();
+      
+      const items = isDirectPurchase ? directPurchaseItems : cartItems;
+      const subtotal = getSubtotal();
+      const shipping = getShipping();
+      const total = getTotal();
+      
+      // Generate unique order number
+      const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      
+      // Create order using the correct column names for your database
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user?.id,
+          order_number: orderNumber,
+          payment_method: formData.paymentMethod,
+          total_amount: total,
+          status: 'pending'
+        })
+        .select('id');
+      
+      // Check for error first  
+      if (orderError) {
+        console.error('Error creating order:', orderError);
+        alert('Failed to place order. Please try again.');
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Supabase insert returns an array, get the first element
+      const createdOrder = Array.isArray(order) ? order[0] : order;
+      
+      if (!createdOrder || !createdOrder.id) {
+        alert('Failed to create order. Please try again.');
+        setIsProcessing(false);
+        return;
+      }
+      
+      // Create order items with required fields
+      const orderItems = items.map(item => ({
+        order_id: createdOrder.id,
+        product_id: item.product.id,
+        product_name: item.product.name,
+        product_price: item.product.price,
+        total_price: item.product.price * item.quantity,
+        quantity: item.quantity
+      }));
+      
+      const insertResult = await supabase
+        .from('order_items')
+        .insert(orderItems) as any;
+      
+      console.log('Order items to insert:', orderItems);
+      console.log('Insert result:', insertResult);
+      
+      if (insertResult && insertResult.error) {
+        console.error('Error creating order items:', insertResult.error);
+        console.error('Order items data:', orderItems);
+        alert(`Failed to create order items. Error: ${insertResult.error.message}. Please contact support.`);
+        setIsProcessing(false);
+        return;
+      }
+      
+      console.log('Order items created successfully!');
+      
+      // Clear cart after successful order
+      if (!isDirectPurchase) {
+        await clearCart();
+      }
+      
+      // Redirect to success page
+      window.location.href = `/checkout/success?orderId=${createdOrder.id}&orderNumber=${orderNumber}`;
+      
+    } catch (error) {
+      console.error('Error placing order:', error);
+      alert('An error occurred. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -134,7 +211,7 @@ function CheckoutContent() {
     
     setFormData(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === 'checkbox' ? checked : value,
     }));
     
     // Clear error when user starts typing
@@ -144,6 +221,13 @@ function CheckoutContent() {
         [name]: ''
       }));
     }
+  };
+
+  const handlePaymentMethodChange = (method: 'card' | 'cod') => {
+    setFormData(prev => ({
+      ...prev,
+      paymentMethod: method
+    }));
   };
 
   return (
@@ -178,35 +262,20 @@ function CheckoutContent() {
               {/* Shipping Address */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Address</h2>
-                <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                      First name
-                    </label>
-                    <input
-                      type="text"
-                      id="firstName"
-                      name="firstName"
-                      required
-                      value={formData.firstName}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                      Last name
-                    </label>
-                    <input
-                      type="text"
-                      id="lastName"
-                      name="lastName"
-                      required
-                      value={formData.lastName}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
+                <div className="mb-4">
+                  <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Full name
+                  </label>
+                  <input
+                    type="text"
+                    id="fullName"
+                    name="fullName"
+                    required
+                    value={formData.fullName}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="e.g., John Doe"
+                  />
                 </div>
                 
                 <div className="mb-4">
@@ -242,21 +311,7 @@ function CheckoutContent() {
                 
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div>
-                    <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-                      City
-                    </label>
-                    <input
-                      type="text"
-                      id="city"
-                      name="city"
-                      required
-                      value={formData.city}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
                       State
                     </label>
                     <select
@@ -268,11 +323,50 @@ function CheckoutContent() {
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select state</option>
-                      <option value="CA">California</option>
-                      <option value="NY">New York</option>
-                      <option value="TX">Texas</option>
-                      <option value="FL">Florida</option>
+                      <option value="AP">Andhra Pradesh</option>
+                      <option value="AS">Assam</option>
+                      <option value="BR">Bihar</option>
+                      <option value="CG">Chhattisgarh</option>
+                      <option value="GA">Goa</option>
+                      <option value="GJ">Gujarat</option>
+                      <option value="HR">Haryana</option>
+                      <option value="HP">Himachal Pradesh</option>
+                      <option value="JH">Jharkhand</option>
+                      <option value="KA">Karnataka</option>
+                      <option value="KL">Kerala</option>
+                      <option value="MP">Madhya Pradesh</option>
+                      <option value="MH">Maharashtra</option>
+                      <option value="MN">Manipur</option>
+                      <option value="ML">Meghalaya</option>
+                      <option value="MZ">Mizoram</option>
+                      <option value="NL">Nagaland</option>
+                      <option value="OD">Odisha</option>
+                      <option value="PB">Punjab</option>
+                      <option value="RJ">Rajasthan</option>
+                      <option value="SK">Sikkim</option>
+                      <option value="TN">Tamil Nadu</option>
+                      <option value="TS">Telangana</option>
+                      <option value="TR">Tripura</option>
+                      <option value="UP">Uttar Pradesh</option>
+                      <option value="UK">Uttarakhand</option>
+                      <option value="WB">West Bengal</option>
+                      <option value="DL">Delhi (NCT)</option>
                     </select>
+                  </div>
+                  <div>
+                    <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
+                      City
+                    </label>
+                    <input
+                      type="text"
+                      id="city"
+                      name="city"
+                      required
+                      value={formData.city}
+                      onChange={handleChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter your city"
+                    />
                   </div>
                   <div>
                     <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-1">
@@ -309,72 +403,115 @@ function CheckoutContent() {
 
               {/* Payment Information */}
               <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Information</h2>
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Method</h2>
                 
-                <div className="mb-4">
-                  <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
+                <div className="space-y-3 mb-6">
+                  <label className="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="card"
+                      checked={formData.paymentMethod === 'card'}
+                      onChange={() => handlePaymentMethodChange('card')}
+                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Credit/Debit Card</div>
+                      <div className="text-sm text-gray-500">Pay securely with your card</div>
+                    </div>
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                  </label>
+                  
+                  <label className="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
+                      value="cod"
+                      checked={formData.paymentMethod === 'cod'}
+                      onChange={() => handlePaymentMethodChange('cod')}
+                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Cash on Delivery</div>
+                      <div className="text-sm text-gray-500">Pay cash when your order arrives</div>
+                    </div>
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </label>
+                </div>
+                
+                {/* Card Details - Only show when card is selected */}
+                {formData.paymentMethod === 'card' && (
+                  <>
+                    <div className="mb-4">
+                      <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
                     Card number
                   </label>
                   <input
                     type="text"
                     id="cardNumber"
                     name="cardNumber"
-                    required
+                    required={formData.paymentMethod === 'card'}
                     value={formData.cardNumber}
                     onChange={handleChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="1234 5678 9012 3456"
-                  />
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 mb-4">
+                        placeholder="1234 5678 9012 3456"
+                      />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
                   <div>
-                    <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                      Expiry date
-                    </label>
-                    <input
-                      type="text"
-                      id="expiryDate"
-                      name="expiryDate"
-                      required
-                      value={formData.expiryDate}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="MM/YY"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
-                      CVV
-                    </label>
-                    <input
-                      type="text"
-                      id="cvv"
-                      name="cvv"
-                      required
-                      value={formData.cvv}
-                      onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                      placeholder="123"
-                    />
-                  </div>
-                </div>
-                
-                <div>
-                  <label htmlFor="cardName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Name on card
-                  </label>
-                  <input
-                    type="text"
-                    id="cardName"
-                    name="cardName"
-                    required
-                    value={formData.cardName}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="John Doe"
-                  />
-                </div>
+                        <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
+                          Expiry date
+                        </label>
+                        <input
+                          type="text"
+                          id="expiryDate"
+                          name="expiryDate"
+                          required={formData.paymentMethod === 'card'}
+                          value={formData.expiryDate}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="MM/YY"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
+                          CVV
+                        </label>
+                        <input
+                          type="text"
+                          id="cvv"
+                          name="cvv"
+                          required={formData.paymentMethod === 'card'}
+                          value={formData.cvv}
+                          onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="123"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="cardName" className="block text-sm font-medium text-gray-700 mb-1">
+                        Name on card
+                      </label>
+                      <input
+                        type="text"
+                        id="cardName"
+                        name="cardName"
+                        required={formData.paymentMethod === 'card'}
+                        value={formData.cardName}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="John Doe"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Submit Button */}
@@ -387,7 +524,12 @@ function CheckoutContent() {
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
               >
-                {isProcessing ? 'Processing...' : 'Complete Order'}
+                {isProcessing 
+                  ? 'Processing...' 
+                  : formData.paymentMethod === 'cod' 
+                    ? 'Place Order (Cash on Delivery)' 
+                    : 'Complete Order'
+                }
               </button>
             </form>
           </div>

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import { createClient } from '@/lib/supabase/client';
+import { deleteFolderContents } from '@/utils/imageUpload';
 
 interface Product {
   id: string;
@@ -35,21 +36,10 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       
-      // Fetch products with their subcategories
+      // Fetch products; use * to be schema-flexible (works if legacy or new columns were changed)
       const { data: productsData, error: productsError } = await supabase
         .from('products')
-        .select(`
-          id,
-          name,
-          description,
-          price,
-          category,
-          subcategory,
-          image_url,
-          stock_quantity,
-          is_active,
-          created_at
-        `)
+        .select('*')
         .order('created_at', { ascending: false });
 
       if (productsError) throw productsError;
@@ -57,7 +47,10 @@ export default function ProductsPage() {
       // Transform the data to include subcategories array
       const transformedProducts = productsData?.map((product: any) => ({
         ...product,
-        subcategories: product.subcategory ? [product.subcategory] : []
+        // Back-compat: build array from legacy string if present
+        subcategories: product?.subcategory ? [product.subcategory] : [],
+        // Back-compat: ensure category exists for UI filters
+        category: product?.category ?? ''
       })) || [];
 
       setProducts(transformedProducts);
@@ -72,6 +65,17 @@ export default function ProductsPage() {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
     try {
+      // Step 1: Delete product image folder from storage
+      try {
+        console.log('Deleting product image folder from storage:', productId);
+        await deleteFolderContents('product-images', productId);
+        console.log('Product image folder deleted successfully');
+      } catch (storageErr) {
+        console.warn('Could not delete product image folder:', storageErr);
+        // Continue with product deletion even if storage deletion fails
+      }
+
+      // Step 2: Delete the product from database
       const { error } = await supabase
         .from('products')
         .delete()
@@ -80,6 +84,7 @@ export default function ProductsPage() {
       if (error) throw error;
       
       setProducts(products.filter(p => p.id !== productId));
+      console.log('Product deleted successfully');
     } catch (err: any) {
       setError(err.message);
     }
@@ -109,7 +114,21 @@ export default function ProductsPage() {
     return matchesSearch && matchesCategory;
   });
 
-  const categories = Array.from(new Set(products.map((p: any) => p.category)));
+  const categories = Array.from(new Set(products.map((p: any) => p.category ?? '')));
+
+  const shortUuid = (id: string) => {
+    if (!id) return '';
+    return `${id.substring(0, 8)}…${id.substring(id.length - 4)}`;
+  };
+
+  const copyId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      alert('Product ID copied to clipboard');
+    } catch (e) {
+      console.warn('Copy failed', e);
+    }
+  };
 
   if (loading) {
     return (
@@ -209,6 +228,9 @@ export default function ProductsPage() {
                       Product
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      UUID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Category
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -245,6 +267,20 @@ export default function ProductsPage() {
                               {product.description}
                             </div>
                           </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <div className="flex items-center gap-2">
+                          <code className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-700">
+                            {shortUuid(product.id)}
+                          </code>
+                          <button
+                            onClick={() => copyId(product.id)}
+                            className="text-blue-600 hover:text-blue-800 text-xs"
+                            title="Copy UUID"
+                          >
+                            Copy
+                          </button>
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

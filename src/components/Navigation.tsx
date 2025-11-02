@@ -256,6 +256,17 @@ export default function Navigation() {
             <Link href="/wishlist" className={`text-gray-700 hover:text-blue-600 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
+
+            {/* Orders Icon - Show only for logged in users */}
+            {user && (
+              <Link href="/orders" className={`text-gray-700 hover:text-blue-600 nav-orders-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+                <div className="relative">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+              </Link>
+            )}
             
             {/* Cart Icon - Show for all users (logged in and guests) */}
             <Link href="/cart" className={`text-gray-700 hover:text-blue-600 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { uploadImageToSupabase } from '@/utils/imageUpload';
+import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
 
 interface ProductImage {
   id?: string;
@@ -61,18 +61,15 @@ export default function MultiImageUpload({
     try {
       const uploadPromises = validFiles.map(async (file, index) => {
         setUploadingIndex(index);
-        // Organize by user, then by product
-        // Structure: {userId}/products/{productId}/
+        // Organize by product ID only
+        // Structure: {productId}/
         let folder = 'products';
-        if (userId && productId) {
-          folder = `${userId}/products/${productId}`;
-        } else if (userId) {
-          folder = `${userId}/products`;
-        } else if (productId) {
-          folder = `products/${productId}`;
+        if (productId) {
+          folder = productId;
         }
         console.log('Uploading to folder:', folder);
-        const result = await uploadImageToSupabase(file, 'product-images', folder);
+        // Use unique filename for products (not fixed) to allow multiple images
+        const result = await uploadImageToSupabase(file, 'product-images', folder, false);
         
         console.log('Upload result:', result);
         
@@ -126,7 +123,26 @@ export default function MultiImageUpload({
     fileInputRef.current?.click();
   };
 
-  const removeImage = (index: number) => {
+  const removeImage = async (index: number) => {
+    // Delete the image from storage
+    const imageToRemove = currentImages[index];
+    if (imageToRemove?.image_url) {
+      try {
+        // Extract the file path from the URL
+        const url = new URL(imageToRemove.image_url);
+        const pathParts = url.pathname.split('/');
+        const fileName = pathParts[pathParts.length - 1];
+        const folderPath = pathParts.slice(0, pathParts.length - 1).join('/');
+        
+        // Delete from product-images bucket
+        await deleteImageFromSupabase(imageToRemove.image_url, 'product-images');
+        console.log('Deleted image:', imageToRemove.image_url);
+      } catch (err) {
+        console.warn('Could not delete image from storage:', err);
+        // Continue with removal from UI even if storage deletion fails
+      }
+    }
+    
     const updatedImages = currentImages.filter((_, i) => i !== index);
     // Reorder display_order
     const reorderedImages = updatedImages.map((img, i) => ({
@@ -170,7 +186,12 @@ export default function MultiImageUpload({
                   {/* Move up */}
                   {index > 0 && (
                     <button
-                      onClick={() => moveImage(index, index - 1)}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        moveImage(index, index - 1);
+                      }}
                       className="p-1 bg-white bg-opacity-80 rounded-full hover:bg-opacity-100"
                       title="Move up"
                     >
@@ -183,7 +204,12 @@ export default function MultiImageUpload({
                   {/* Move down */}
                   {index < currentImages.length - 1 && (
                     <button
-                      onClick={() => moveImage(index, index + 1)}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        moveImage(index, index + 1);
+                      }}
                       className="p-1 bg-white bg-opacity-80 rounded-full hover:bg-opacity-100"
                       title="Move down"
                     >
@@ -195,7 +221,12 @@ export default function MultiImageUpload({
                   
                   {/* Remove */}
                   <button
-                    onClick={() => removeImage(index)}
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      removeImage(index);
+                    }}
                     className="p-1 bg-red-500 bg-opacity-80 rounded-full hover:bg-opacity-100"
                     title="Remove image"
                   >
