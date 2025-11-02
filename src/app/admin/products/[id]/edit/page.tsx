@@ -143,6 +143,7 @@ export default function EditProductPage() {
 
         // Determine subcategory name - prefer UUID relationship, fallback to legacy string
         let subcategoryName = product.subcategory || '';
+        let subcategoryId = product.subcategory_id || null;
         if (!subcategoryName && product.subcategory_id) {
           const { data: subcategoryData } = await supabaseInstance
             .from('subcategories')
@@ -200,8 +201,41 @@ export default function EditProductPage() {
           }));
         }
 
+        // Fetch subcategories for the category
         if (categoryName) {
-          await fetchSubcategories(categoryName);
+          // Always try to fetch by category_id first (most reliable)
+          const categoryIdToUse = product.category_id || null;
+          
+          if (categoryIdToUse) {
+            // Direct fetch by category ID - most reliable
+            const { data: subcatsData } = await supabaseInstance
+              .from('subcategories')
+              .select('*')
+              .eq('parent_category_id', categoryIdToUse)
+              .order('name', { ascending: true });
+            if (subcatsData) {
+              setSubcategories(subcatsData);
+            }
+          } else {
+            // Fallback: fetch category by name directly from database
+            const { data: categoryData } = await supabaseInstance
+              .from('categories')
+              .select('id')
+              .eq('name', categoryName)
+              .is('parent_category_id', null)
+              .single();
+            
+            if (categoryData?.id) {
+              const { data: subcatsData } = await supabaseInstance
+                .from('subcategories')
+                .select('*')
+                .eq('parent_category_id', categoryData.id)
+                .order('name', { ascending: true });
+              if (subcatsData) {
+                setSubcategories(subcatsData);
+              }
+            }
+          }
         }
 
         hasInitialFetched.current = true;

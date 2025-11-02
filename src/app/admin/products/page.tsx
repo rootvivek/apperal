@@ -36,7 +36,6 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       
-      // Fetch products; use * to be schema-flexible (works if legacy or new columns were changed)
       const { data: productsData, error: productsError } = await supabase
         .from('products')
         .select('*')
@@ -44,14 +43,73 @@ export default function ProductsPage() {
 
       if (productsError) throw productsError;
 
-      // Transform the data to include subcategories array
-      const transformedProducts = productsData?.map((product: any) => ({
-        ...product,
-        // Back-compat: build array from legacy string if present
-        subcategories: product?.subcategory ? [product.subcategory] : [],
-        // Back-compat: ensure category exists for UI filters
-        category: product?.category ?? ''
-      })) || [];
+      if (!productsData || productsData.length === 0) {
+        setProducts([]);
+        return;
+      }
+
+      // Get unique category IDs that need name resolution
+      const categoryIds = Array.from(new Set(
+        productsData
+          .filter((p: any) => p.category_id && !p.category)
+          .map((p: any) => p.category_id)
+      ));
+
+      // Get unique subcategory IDs that need name resolution
+      const subcategoryIds = Array.from(new Set(
+        productsData
+          .filter((p: any) => p.subcategory_id && !p.subcategory)
+          .map((p: any) => p.subcategory_id)
+      ));
+
+      // Fetch category names from UUIDs
+      let categoryNameMap: { [key: string]: string } = {};
+      if (categoryIds.length > 0) {
+        const { data: categoriesData } = await supabase
+          .from('categories')
+          .select('id, name')
+          .in('id', categoryIds);
+        if (categoriesData) {
+          categoryNameMap = Object.fromEntries(
+            categoriesData.map((cat: any) => [cat.id, cat.name])
+          );
+        }
+      }
+
+      // Fetch subcategory names from UUIDs
+      let subcategoryNameMap: { [key: string]: string } = {};
+      if (subcategoryIds.length > 0) {
+        const { data: subcategoriesData } = await supabase
+          .from('subcategories')
+          .select('id, name')
+          .in('id', subcategoryIds);
+        if (subcategoriesData) {
+          subcategoryNameMap = Object.fromEntries(
+            subcategoriesData.map((sub: any) => [sub.id, sub.name])
+          );
+        }
+      }
+
+      // Transform products with resolved names
+      const transformedProducts = productsData.map((product: any) => {
+        // Resolve category name - prefer legacy string, fallback to UUID lookup
+        let categoryName = product.category || '';
+        if (!categoryName && product.category_id) {
+          categoryName = categoryNameMap[product.category_id] || '';
+        }
+
+        // Resolve subcategory name - prefer legacy string, fallback to UUID lookup
+        let subcategoryName = product.subcategory || '';
+        if (!subcategoryName && product.subcategory_id) {
+          subcategoryName = subcategoryNameMap[product.subcategory_id] || '';
+        }
+
+        return {
+          ...product,
+          category: categoryName,
+          subcategories: subcategoryName ? [subcategoryName] : []
+        };
+      });
 
       setProducts(transformedProducts);
     } catch (err: any) {

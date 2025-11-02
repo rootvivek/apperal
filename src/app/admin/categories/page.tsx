@@ -15,6 +15,7 @@ interface Category {
   description: string;
   image_url: string | null;
   parent_category_id: string | null;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -34,13 +35,15 @@ export default function CategoriesPage() {
   const [loadingSubcats, setLoadingSubcats] = useState<string[]>([]);
   const [isCreatingSubcategory, setIsCreatingSubcategory] = useState(false);
   const [parentCategoryId, setParentCategoryId] = useState<string | null>(null);
+  const [refreshKey, setRefreshKey] = useState(0);
   const supabase = createClient();
 
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
     description: '',
-    image_url: ''
+    image_url: '',
+    is_active: true
   });
 
   useEffect(() => {
@@ -60,7 +63,13 @@ export default function CategoriesPage() {
 
       if (fetchError) throw fetchError;
       
-      setCategories(data || []);
+      // Ensure is_active exists for all categories (default to true if missing)
+      const categoriesWithActive = (data || []).map((cat: any) => ({
+        ...cat,
+        is_active: cat.is_active !== undefined ? cat.is_active : true
+      }));
+      
+      setCategories(categoriesWithActive);
       setError(null);
     } catch (err: any) {
       setError(err.message);
@@ -244,6 +253,7 @@ export default function CategoriesPage() {
         slug: generateSlug(formData.name, isCreatingSubcategory, parentCategoryId || undefined),
         description: formData.description.trim(),
         image_url: formData.image_url.trim() ? cleanImageUrl(formData.image_url.trim()) : null,
+        is_active: formData.is_active,
       };
       
       if (isCreatingSubcategory && parentCategoryId) {
@@ -335,7 +345,8 @@ export default function CategoriesPage() {
       name: category.name,
       slug: category.slug,
       description: category.description || '',
-      image_url: category.image_url ? addCacheBusting(category.image_url, category.updated_at) : ''
+      image_url: category.image_url ? addCacheBusting(category.image_url, category.updated_at) : '',
+      is_active: category.is_active !== undefined ? category.is_active : true
     });
     setShowEditModal(true);
   };
@@ -556,9 +567,14 @@ export default function CategoriesPage() {
             .order('name', { ascending: true });
 
           if (!error && data) {
+            // Ensure is_active exists for all subcategories (default to true if missing)
+            const subcategoriesWithActive = data.map((subcat: any) => ({
+              ...subcat,
+              is_active: subcat.is_active !== undefined ? subcat.is_active : true
+            }));
             setSubcategoriesList(prev => ({
               ...prev,
-              [categoryId]: data
+              [categoryId]: subcategoriesWithActive
             }));
           }
         } catch (err) {
@@ -573,12 +589,110 @@ export default function CategoriesPage() {
     }
   };
 
+  const toggleCategoryStatus = async (categoryId: string, currentStatus: boolean, isSubcategory: boolean = false) => {
+    try {
+      const newStatus = !currentStatus;
+      const tableName = isSubcategory ? 'subcategories' : 'categories';
+      
+      const { error } = await supabase
+        .from(tableName)
+        .update({ is_active: newStatus })
+        .eq('id', categoryId);
+
+      if (error) {
+        throw error;
+      }
+
+      // Update state using functional updates - create new arrays/objects to force re-render
+      if (isSubcategory) {
+        setSubcategoriesList(prev => {
+          const updated = { ...prev };
+          let found = false;
+          for (const parentId in updated) {
+            const subcatIndex = updated[parentId].findIndex(sub => sub.id === categoryId);
+            if (subcatIndex !== -1) {
+              // Create completely new array and new object to force React re-render
+              updated[parentId] = updated[parentId].map((sub, idx) => 
+                idx === subcatIndex 
+                  ? { ...sub, is_active: newStatus }
+                  : sub
+              );
+              found = true;
+              break;
+            }
+          }
+          return found ? updated : prev;
+        });
+      } else {
+        // Create new array with updated category to force React re-render
+        setCategories(prev => {
+          const index = prev.findIndex(cat => cat.id === categoryId);
+          if (index === -1) return prev;
+          
+          // Create new array with new category object
+          const updated = [...prev];
+          updated[index] = { ...updated[index], is_active: newStatus };
+          return updated;
+        });
+      }
+      
+      // If it's a subcategory, we need to refresh the subcategories list
+      if (isSubcategory) {
+        // Find and refresh the parent category's subcategories
+        const parentId = Object.keys(subcategoriesList).find(key => 
+          subcategoriesList[key].some(sub => sub.id === categoryId)
+        );
+        if (parentId) {
+          const { data: refreshedSubcats } = await supabase
+            .from('subcategories')
+            .select('*')
+            .eq('parent_category_id', parentId)
+            .order('name', { ascending: true });
+          
+          if (refreshedSubcats) {
+            const subcategoriesWithActive = refreshedSubcats.map((subcat: any) => ({
+              ...subcat,
+              is_active: subcat.is_active !== undefined ? subcat.is_active : true
+            }));
+            setSubcategoriesList(prev => ({
+              ...prev,
+              [parentId]: subcategoriesWithActive
+            }));
+          }
+        }
+      } else {
+        // Refresh the specific category from database to ensure sync
+        const { data: refreshedCat } = await supabase
+          .from('categories')
+          .select('*')
+          .eq('id', categoryId)
+          .single();
+        
+        if (refreshedCat) {
+          const categoryWithActive = {
+            ...refreshedCat,
+            is_active: refreshedCat.is_active !== undefined ? refreshedCat.is_active : true
+          };
+          setCategories(prev => 
+            prev.map(cat => cat.id === categoryId ? categoryWithActive : cat)
+          );
+        }
+      }
+      
+      // Force re-render by updating refresh key
+      setRefreshKey(prev => prev + 1);
+    } catch (err: any) {
+      setError(err?.message || 'Failed to update status');
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: '',
       slug: '',
       description: '',
       image_url: '',
+      is_active: true
     });
     setShowEditModal(false);
     setEditingCategory(null);
@@ -653,6 +767,19 @@ export default function CategoriesPage() {
                     )}
                   </div>
 
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      name="is_active"
+                      id="is_active"
+                      checked={formData.is_active}
+                      onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                      Active
+                    </label>
+                  </div>
 
                   <div className="p-6 border-t border-gray-200 flex space-x-3 sticky bottom-0 bg-white -m-6 mt-0">
                     <button
@@ -759,7 +886,22 @@ export default function CategoriesPage() {
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center space-x-2 ml-4">
+                      <div className="flex items-center space-x-2 ml-4" key={`actions-${category.id}-${refreshKey}`}>
+                        <button
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            await toggleCategoryStatus(category.id, category.is_active ?? true, false);
+                          }}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full transition-colors ${
+                            (category.is_active ?? true)
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-red-100 text-red-800 hover:bg-red-200'
+                          }`}
+                          title="Toggle Status"
+                        >
+                          {(category.is_active ?? true) ? 'Active' : 'Inactive'}
+                        </button>
                         <button
                           onClick={() => handleAddSubcategory(category.id)}
                           className="px-3 py-1 text-sm text-green-600 hover:text-green-900 font-medium"
@@ -797,7 +939,22 @@ export default function CategoriesPage() {
                                   <h4 className="font-medium text-gray-800">{subcat.name}</h4>
                                   <p className="text-sm text-gray-600">{subcat.description || 'No description'}</p>
                                 </div>
-                                <div className="flex items-center space-x-2 ml-4">
+                                <div className="flex items-center space-x-2 ml-4" key={`subcat-actions-${subcat.id}-${refreshKey}`}>
+                                  <button
+                                    onClick={async (e) => {
+                                      e.preventDefault();
+                                      e.stopPropagation();
+                                      await toggleCategoryStatus(subcat.id, subcat.is_active ?? true, true);
+                                    }}
+                                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full transition-colors ${
+                                      (subcat.is_active ?? true)
+                                        ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                                        : 'bg-red-100 text-red-800 hover:bg-red-200'
+                                    }`}
+                                    title="Toggle Status"
+                                  >
+                                    {(subcat.is_active ?? true) ? 'Active' : 'Inactive'}
+                                  </button>
                                   <button
                                     onClick={() => handleEdit(subcat)}
                                     className="px-2 py-1 text-xs text-blue-600 hover:text-blue-900"

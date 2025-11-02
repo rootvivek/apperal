@@ -88,8 +88,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       });
 
       if (error) {
-        // RPC not available, silently fallback to regular queries
-        console.log('RPC not available, using fallback method');
         await fetchCategoryAndProductsFallback();
         return;
       }
@@ -100,18 +98,29 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         return;
       }
 
+      // Check if category is active before setting it
+      if (!result.category || result.category.is_active === false) {
+        // Category is inactive, fallback to regular query
+        await fetchCategoryAndProductsFallback();
+        return;
+      }
+
       // Set category data
       setCategory(result.category);
 
-      // Set subcategories from result if available
+      // Set subcategories from result if available (filter active only)
       if (result.subcategories && result.subcategories.length > 0) {
-        setSubcategories(result.subcategories);
+        const activeSubcategories = result.subcategories.filter(
+          (sub: any) => sub.is_active !== false
+        );
+        setSubcategories(activeSubcategories);
       } else {
-        // Fetch subcategories separately if not in result
+        // Fetch subcategories separately if not in result (only active subcategories)
         const { data: subcats } = await supabase
           .from('subcategories')
           .select('*')
-          .eq('parent_category_id', result.category.id);
+          .eq('parent_category_id', result.category.id)
+          .eq('is_active', true);
         setSubcategories(subcats || []);
       }
 
@@ -136,8 +145,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       setProducts(transformedProducts);
       setFilteredProducts(transformedProducts);
     } catch (error) {
-      console.error('Error:', error);
-      // Fallback to regular queries
       await fetchCategoryAndProductsFallback();
     } finally {
       setLoading(false);
@@ -149,16 +156,15 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       // Decode URL parameter to handle encoding issues
       const decodedCategory = decodeURIComponent(params.category);
       
-      // Fetch category by slug
+      // Fetch category by slug (only active categories)
       const { data: categoryData, error: categoryError } = await supabase
         .from('categories')
         .select('*')
         .eq('slug', decodedCategory)
+        .eq('is_active', true)
         .single();
 
       if (categoryError || !categoryData) {
-        console.error('Category not found:', categoryError);
-        // Don't call notFound() - show empty results instead
         setCategory(null);
         setProducts([]);
         setFilteredProducts([]);
@@ -166,54 +172,99 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         return;
       }
 
-      // Fetch subcategories for this category
+      // Fetch subcategories for this category (only active subcategories)
       const { data: subcategoriesData, error: subcategoriesError } = await supabase
         .from('subcategories')
         .select('*')
-        .eq('parent_category_id', categoryData.id);
+        .eq('parent_category_id', categoryData.id)
+        .eq('is_active', true);
 
       if (!subcategoriesError && subcategoriesData) {
         setSubcategories(subcategoriesData);
       }
 
-      // Fetch products for this category
-      const { data: productsData, error: productsError } = await supabase
+      // Fetch products for this category - try UUID relationship first, fallback to legacy string
+      let productsData = null;
+      let productsError = null;
+      
+      // Try UUID relationship first (category_id)
+      const { data: uuidProducts, error: uuidError } = await supabase
         .from('products')
         .select('*, product_images (id, image_url, alt_text, display_order)')
-        .eq('category', categoryData.name)
+        .eq('category_id', categoryData.id)
         .eq('is_active', true);
+      
+      if (!uuidError && uuidProducts && uuidProducts.length > 0) {
+        productsData = uuidProducts;
+      } else {
+        // Fallback to legacy string field
+        const { data: legacyProducts, error: legacyError } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('category', categoryData.name)
+          .eq('is_active', true);
+        productsData = legacyProducts;
+        productsError = legacyError;
+      }
 
       if (productsError) {
-        console.error('Error fetching products:', productsError);
         setProducts([]);
         setCategory(categoryData);
         return;
       }
 
+      // Get subcategory names map for UUID-based products
+      const subcategoryIds = Array.from(new Set(
+        productsData
+          .filter((p: any) => p.subcategory_id && !p.subcategory)
+          .map((p: any) => p.subcategory_id)
+      ));
+      
+      let subcategoryNameMap: { [key: string]: string } = {};
+      if (subcategoryIds.length > 0) {
+        const { data: subcats } = await supabase
+          .from('subcategories')
+          .select('id, name')
+          .in('id', subcategoryIds)
+          .eq('is_active', true);
+        if (subcats) {
+          subcategoryNameMap = Object.fromEntries(
+            subcats.map((sc: any) => [sc.id, sc.name])
+          );
+        }
+      }
+
       // Transform products
-      const transformedProducts = productsData.map((product: any) => ({
-        id: product.id,
-        slug: product.slug,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: categoryData.name,
-        subcategory: product.subcategory || '',
-        image_url: product.image_url,
-        stock_quantity: product.stock_quantity || 0,
-        is_active: product.is_active,
-        subcategories: product.subcategory ? [product.subcategory] : [],
-        created_at: product.created_at,
-        updated_at: product.updated_at,
-        product_images: product.product_images,
-        images: product.product_images?.map((img: any) => img.image_url) || []
-      }));
+      const transformedProducts = productsData.map((product: any) => {
+        // Get subcategory name - prefer legacy string, fallback to UUID lookup
+        let subcategoryName = product.subcategory || '';
+        if (!subcategoryName && product.subcategory_id) {
+          subcategoryName = subcategoryNameMap[product.subcategory_id] || '';
+        }
+        
+        return {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: categoryData.name,
+          subcategory: subcategoryName,
+          image_url: product.image_url,
+          stock_quantity: product.stock_quantity || 0,
+          is_active: product.is_active,
+          subcategories: subcategoryName ? [subcategoryName] : [],
+          created_at: product.created_at,
+          updated_at: product.updated_at,
+          product_images: product.product_images,
+          images: product.product_images?.map((img: any) => img.image_url) || []
+        };
+      });
 
       setCategory(categoryData);
       setProducts(transformedProducts);
       setFilteredProducts(transformedProducts);
     } catch (error) {
-      console.error('Fallback error:', error);
       setProducts([]);
     }
   };

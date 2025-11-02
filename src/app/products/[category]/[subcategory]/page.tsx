@@ -108,7 +108,6 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
 
       setProducts(transformedProducts);
     } catch (error) {
-      console.error('Error:', error);
       await fetchSubcategoryFallback();
     } finally {
       setLoading(false);
@@ -121,11 +120,12 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       const decodedCategory = decodeURIComponent(params.category);
       const decodedSubcategory = decodeURIComponent(params.subcategory);
       
-      // Fetch category by slug
+      // Fetch category by slug (only active categories)
       const { data: categoryData, error: categoryError } = await supabase
         .from('categories')
         .select('*')
         .eq('slug', decodedCategory)
+        .eq('is_active', true)
         .single();
 
       // Create fallback category if not found
@@ -146,12 +146,13 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
         return;
       }
 
-      // Fetch subcategory by slug and parent category from subcategories table
+      // Fetch subcategory by slug and parent category from subcategories table (only active subcategories)
       const { data: subcategoryData, error: subcategoryError } = await supabase
         .from('subcategories')
         .select('*')
         .eq('slug', decodedSubcategory)
         .eq('parent_category_id', fallbackCategory.id)
+        .eq('is_active', true)
         .single();
 
       // Create fallback subcategory if not found in database
@@ -169,43 +170,70 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       setCategory(fallbackCategory);
       setSubcategory(fallbackSubcategory);
 
-      // Fetch products for this subcategory
-      const subcategoryNameToSearch = fallbackSubcategory.name;
+      // Fetch products for this subcategory - try UUID relationship first, fallback to legacy string
+      let productsData = null;
+      let productsError = null;
       
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select('*, product_images (id, image_url, alt_text, display_order)')
-        .eq('subcategory', subcategoryNameToSearch)
-        .eq('is_active', true);
+      // Try UUID relationship first (subcategory_id) - for real subcategories from database
+      if (fallbackSubcategory.id && !fallbackSubcategory.id.startsWith('fallback-')) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('subcategory_id', fallbackSubcategory.id)
+          .eq('is_active', true);
+        
+        if (!error && data) {
+          productsData = data;
+        } else {
+          productsError = error;
+        }
+      }
+      
+      // If UUID query failed or returned no results, try legacy string field
+      if (!productsData || productsData.length === 0) {
+        const subcategoryNameToSearch = fallbackSubcategory.name;
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('subcategory', subcategoryNameToSearch)
+          .eq('is_active', true);
+        productsData = data;
+        productsError = error;
+      }
 
       if (productsError) {
-        console.error('Error fetching products:', productsError);
+        setProducts([]);
+        return;
+      }
+
+      if (!productsData || productsData.length === 0) {
         setProducts([]);
         return;
       }
 
       // Transform products
-      const transformedProducts = productsData.map((product: any) => ({
-        id: product.id,
-        slug: product.slug,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: fallbackCategory.name,
-        subcategory: fallbackSubcategory.name,
-        image_url: product.image_url,
-        stock_quantity: product.stock_quantity || 0,
-        is_active: product.is_active,
-        created_at: product.created_at,
-        updated_at: product.updated_at,
-        product_images: product.product_images,
-        images: product.product_images?.map((img: any) => img.image_url) || []
-      }));
+      const transformedProducts = productsData.map((product: any) => {
+        const subcategoryName = fallbackSubcategory.name || product.subcategory || '';
+        return {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: fallbackCategory.name,
+          subcategory: subcategoryName,
+          image_url: product.image_url,
+          stock_quantity: product.stock_quantity || 0,
+          is_active: product.is_active,
+          created_at: product.created_at,
+          updated_at: product.updated_at,
+          product_images: product.product_images,
+          images: product.product_images?.map((img: any) => img.image_url) || []
+        };
+      });
 
       setProducts(transformedProducts);
     } catch (error) {
-      console.error('Fallback error:', error);
-      // Don't call notFound() here - let the product display with empty subcategory data
       setProducts([]);
     }
   };

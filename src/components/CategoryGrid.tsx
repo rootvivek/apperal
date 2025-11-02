@@ -34,10 +34,11 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
 
   const fetchSubcategories = async () => {
     try {
-      // Fetch subcategories from the separate subcategories table
+      // Fetch subcategories from the separate subcategories table (only active subcategories)
       const { data: subcategoriesData, error } = await supabase
         .from('subcategories')
         .select('*')
+        .eq('is_active', true)
         .order('name', { ascending: true });
       
       if (error) {

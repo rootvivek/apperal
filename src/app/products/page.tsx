@@ -29,13 +29,13 @@ export default function ProductsPage() {
         .from('categories')
         .select('*')
         .is('parent_category_id', null) // Only main categories
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       if (error) throw error;
       
       setCategories(data || []);
     } catch (error) {
-      console.error('Error fetching categories:', error);
       setCategories([]);
     } finally {
       setLoading(false);

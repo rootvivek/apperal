@@ -95,10 +95,12 @@ export default function Navigation() {
           .from('categories')
           .select('*')
           .is('parent_category_id', null)
+          .eq('is_active', true)
           .order('name', { ascending: true }),
         supabase
           .from('subcategories')
           .select('*')
+          .eq('is_active', true)
           .order('name', { ascending: true })
       ]);
 

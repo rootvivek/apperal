@@ -115,9 +115,17 @@ export default function Home() {
         }))
       }));
 
+      // Filter categories to only show active ones (in case RPC function returns inactive)
+      const activeCategorySections = transformedCategorySections.filter(
+        (section: any) => section.category?.is_active !== false
+      );
+      const activeCategories = activeCategorySections.map((s: any) => s.category).filter(
+        (cat: any) => cat?.is_active !== false
+      );
+      
       setAllProducts(transformedAllProducts);
-      setCategorySections(transformedCategorySections);
-      setCategories(categorySections.map((s: any) => s.category));
+      setCategorySections(activeCategorySections);
+      setCategories(activeCategories);
       setDataFetched(true); // Mark data as fetched
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -153,11 +161,12 @@ export default function Home() {
         console.error('All products error:', allProductsError);
       }
 
-      // Fetch categories
+      // Fetch categories (only active categories)
       const { data: categoriesData, error: categoriesError } = await supabase
         .from('categories')
         .select('*')
         .is('parent_category_id', null)
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       if (categoriesError) {
