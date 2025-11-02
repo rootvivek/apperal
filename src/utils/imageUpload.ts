@@ -17,11 +17,8 @@ export async function uploadImageToSupabase(
     
     // Validate file
     if (!file || !file.name) {
-      console.error('Invalid file object:', file);
       return { success: false, error: 'Invalid file provided' };
     }
-    
-    console.log('File details:', { name: file.name, size: file.size, type: file.type });
     
     // Generate filename
     const fileExt = file.name.split('.').pop();
@@ -38,21 +35,14 @@ export async function uploadImageToSupabase(
       filePath = `${folder}/${fileName}`;
     }
     
-    console.log('Uploading image to path:', filePath);
-    
     // For fixed name files, delete ALL old files in the folder first
     if (useFixedName) {
-      console.log(`Cleaning folder ${folder} before upload...`);
-      const deleted = await deleteFolderContents(bucket, folder);
-      console.log(`Folder cleaned: ${deleted}`);
-      
+      await deleteFolderContents(bucket, folder);
       // Small delay to ensure folder cleanup is fully processed by Supabase
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
     // Upload file to Supabase Storage
-    // Use upsert for fixed name files to overwrite if exists
-    console.log(`Starting upload to ${bucket}/${filePath}...`);
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, file, {
@@ -61,14 +51,8 @@ export async function uploadImageToSupabase(
       });
     
     if (error) {
-      console.error('Upload error:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
-      console.error('Failed path:', filePath);
-      console.error('Bucket:', bucket);
-      
       // If resource already exists and we're using fixed name, try to delete and re-upload
       if (error.message.includes('already exists') && useFixedName) {
-        console.log('File exists, deleting and retrying...');
         try {
           const bucketApi = supabase.storage.from(bucket);
           if (bucketApi && typeof (bucketApi as any).remove === 'function') {
@@ -111,26 +95,17 @@ export async function uploadImageToSupabase(
       return { success: false, error: error.message };
     }
     
-    // Upload successful
-    console.log('Upload successful! Data:', data);
-    console.log('File path:', filePath);
-    
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from(bucket)
       .getPublicUrl(filePath);
     
-    console.log('Public URL generated:', publicUrl);
-    
     // Add cache-busting parameter for fixed-name uploads to bypass browser cache
     const finalUrl = useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl;
-    
-    console.log('Final URL with cache-busting:', finalUrl);
     
     return { success: true, url: finalUrl };
     
   } catch (error: any) {
-    console.error('Upload error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -156,7 +131,6 @@ export async function uploadImageToCloudinary(file: File): Promise<UploadResult>
     return { success: true, url: data.secure_url };
     
   } catch (error: any) {
-    console.error('Cloudinary upload error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -175,27 +149,21 @@ export async function deleteImageFromSupabase(
     // Extract file path from URL
     const urlParts = cleanUrl.split(`/${bucket}/`);
     if (urlParts.length < 2) {
-      console.warn('Could not extract file path from URL:', imageUrl);
       return false;
     }
     
     const filePath = urlParts[1];
-    console.log('Deleting file from bucket:', bucket, 'path:', filePath);
     
-    // Delete the file using the correct Supabase method
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucket)
       .remove([filePath]);
     
     if (error) {
-      console.error('Error deleting image from storage:', error);
       return false;
     }
     
-    console.log('File deleted successfully from storage');
     return true;
   } catch (error: any) {
-    console.error('Delete error:', error);
     return false;
   }
 }
@@ -214,32 +182,26 @@ export async function deleteFolderContents(
       .list(folder);
     
     if (listError) {
-      console.warn('Could not list folder contents:', listError);
       return false;
     }
     
     if (!files || files.length === 0) {
-      console.log('Folder is already empty:', folder);
-      return true; // Folder is already empty
+      return true;
     }
     
     // Delete all files in the folder
     const filePaths = files.map((file: any) => `${folder}/${file.name}`);
-    console.log('Deleting', filePaths.length, 'files from folder:', folder);
     
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(bucket)
       .remove(filePaths);
     
     if (error) {
-      console.error('Error deleting folder contents:', error);
       return false;
     }
     
-    console.log(`Successfully deleted ${filePaths.length} files from ${folder}`);
     return true;
   } catch (error: any) {
-    console.error('Delete folder contents error:', error);
     return false;
   }
 }

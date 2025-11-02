@@ -65,17 +65,12 @@ export default function ProductsPage() {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
     try {
-      // Step 1: Delete product image folder from storage
       try {
-        console.log('Deleting product image folder from storage:', productId);
         await deleteFolderContents('product-images', productId);
-        console.log('Product image folder deleted successfully');
       } catch (storageErr) {
-        console.warn('Could not delete product image folder:', storageErr);
         // Continue with product deletion even if storage deletion fails
       }
 
-      // Step 2: Delete the product from database
       const { error } = await supabase
         .from('products')
         .delete()
@@ -84,7 +79,6 @@ export default function ProductsPage() {
       if (error) throw error;
       
       setProducts(products.filter(p => p.id !== productId));
-      console.log('Product deleted successfully');
     } catch (err: any) {
       setError(err.message);
     }
@@ -126,7 +120,7 @@ export default function ProductsPage() {
       await navigator.clipboard.writeText(id);
       alert('Product ID copied to clipboard');
     } catch (e) {
-      console.warn('Copy failed', e);
+      // Copy failed silently
     }
   };
 

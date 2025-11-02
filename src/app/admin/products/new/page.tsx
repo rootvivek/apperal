@@ -77,7 +77,6 @@ export default function NewProductPage() {
     const fetchUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        console.log('Logged in user ID:', session.user.id);
         setUserId(session.user.id);
       }
     };
@@ -92,14 +91,8 @@ export default function NewProductPage() {
     
     fetchUser();
     const uuid = generateUuid();
-    console.log('Generated product UUID:', uuid);
     setProductUuid(uuid);
   }, []);
-
-  // Get available subcategories based on selected category
-  const getAvailableSubcategories = () => {
-    return subcategories;
-  };
 
   // Add custom subcategory
   const addCustomSubcategory = () => {
@@ -127,7 +120,6 @@ export default function NewProductPage() {
       let subcategoriesData = [];
 
       if (selectedCategory) {
-        // Fetch subcategories that have this category as parent from subcategories table
         const { data: categorySubcategories, error: categoryError } = await supabase
           .from('subcategories')
           .select('*')
@@ -139,62 +131,12 @@ export default function NewProductPage() {
         }
       }
 
-      // If no subcategories found in categories table, try to get from existing products
-      if (subcategoriesData.length === 0) {
-        const { data: productSubcategories, error: productError } = await supabase
-          .from('products')
-          .select('subcategory')
-          .eq('category', categoryName)
-          .not('subcategory', 'is', null)
-          .not('subcategory', 'eq', '');
-
-        if (!productError && productSubcategories) {
-          // Get unique subcategories from existing products
-          const uniqueSubcategories = Array.from(new Set(productSubcategories.map((p: any) => p.subcategory)));
-          subcategoriesData = uniqueSubcategories.map((name: any, index: number) => ({
-            id: `temp-${index}`,
-            name: name,
-            slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            description: '',
-            parent_category_id: selectedCategory?.id || null
-          }));
-        }
-      }
-
-      // If still no subcategories, provide some common ones based on category
-      if (subcategoriesData.length === 0) {
-        const commonSubcategories = getCommonSubcategories(categoryName);
-        subcategoriesData = commonSubcategories.map((name, index) => ({
-          id: `common-${index}`,
-          name: name,
-          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: '',
-          parent_category_id: selectedCategory?.id || null
-        }));
-      }
-
       setSubcategories(subcategoriesData);
     } catch (err: any) {
-      console.error('Error fetching subcategories:', err);
       setSubcategories([]);
     } finally {
       setSubcategoriesLoading(false);
     }
-  };
-
-  // Helper function to provide common subcategories based on category
-  const getCommonSubcategories = (categoryName: string) => {
-    const subcategoryMap: { [key: string]: string[] } = {
-      "Men's Clothing": ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Jackets", "Hoodies", "Sweaters"],
-      "Women's Clothing": ["Dresses", "Tops", "Blouses", "Pants", "Jeans", "Skirts", "Jackets", "Sweaters"],
-      "Kids' Clothing": ["T-Shirts", "Dresses", "Pants", "Shorts", "Jackets", "Sleepwear", "School Uniforms"],
-      "Accessories": ["Bags", "Wallets", "Belts", "Hats", "Scarves", "Jewelry", "Watches", "Sunglasses"],
-      "Electronics": ["Phones", "Laptops", "Tablets", "Headphones", "Chargers", "Cases", "Cables"],
-      "Mobile Covers": ["iPhone Cases", "Samsung Cases", "Google Cases", "OnePlus Cases", "Generic Cases"],
-      "Footwear": ["Sneakers", "Boots", "Sandals", "Heels", "Flats", "Athletic Shoes", "Dress Shoes"]
-    };
-
-    return subcategoryMap[categoryName] || ["General", "Popular", "New Arrivals", "Best Sellers"];
   };
 
   // Reset subcategory when category changes
@@ -232,7 +174,6 @@ export default function NewProductPage() {
         if (error) throw error;
         setCategories(data || []);
       } catch (err: any) {
-        console.error('Error fetching categories:', err);
         setError('Failed to load categories');
       } finally {
         setCategoriesLoading(false);
@@ -378,7 +319,7 @@ export default function NewProductPage() {
             const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
             if (!selectedFirstName) return null;
             const sub = subcategories.find(s => s.name === selectedFirstName);
-            return sub && !sub.id.startsWith('temp-') && !sub.id.startsWith('common-') ? sub.id : null;
+            return sub ? sub.id : null;
           })(),
         };
         await supabase.from('products').update(fkUpdate).eq('id', productDataSingle.id);
@@ -411,7 +352,6 @@ export default function NewProductPage() {
         }
 
         if (imagesError) {
-          console.error('Error inserting product images:', imagesError);
           // Don't throw here, product was created successfully
         }
       }
@@ -651,7 +591,7 @@ export default function NewProductPage() {
                     <p className="text-sm text-gray-500">No subcategories available</p>
                   ) : (
                     <div className="grid grid-cols-2 gap-2">
-                      {getAvailableSubcategories().map(subcategory => (
+                      {subcategories.map(subcategory => (
                         <label key={subcategory.id} className="flex items-center">
                           <input
                             type="checkbox"

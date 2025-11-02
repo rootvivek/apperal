@@ -67,14 +67,10 @@ export default function MultiImageUpload({
         if (productId) {
           folder = productId;
         }
-        console.log('Uploading to folder:', folder);
         // Use unique filename for products (not fixed) to allow multiple images
         const result = await uploadImageToSupabase(file, 'product-images', folder, false);
         
-        console.log('Upload result:', result);
-        
         if (result.success && result.url) {
-          console.log('Image uploaded successfully. URL:', result.url);
           return {
             image_url: result.url,
             alt_text: file.name.split('.')[0],
@@ -136,9 +132,7 @@ export default function MultiImageUpload({
         
         // Delete from product-images bucket
         await deleteImageFromSupabase(imageToRemove.image_url, 'product-images');
-        console.log('Deleted image:', imageToRemove.image_url);
       } catch (err) {
-        console.warn('Could not delete image from storage:', err);
         // Continue with removal from UI even if storage deletion fails
       }
     }

@@ -84,31 +84,38 @@ export default function EditProductPage() {
 
   // Cleanup on unmount
   useEffect(() => {
-    // Set to true when component mounts
     isMountedRef.current = true;
-    console.log('Component mounted, isMountedRef set to true');
 
     return () => {
-      // Only set to false on actual unmount
       isMountedRef.current = false;
-      console.log('Component unmounting, isMountedRef set to false');
+      // Reset submitting state on unmount to prevent stuck state
+      setIsSubmitting(false);
+      setLoading(false);
     };
   }, []);
+
+  // Safety: Reset submitting state if it gets stuck
+  useEffect(() => {
+    if (isSubmitting && !loading) {
+      const timer = setTimeout(() => {
+        setIsSubmitting(false);
+      }, 5000); // Reset after 5 seconds if stuck
+      return () => clearTimeout(timer);
+    }
+  }, [isSubmitting, loading]);
 
   // Fetch product data - only on initial load
   useEffect(() => {
     // Prevent duplicate fetches
     if (hasInitialFetched.current) {
-      console.log('Product already fetched, skipping duplicate fetch');
       return;
     }
 
-    const supabaseInstance = supabase; // Use the constant supabase
+    const supabaseInstance = supabase;
 
     const fetchProduct = async () => {
       try {
         setPageLoading(true);
-        console.log('1. Starting to fetch product:', productId);
         
         const { data: product, error: productError } = await supabaseInstance
           .from('products')
@@ -116,14 +123,36 @@ export default function EditProductPage() {
           .eq('id', productId)
           .single();
 
-        console.log('2. Product fetch result:', { product, productError });
-
         if (productError) throw productError;
         if (!product) throw new Error('Product not found');
 
-        console.log('3. Setting initial form data');
-        // Only update state if component is still mounted
         if (!isMountedRef.current) return;
+
+        // Determine category name - prefer UUID relationship, fallback to legacy string
+        let categoryName = product.category || '';
+        if (!categoryName && product.category_id) {
+          const { data: categoryData } = await supabaseInstance
+            .from('categories')
+            .select('name')
+            .eq('id', product.category_id)
+            .single();
+          if (categoryData) {
+            categoryName = categoryData.name;
+          }
+        }
+
+        // Determine subcategory name - prefer UUID relationship, fallback to legacy string
+        let subcategoryName = product.subcategory || '';
+        if (!subcategoryName && product.subcategory_id) {
+          const { data: subcategoryData } = await supabaseInstance
+            .from('subcategories')
+            .select('name')
+            .eq('id', product.subcategory_id)
+            .single();
+          if (subcategoryData) {
+            subcategoryName = subcategoryData.name;
+          }
+        }
 
         setFormData({
           id: product.id,
@@ -132,8 +161,8 @@ export default function EditProductPage() {
           price: product.price.toString(),
           original_price: product.original_price?.toString() || '',
           badge: product.badge || '',
-          category: product.category,
-          subcategories: product.subcategory ? [product.subcategory] : [],
+          category: categoryName,
+          subcategories: subcategoryName ? [subcategoryName] : [],
           image_url: '', // Will be set from product images below
           stock_quantity: product.stock_quantity.toString(),
           is_active: product.is_active,
@@ -141,15 +170,11 @@ export default function EditProductPage() {
           images: [],
         });
 
-        console.log('4. Fetching product images');
-        // Fetch product images
         const { data: productImages, error: imagesError } = await supabaseInstance
           .from('product_images')
           .select('*')
           .eq('product_id', productId)
           .order('display_order', { ascending: true });
-
-        console.log('5. Images fetch result:', { imagesError, imageCount: productImages?.length });
 
         if (!isMountedRef.current) return;
 
@@ -175,20 +200,14 @@ export default function EditProductPage() {
           }));
         }
 
-        console.log('6. Fetching subcategories for category:', product.category);
-        // Fetch subcategories for the product's category
-        if (product.category) {
-          await fetchSubcategories(product.category);
+        if (categoryName) {
+          await fetchSubcategories(categoryName);
         }
 
-        console.log('7. Product fetch complete');
-        // Mark as fetched only after successful fetch
         hasInitialFetched.current = true;
       } catch (err: any) {
-        console.error('Product fetch error:', err);
         setError(err.message);
       } finally {
-        console.log('8. Setting page loading to false');
         if (isMountedRef.current) {
           setPageLoading(false);
         }
@@ -214,7 +233,6 @@ export default function EditProductPage() {
         if (error) throw error;
         setCategories(data || []);
       } catch (err: any) {
-        console.error('Error fetching categories:', err);
         setError('Failed to load categories');
       } finally {
         setCategoriesLoading(false);
@@ -228,45 +246,14 @@ export default function EditProductPage() {
   useEffect(() => {
     if (!success) return;
 
-    console.log('Success state detected, will redirect in 2 seconds');
-    
     const redirectTimer = setTimeout(() => {
-      console.log('Redirecting to products page');
       router.push('/admin/products');
     }, 2000);
 
-    // Cleanup timer on unmount or if success changes
     return () => {
       clearTimeout(redirectTimer);
-      console.log('Cleared redirect timer');
     };
   }, [success, router]);
-
-  // Debug: Log whenever formData.images changes
-  useEffect(() => {
-    console.log('DEBUG: formData.images changed:', formData.images.length, 'images');
-    formData.images.forEach((img, idx) => {
-      console.log(`  Image ${idx}:`, {
-        hasId: !!img.id,
-        id: img.id,
-        url: img.image_url.substring(img.image_url.length - 30)
-      });
-    });
-  }, [formData.images]);
-
-  const getCommonSubcategories = (categoryName: string) => {
-    const subcategoryMap: { [key: string]: string[] } = {
-      "Men's Clothing": ["T-Shirts", "Shirts", "Pants", "Jeans", "Shorts", "Jackets", "Hoodies", "Sweaters"],
-      "Women's Clothing": ["Dresses", "Tops", "Blouses", "Pants", "Jeans", "Skirts", "Jackets", "Sweaters"],
-      "Kids' Clothing": ["T-Shirts", "Dresses", "Pants", "Shorts", "Jackets", "Sleepwear", "School Uniforms"],
-      "Accessories": ["Bags", "Wallets", "Belts", "Hats", "Scarves", "Jewelry", "Watches", "Sunglasses"],
-      "Electronics": ["Phones", "Laptops", "Tablets", "Headphones", "Chargers", "Cases", "Cables"],
-      "Mobile Covers": ["iPhone Cases", "Samsung Cases", "Google Cases", "OnePlus Cases", "Generic Cases"],
-      "Footwear": ["Sneakers", "Boots", "Sandals", "Heels", "Flats", "Athletic Shoes", "Dress Shoes"]
-    };
-
-    return subcategoryMap[categoryName] || ["General", "Popular", "New Arrivals", "Best Sellers"];
-  };
 
   const fetchSubcategories = async (categoryName: string) => {
     if (!categoryName) {
@@ -292,40 +279,8 @@ export default function EditProductPage() {
         }
       }
 
-      if (subcategoriesData.length === 0) {
-        const { data: productSubcategories, error: productError } = await supabase
-          .from('products')
-          .select('subcategory')
-          .eq('category', categoryName)
-          .not('subcategory', 'is', null)
-          .not('subcategory', 'eq', '');
-
-        if (!productError && productSubcategories) {
-          const uniqueSubcategories = Array.from(new Set(productSubcategories.map((p: any) => p.subcategory)));
-          subcategoriesData = uniqueSubcategories.map((name: any, index: number) => ({
-            id: `temp-${index}`,
-            name: name,
-            slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-            description: '',
-            parent_category_id: selectedCategory?.id || null
-          }));
-        }
-      }
-
-      if (subcategoriesData.length === 0) {
-        const commonSubcategories = getCommonSubcategories(categoryName);
-        subcategoriesData = commonSubcategories.map((name, index) => ({
-          id: `common-${index}`,
-          name: name,
-          slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-          description: '',
-          parent_category_id: selectedCategory?.id || null
-        }));
-      }
-
       setSubcategories(subcategoriesData);
     } catch (err: any) {
-      console.error('Error fetching subcategories:', err);
       setSubcategories([]);
     } finally {
       setSubcategoriesLoading(false);
@@ -361,17 +316,11 @@ export default function EditProductPage() {
   };
 
   const handleImagesChange = useCallback((images: ProductImage[]) => {
-    console.log('handleImagesChange called with images:', images.length);
-    console.trace('handleImagesChange call stack');
-    setFormData(prev => {
-      const updated = {
-        ...prev,
-        images: images,
-        image_url: images.length > 0 ? images[0].image_url : ''
-      };
-      console.log('Setting formData with', updated.images.length, 'images');
-      return updated;
-    });
+    setFormData(prev => ({
+      ...prev,
+      images: images,
+      image_url: images.length > 0 ? images[0].image_url : ''
+    }));
   }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
@@ -390,18 +339,18 @@ export default function EditProductPage() {
     }
   };
 
-  const validateForm = (): boolean => {
+  const validateForm = (): { isValid: boolean; errors: {[key: string]: string} } => {
     const errors: {[key: string]: string} = {};
 
-    if (!formData.name.trim()) {
+    if (!formData.name || !formData.name.trim()) {
       errors.name = 'Product name is required';
     }
 
-    if (!formData.description.trim()) {
+    if (!formData.description || !formData.description.trim()) {
       errors.description = 'Product description is required';
     }
 
-    if (!formData.price || parseFloat(formData.price) <= 0) {
+    if (!formData.price || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
       errors.price = 'Valid price is required';
     }
 
@@ -409,60 +358,65 @@ export default function EditProductPage() {
       errors.category = 'Category is required';
     }
 
-    if (formData.subcategories.length === 0) {
+    if (!formData.subcategories || formData.subcategories.length === 0) {
       errors.subcategories = 'At least one subcategory is required';
     }
 
-    if (!formData.stock_quantity || parseInt(formData.stock_quantity) < 0) {
+    if (!formData.stock_quantity || isNaN(parseInt(formData.stock_quantity)) || parseInt(formData.stock_quantity) < 0) {
       errors.stock_quantity = 'Valid stock quantity is required';
     }
 
     setValidationErrors(errors);
-    return Object.keys(errors).length === 0;
+    return { isValid: Object.keys(errors).length === 0, errors };
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    console.log('=== FORM SUBMIT STARTED ===');
-    console.log('Current formData.images at submit start:', formData.images.length, 'images');
-    formData.images.forEach((img, idx) => {
-      console.log(`  Image ${idx}:`, { id: img.id, url: img.image_url.substring(img.image_url.length - 30) });
-    });
-    
-    // Prevent double submission
-    if (isSubmitting) {
-      console.log('Already submitting, ignoring duplicate submission');
+    if (isSubmitting || loading) {
       return;
     }
     
-    if (!validateForm()) return;
+    const validation = validateForm();
+    if (!validation.isValid) {
+      const errorFields = Object.keys(validation.errors);
+      const errorMessages = errorFields.map(field => {
+        const fieldName = field === 'subcategories' ? 'subcategory' : field;
+        return `${fieldName.charAt(0).toUpperCase() + fieldName.slice(1)}: ${validation.errors[field]}`;
+      }).join(', ');
+      
+      setError(`Please fix validation errors: ${errorMessages}`);
+      
+      // Scroll to first error field
+      const firstErrorField = errorFields[0];
+      if (firstErrorField) {
+        setTimeout(() => {
+          const element = document.querySelector(`[name="${firstErrorField}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            (element as HTMLElement).focus();
+          }
+        }, 100);
+      }
+      return;
+    }
 
     setIsSubmitting(true);
     setLoading(true);
     setError(null);
-    setSuccess(false); // Reset success state at the beginning
+    setSuccess(false);
 
     try {
-      // Step 1: Delete ALL product images from database (we'll re-insert what we want)
-      console.log('Deleting all product images for product:', productId);
-      const { data: deletedData, error: deleteError } = await supabase
+      const { error: deleteError } = await supabase
         .from('product_images')
         .delete()
         .eq('product_id', productId);
 
       if (deleteError) {
-        console.error('Critical error deleting images:', deleteError);
         throw new Error(`Failed to delete old images: ${deleteError.message}`);
       }
 
-      console.log('Deleted product images successfully');
-
-      // Step 2: Determine the new main image URL
       const newImageUrl = formData.images.length > 0 ? formData.images[0].image_url : null;
-
-      // Step 3: Update the product with new image_url
-      console.log('Updating product with image_url:', newImageUrl);
       const fullUpdate: any = {
         name: formData.name.trim(),
         description: formData.description.trim(),
@@ -478,7 +432,7 @@ export default function EditProductPage() {
           const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
           if (!selectedFirstName) return null;
           const sub = subcategories.find(s => s.name === selectedFirstName);
-          return sub && !sub.id.startsWith('temp-') && !sub.id.startsWith('common-') ? sub.id : null;
+          return sub ? sub.id : null;
         })(),
         image_url: newImageUrl,
         stock_quantity: parseInt(formData.stock_quantity),
@@ -521,55 +475,33 @@ export default function EditProductPage() {
       }
 
       if (updateError) {
-        console.error('Error updating product:', updateError);
         throw new Error(`Failed to update product: ${updateError.message}`);
       }
 
-      console.log('Product updated successfully');
-
-      // Step 4: Re-insert ALL images that are in formData (including existing ones)
       if (formData.images.length > 0) {
-        console.log('Re-inserting images:', formData.images.length);
-        console.log('Images to insert:', formData.images.map(img => ({
-          url: img.image_url,
-          hasId: !!img.id,
-          id: img.id
-        })));
-        
-        // Re-insert ALL images from formData, regardless of whether they have IDs
         const newImagesToInsert = formData.images.map((image, index) => ({
           product_id: productId,
           image_url: image.image_url,
           alt_text: image.alt_text || '',
           display_order: index
         }));
-
-        console.log('Final images count to insert:', newImagesToInsert.length);
         
-        const { data: insertedData, error: imagesError } = await supabase
+        const { error: imagesError } = await supabase
           .from('product_images')
           .insert(newImagesToInsert)
           .select();
 
         if (imagesError) {
-          console.error('Error inserting product images:', imagesError);
           throw new Error(`Failed to insert images: ${imagesError.message}`);
         }
-
-        console.log('Images inserted successfully:', insertedData?.length || 0, 'images');
-      } else {
-        console.log('No images to insert');
       }
 
-      // Step 5: Set success ONLY after all operations complete
-      console.log('All operations completed successfully');
       setSuccess(true);
       setError(null);
 
     } catch (err: any) {
-      console.error('Submit error:', err);
       setError(err.message || 'An error occurred while saving the product');
-      setSuccess(false); // Ensure success is false on error
+      setSuccess(false);
     } finally {
       setLoading(false);
       setIsSubmitting(false); // Reset submitting flag
@@ -585,27 +517,23 @@ export default function EditProductPage() {
     setError(null);
 
     try {
-      // Step 1: Delete product image folder from storage
       if (productId) {
         try {
-          console.log('Deleting product image folder from storage:', productId);
           await deleteFolderContents('product-images', productId);
-          console.log('Product image folder deleted successfully');
         } catch (storageErr) {
-          console.warn('Could not delete product image folder:', storageErr);
           // Continue with product deletion even if storage deletion fails
         }
       }
 
-      // Step 2: Delete product images from database
       const { error: imagesError } = await supabase
         .from('product_images')
         .delete()
         .eq('product_id', productId);
 
-      if (imagesError) console.error('Error deleting images from database:', imagesError);
+      if (imagesError) {
+        // Log but continue deletion
+      }
 
-      // Step 3: Delete the product from database
       const { error: productError } = await supabase
         .from('products')
         .delete()
@@ -613,8 +541,6 @@ export default function EditProductPage() {
 
       if (productError) throw productError;
 
-      console.log('Product deleted successfully');
-      // Redirect to products list
       router.push('/admin/products');
     } catch (err: any) {
       setError(err.message);
@@ -1048,14 +974,14 @@ export default function EditProductPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || isSubmitting}
                   className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
-                    loading
+                    loading || isSubmitting
                       ? 'bg-gray-400 cursor-not-allowed'
                       : 'bg-blue-600 hover:bg-blue-700'
                   }`}
                 >
-                  {loading ? 'Updating Product...' : 'Update Product'}
+                  {loading || isSubmitting ? 'Updating Product...' : 'Update Product'}
                 </button>
               </div>
             </div>
