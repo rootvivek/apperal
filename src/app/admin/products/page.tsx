@@ -105,7 +105,7 @@ export default function ProductsPage() {
         }
 
         return {
-          ...product,
+        ...product,
           category: categoryName,
           subcategories: subcategoryName ? [subcategoryName] : []
         };

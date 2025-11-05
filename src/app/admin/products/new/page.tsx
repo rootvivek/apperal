@@ -314,12 +314,19 @@ export default function NewProductPage() {
       errors.subcategories = 'At least one subcategory is required';
     }
 
-    if (!formData.stock_quantity || parseInt(formData.stock_quantity) < 0) {
-      errors.stock_quantity = 'Valid stock quantity is required';
+    if (formData.stock_quantity && parseInt(formData.stock_quantity) < 0) {
+      errors.stock_quantity = 'Stock quantity must be a valid positive number';
     }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  // Helper function to convert empty strings to null for database
+  const toNullIfEmpty = (value: string | undefined | null): string | null => {
+    if (!value || typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed === '' ? null : trimmed;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -425,10 +432,11 @@ export default function NewProductPage() {
           const mobileInsert: any = {
             product_id: productDataSingle.id,
             // Cover-specific details only (common fields are in products table)
-            brand: formData.mobileDetails?.brand || 'Not Specified',
-            compatible_model: formData.mobileDetails?.compatible_model || 'Not Specified',
-            type: formData.mobileDetails?.type || 'Not Specified',
-            color: formData.mobileDetails?.color || 'Not Specified',
+            brand: formData.mobileDetails?.brand?.trim() || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            compatible_model: toNullIfEmpty(formData.mobileDetails?.compatible_model),
+            type: toNullIfEmpty(formData.mobileDetails?.type),
+            color: toNullIfEmpty(formData.mobileDetails?.color),
           };
           
           // Try to update first, if not found then insert
@@ -452,13 +460,13 @@ export default function NewProductPage() {
             product_id: productDataSingle.id,
             // Apparel-specific details only (common fields are in products table)
             brand: formData.apparelDetails?.brand || 'Not Specified',
-            gender: formData.apparelDetails?.gender || 'Not Specified',
-            material: formData.apparelDetails?.material || 'Not Specified',
-            fit_type: formData.apparelDetails?.fit_type || 'Not Specified',
-            pattern: formData.apparelDetails?.pattern || 'Not Specified',
-            color: formData.apparelDetails?.color || 'Not Specified',
-            size: formData.apparelDetails?.size || 'Not Specified',
-            sku: formData.apparelDetails?.sku || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            material: toNullIfEmpty(formData.apparelDetails?.material),
+            fit_type: toNullIfEmpty(formData.apparelDetails?.fit_type),
+            pattern: toNullIfEmpty(formData.apparelDetails?.pattern),
+            color: toNullIfEmpty(formData.apparelDetails?.color),
+            size: toNullIfEmpty(formData.apparelDetails?.size),
+            sku: toNullIfEmpty(formData.apparelDetails?.sku),
           };
           
           // Try to update first, if not found then insert
@@ -481,10 +489,11 @@ export default function NewProductPage() {
           const accessoriesInsert: any = {
             product_id: productDataSingle.id,
             // Accessories-specific details only (common fields are in products table)
-            accessory_type: formData.accessoriesDetails?.accessory_type || 'Not Specified',
-            compatible_with: formData.accessoriesDetails?.compatible_with || 'Not Specified',
-            material: formData.accessoriesDetails?.material || 'Not Specified',
-            color: formData.accessoriesDetails?.color || 'Not Specified',
+            // Explicitly set to null if empty string - always include in update
+            accessory_type: toNullIfEmpty(formData.accessoriesDetails?.accessory_type),
+            compatible_with: toNullIfEmpty(formData.accessoriesDetails?.compatible_with),
+            material: toNullIfEmpty(formData.accessoriesDetails?.material),
+            color: toNullIfEmpty(formData.accessoriesDetails?.color),
           };
           
           // Try to update first, if not found then insert
@@ -702,7 +711,7 @@ export default function NewProductPage() {
               {/* Stock Quantity */}
               <div>
                 <label htmlFor="stock_quantity" className="block text-sm font-medium text-gray-700">
-                  Stock Quantity *
+                  Stock Quantity
                 </label>
                 <input
                   type="number"
@@ -821,21 +830,7 @@ export default function NewProductPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Gender *</label>
-                      <input
-                        type="text"
-                        value={formData.apparelDetails.gender || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          apparelDetails: { ...prev.apparelDetails, gender: e.target.value }
-                        }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., Men, Women, Unisex"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <label className="block text-sm font-medium text-gray-700">Material</label>
                       <input
                         type="text"
                         value={formData.apparelDetails.material || ''}
@@ -845,11 +840,10 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., Cotton, Polyester, Silk"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Fit Type *</label>
+                      <label className="block text-sm font-medium text-gray-700">Fit Type</label>
                       <input
                         type="text"
                         value={formData.apparelDetails.fit_type || ''}
@@ -859,11 +853,10 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., Regular, Slim, Loose"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Pattern *</label>
+                      <label className="block text-sm font-medium text-gray-700">Pattern</label>
                       <input
                         type="text"
                         value={formData.apparelDetails.pattern || ''}
@@ -873,11 +866,10 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., Solid, Striped, Printed"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <label className="block text-sm font-medium text-gray-700">Color</label>
                       <input
                         type="text"
                         value={formData.apparelDetails.color || ''}
@@ -887,25 +879,26 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., Red, Blue, Black"
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Size *</label>
-                      <input
-                        type="text"
+                      <label className="block text-sm font-medium text-gray-700">Size</label>
+                      <select
                         value={formData.apparelDetails.size || ''}
                         onChange={(e) => setFormData(prev => ({
                           ...prev,
                           apparelDetails: { ...prev.apparelDetails, size: e.target.value }
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., S, M, L, XL"
-                        required
-                      />
+                      >
+                        <option value="">Select Size</option>
+                        <option value="Small">Small</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Large">Large</option>
+                      </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">SKU *</label>
+                      <label className="block text-sm font-medium text-gray-700">SKU</label>
                       <input
                         type="text"
                         value={formData.apparelDetails.sku || ''}
@@ -915,7 +908,6 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., APL-001-RED-M"
-                        required
                       />
                     </div>
                   </div>
@@ -1079,41 +1071,6 @@ export default function NewProductPage() {
                 {formData.subcategories.length > 0 && (
                   <div className="mt-2">
                     <p className="text-xs text-gray-500">Selected: {formData.subcategories.join(', ')}</p>
-                  </div>
-                )}
-                
-                {/* Custom Subcategory Input */}
-                {formData.category && (
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Add Custom Subcategory
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={customSubcategory}
-                        onChange={(e) => setCustomSubcategory(e.target.value)}
-                        placeholder="Enter custom subcategory name"
-                        className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-blue-500 focus:border-blue-500"
-                        onKeyPress={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            addCustomSubcategory();
-                          }
-                        }}
-                      />
-                      <button
-                        type="button"
-                        onClick={addCustomSubcategory}
-                        disabled={!customSubcategory.trim() || formData.subcategories.includes(customSubcategory.trim())}
-                        className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 disabled:cursor-not-allowed"
-                      >
-                        Add
-                      </button>
-                    </div>
-                    <p className="mt-1 text-xs text-gray-500">
-                      Add custom subcategories that aren&apos;t in the list above
-                    </p>
                   </div>
                 )}
               </div>

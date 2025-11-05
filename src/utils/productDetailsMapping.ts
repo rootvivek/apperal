@@ -99,7 +99,6 @@ export interface MobileDetails {
  */
 export interface ApparelDetails {
   brand: string;
-  gender: string;
   material: string;
   fit_type: string;
   pattern: string;

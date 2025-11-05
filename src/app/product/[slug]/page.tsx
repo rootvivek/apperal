@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
@@ -50,7 +50,6 @@ interface ProductCardProduct {
   };
   product_apparel_details?: {
     brand: string;
-    gender: string;
     material: string;
     fit_type: string;
     pattern: string;
@@ -87,10 +86,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
+  const [selectedSize, setSelectedSize] = useState<string>('');
   const [isAddedToCart, setIsAddedToCart] = useState(false);
   const [showZoomPreview, setShowZoomPreview] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isSharing, setIsSharing] = useState(false);
+  const [imageContainerSize, setImageContainerSize] = useState({ width: 0, height: 0 });
+  const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
@@ -295,6 +297,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           console.log('Transformed product:', productWithImages);
           setProduct(productWithImages as ProductCardProduct);
           
+          // Set default size if apparel product has size
+          if (productWithImages.product_apparel_details?.size) {
+            setSelectedSize(productWithImages.product_apparel_details.size);
+          }
+          
           // Fetch category and subcategory slugs
           const categoryName = typeof product.category === 'string' ? product.category : product.category?.name;
           if (categoryName) {
@@ -343,6 +350,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const handleAddToCart = () => {
     if (!product) return;
     
+    // Check if size is required for apparel products
+    if (product.product_apparel_details && !selectedSize) {
+      alert('Please select a size');
+      return;
+    }
+    
     // Do not block the click handler on network I/O
     // Show brief feedback but don't disable the button
     setIsAddedToCart(true);
@@ -352,6 +365,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const handleBuyNow = () => {
     if (!product) return;
+    
+    // Check if size is required for apparel products
+    if (product.product_apparel_details && !selectedSize) {
+      alert('Please select a size');
+      return;
+    }
     
     // Check if user is authenticated for checkout
     if (!user) {
@@ -468,10 +487,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+      <div className="max-w-[1450px] mx-auto w-full px-4 sm:px-6 md:px-8 lg:px-10 pt-2 pb-8">
         {/* Breadcrumb Navigation - Desktop only */}
-        <nav className="hidden sm:flex mb-8" aria-label="Breadcrumb">
+        <nav className="hidden sm:flex mb-4 pt-2" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
             <li>
               <Link href="/" className="text-gray-500 hover:text-gray-700 text-sm">
@@ -531,20 +550,21 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           </ol>
         </nav>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8 lg:gap-12">
-          {/* Product Images */}
-          <div className="flex gap-4">
+        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 lg:gap-16">
+            {/* Product Images */}
+            <div className="flex gap-4">
             {/* Thumbnail Gallery - Left (Desktop only) */}
             {product.images && product.images.length > 1 && (
-              <div className="hidden sm:flex flex-col gap-2">
+              <div className="hidden sm:flex flex-col gap-3">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
+                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl border-2 transition-all duration-200 shadow-sm ${
                       selectedImage === index 
-                        ? 'border-blue-500' 
-                        : 'border-gray-200 hover:border-gray-300'
+                        ? 'border-[#4736FE] ring-2 ring-[#4736FE] ring-opacity-30 scale-105' 
+                        : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
                     }`}
                   >
                     <img
@@ -561,24 +581,31 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             )}
 
             {/* Main Image Container */}
-            <div className="flex-1 space-y-4 w-full">
+            <div className="flex-1 space-y-4 w-full relative">
               {/* Main Image */}
             <div 
-              className="aspect-square rounded-lg bg-white cursor-crosshair relative sm:cursor-crosshair cursor-default w-full max-w-full"
-              onMouseEnter={() => setShowZoomPreview(true)}
+              ref={imageContainerRef}
+              className="aspect-square rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 cursor-crosshair relative sm:cursor-crosshair cursor-default w-full max-w-full shadow-inner border border-gray-200 overflow-hidden"
+              onMouseEnter={() => {
+                setShowZoomPreview(true);
+                if (imageContainerRef.current) {
+                  const rect = imageContainerRef.current.getBoundingClientRect();
+                  setImageContainerSize({ width: rect.width, height: rect.height });
+                }
+              }}
               onMouseLeave={() => setShowZoomPreview(false)}
               onMouseMove={(e) => {
                 const rect = e.currentTarget.getBoundingClientRect();
                 const x = ((e.clientX - rect.left) / rect.width) * 100;
                 const y = ((e.clientY - rect.top) / rect.height) * 100;
-                setMousePosition({ x, y });
+                setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
               }}
             >
               {/* Wishlist and Share Icons */}
-              <div className="absolute top-2 right-2 z-20 flex flex-col gap-2">
+              <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
                 <button
                   onClick={handleWishlistToggle}
-                  className="p-1.5 sm:p-2 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-sm transition-all duration-200"
+                  className="p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
                 >
                   <svg 
                     className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
@@ -596,8 +623,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleShare}
                   disabled={isSharing}
-                  className={`p-1.5 sm:p-2 bg-white bg-opacity-80 hover:bg-opacity-100 rounded-full shadow-sm transition-all duration-200 ${
-                    isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-md'
+                  className={`p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg transition-all duration-200 ${
+                    isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:scale-110'
                   }`}
                   title="Share this product"
                 >
@@ -621,7 +648,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   ? product.images[selectedImage].image_url 
                   : product.image_url || '/placeholder-product.jpg'}
                 alt={product.name}
-                className="h-full w-full object-contain rounded-lg overflow-hidden"
+                className="h-full w-full object-contain p-4"
                 onError={(e) => {
                   e.currentTarget.src = '/placeholder-product.jpg';
                 }}
@@ -656,54 +683,17 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </div>
               )}
               
-              {/* Zoomed Image Preview - Right Side */}
-              {showZoomPreview && (
-                <div className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden" style={{ width: '100%', height: '100%' }}>
-                  <img
-                    src={product.images && product.images.length > 0 
-                      ? product.images[selectedImage].image_url 
-                      : product.image_url || '/placeholder-product.jpg'}
-                    alt={product.name}
-                    className="w-full h-full object-contain"
-                    style={{
-                      transform: `scale(3)`,
-                      transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
-                    }}
-                    onError={(e) => {
-                      e.currentTarget.src = '/placeholder-product.jpg';
-                    }}
-                  />
-                </div>
-              )}
             </div>
             
-            {/* Thumbnail Gallery - Bottom (Mobile only) */}
-            {product.images && product.images.length > 1 && (
-              <div className="sm:hidden flex gap-2 overflow-x-auto pb-2">
-                {product.images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-16 h-16 overflow-hidden rounded-lg border-2 transition-colors ${
-                      selectedImage === index 
-                        ? 'border-blue-500' 
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <img
-                      src={image.image_url}
-                      alt={image.alt_text || `${product.name} ${index + 1}`}
-                      className="h-full w-full object-contain"
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-            </div>
-            
-             {/* Zoomed Image Preview - Right Side */}
-             {showZoomPreview && (
-               <div className="hidden sm:block absolute left-full top-0 ml-4 w-96 h-96 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden">
+            {/* Zoomed Image Preview - Right Side */}
+            {showZoomPreview && imageContainerSize.width > 0 && (
+              <div 
+                className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden aspect-square"
+                style={{
+                  width: `${imageContainerSize.width}px`,
+                  height: `${imageContainerSize.height}px`
+                }}
+              >
                 <img
                   src={product.images && product.images.length > 0 
                     ? product.images[selectedImage].image_url 
@@ -720,348 +710,292 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 />
               </div>
             )}
+            </div>
+            
+            {/* Thumbnail Gallery - Bottom (Mobile only) */}
+            {product.images && product.images.length > 1 && (
+              <div className="sm:hidden flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+                {product.images.map((image, index) => (
+                  <button
+                    key={image.id}
+                    onClick={() => setSelectedImage(index)}
+                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl border-2 transition-all duration-200 shadow-sm ${
+                      selectedImage === index 
+                        ? 'border-[#4736FE] ring-2 ring-[#4736FE] ring-opacity-30 scale-105' 
+                        : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
+                    }`}
+                  >
+                    <img
+                      src={image.image_url}
+                      alt={image.alt_text || `${product.name} ${index + 1}`}
+                      className="h-full w-full object-contain"
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
 
           {/* Product Info */}
           <div className="space-y-6">
             <div>
-              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">{product.name}</h1>
-              <div className="mt-2 flex items-center space-x-4">
-                <span className="text-xl sm:text-3xl font-bold text-gray-900">₹{product.price.toFixed(2)}</span>
-                <span className="text-sm text-gray-500">
+              {product.brand && (
+                <div className="mb-3">
+                  <span className="text-base sm:text-lg font-medium text-gray-700 uppercase tracking-wide">{product.brand}</span>
+                </div>
+              )}
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 leading-tight">{product.name}</h1>
+              <div className="mt-4 flex flex-wrap items-center gap-4">
+                <div className="flex items-baseline gap-3">
+                  <span className="text-2xl sm:text-3xl font-bold text-[#4736FE]">₹{product.price.toFixed(2)}</span>
+                  {product.original_price && product.original_price > product.price && (
+                    <span className="text-base text-gray-500 line-through">₹{product.original_price.toFixed(2)}</span>
+                  )}
+                </div>
+                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+                  product.stock_quantity > 0 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
                   {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
                 </span>
               </div>
-            </div>
-
-
-            <div className="hidden sm:grid sm:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-medium text-gray-900">Category:</span>
-                <span className="ml-2 text-gray-600">
-                  {typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}
-                </span>
-              </div>
-              <div>
-                <span className="font-medium text-gray-900">Subcategory:</span>
-                <span className="ml-2 text-gray-600">{product.subcategory}</span>
-              </div>
-            </div>
-
-            {/* Quantity and Actions */}
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
-                  Quantity
-                </label>
-                <div className="flex items-center">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
-                  >
-                    -
-                  </button>
-                  <span className="w-8 text-center text-sm font-medium text-gray-900">
-                    {quantity}
+              {product.rating !== null && product.rating !== undefined && (
+                <div className="mt-3 flex items-center gap-2">
+                  <span className="flex items-center text-yellow-500">
+                    {'⭐'.repeat(Math.round(product.rating))}
                   </span>
-                  <button
-                    onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
-                    className="w-8 h-8 border border-gray-300 rounded-md flex items-center justify-center hover:bg-gray-50"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex space-x-4">
-                <button
-                  onClick={handleAddToCart}
-                  disabled={product.stock_quantity === 0}
-                  className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-                >
-                  <CartIcon className="w-5 h-5 flex-shrink-0" />
-                  <span>
-                    {isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
+                  <span className="text-sm text-gray-600">
+                    {product.rating.toFixed(1)} ({product.review_count || 0} reviews)
                   </span>
-                </button>
-                <button
-                  onClick={handleBuyNow}
-                  disabled={product.stock_quantity === 0}
-                  className="flex-1 bg-gray-900 text-white py-3 px-6 rounded-lg font-medium hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Buy Now
-                </button>
-              </div>
-
-              {product.stock_quantity === 0 && (
-                <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-800 font-medium">This product is currently out of stock</p>
                 </div>
               )}
             </div>
 
-            {/* Product Features */}
-            <div className="border-t border-gray-200 pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Product Details</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Product ID:</span>
-                  <span className="text-gray-600 font-mono text-xs break-all">{product.id}</span>
+            {/* Product Details - Show before Quantity */}
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+              <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-gray-300">Product Details</h3>
+              {product.description && (
+                <div className="mb-4">
+                  <p className="text-gray-700 leading-relaxed">{product.description}</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Name:</span>
-                  <span className="text-gray-600">{product.name}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Slug:</span>
-                  <span className="text-gray-600 font-mono text-xs break-all">{params.slug}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Description:</span>
-                  <span className="text-gray-600">{product.description || 'No description'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Price:</span>
-                  <span className="text-gray-600">₹{product.price.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Badge:</span>
-                  <span className={product.badge 
-                    ? "inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800"
-                    : "text-gray-600"}>
-                    {product.badge || 'Not set'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Image URL:</span>
-                  <span className="text-gray-600 font-mono text-xs break-all truncate max-w-xs">{product.image_url || 'No image'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Stock Quantity:</span>
-                  <span className="text-gray-600">{product.stock_quantity} available</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Status:</span>
-                  <span className={product.is_active ? 'text-green-600' : 'text-red-600'}>
-                    {product.is_active ? 'Active' : 'Inactive'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Show in Hero:</span>
-                  <span className={product.show_in_hero ? 'text-green-600' : 'text-gray-600'}>
-                    {product.show_in_hero ? 'Yes' : 'No'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Category:</span>
-                  <span className="text-gray-600">
-                    {typeof product.category === 'string' ? product.category : product.category?.name || 'Unknown'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Subcategory:</span>
-                  <span className="text-gray-600">{product.subcategory}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Category ID (UUID):</span>
-                  <span className="text-gray-600 font-mono text-xs break-all">{product.category_id || 'Not set'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Subcategory ID (UUID):</span>
-                  <span className="text-gray-600 font-mono text-xs break-all">{product.subcategory_id || 'Not set'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Original Price:</span>
-                  <span className="text-gray-600">
-                    {product.original_price ? `₹${product.original_price.toFixed(2)}` : 'Not set'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Created At:</span>
-                  <span className="text-gray-600">
-                    {product.created_at 
-                      ? new Date(product.created_at).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : 'Not set'}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Updated At:</span>
-                  <span className="text-gray-600">
-                    {product.updated_at 
-                      ? new Date(product.updated_at).toLocaleString('en-US', {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })
-                      : 'Not set'}
-                  </span>
-                </div>
-                {product.brand && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Brand:</span>
-                    <span className="text-gray-600">{product.brand}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">Is New:</span>
-                  <span className={product.is_new ? 'text-green-600' : 'text-gray-600'}>
-                    {product.is_new ? 'Yes' : 'No'}
-                  </span>
-                </div>
-                {product.rating !== null && product.rating !== undefined && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Rating:</span>
-                    <span className="text-gray-600">
-                      {product.rating.toFixed(1)} ⭐
-                    </span>
-                  </div>
-                )}
-                {product.review_count !== null && product.review_count !== undefined && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Review Count:</span>
-                    <span className="text-gray-600">{product.review_count} reviews</span>
-                  </div>
-                )}
-                {product.in_stock !== null && product.in_stock !== undefined && (
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">In Stock:</span>
-                    <span className={product.in_stock ? 'text-green-600' : 'text-red-600'}>
-                      {product.in_stock ? 'Yes' : 'No'}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             {/* Phone Cover Details */}
             {product.product_cover_details && (
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Phone Cover Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Brand:</span>
-                    <span className="text-gray-600">{product.product_cover_details.brand || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Compatible Model:</span>
-                    <span className="text-gray-600">{product.product_cover_details.compatible_model || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Type:</span>
-                    <span className="text-gray-600">{product.product_cover_details.type || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Color:</span>
-                    <span className="text-gray-600">{product.product_cover_details.color || 'Not Specified'}</span>
-                  </div>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-blue-300">Phone Cover Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.product_cover_details.brand && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Brand:</span>
+                      <span className="text-gray-900 font-medium">{product.product_cover_details.brand}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details.compatible_model && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Compatible Model:</span>
+                      <span className="text-gray-900 font-medium">{product.product_cover_details.compatible_model}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details.type && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Type:</span>
+                      <span className="text-gray-900 font-medium">{product.product_cover_details.type}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details.color && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Color:</span>
+                      <span className="text-gray-900 font-medium">{product.product_cover_details.color}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Apparel Details */}
             {product.product_apparel_details && (
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Apparel Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Brand:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.brand || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Gender:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.gender || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Material:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.material || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Fit Type:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.fit_type || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Pattern:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.pattern || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Color:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.color || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Size:</span>
-                    <span className="text-gray-600">{product.product_apparel_details.size || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">SKU:</span>
-                    <span className="text-gray-600 font-mono text-xs">{product.product_apparel_details.sku || 'Not Specified'}</span>
-                  </div>
+              <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-pink-300">Apparel Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.product_apparel_details.brand && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px]">Brand:</span>
+                      <span className="text-gray-900 font-medium">{product.product_apparel_details.brand}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details.material && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px]">Material:</span>
+                      <span className="text-gray-900 font-medium">{product.product_apparel_details.material}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details.fit_type && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px]">Fit Type:</span>
+                      <span className="text-gray-900 font-medium">{product.product_apparel_details.fit_type}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details.color && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px]">Color:</span>
+                      <span className="text-gray-900 font-medium">{product.product_apparel_details.color}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details.size && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px]">Size:</span>
+                      <span className="text-gray-900 font-medium">{product.product_apparel_details.size}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {/* Accessories Details */}
             {product.product_accessories_details && (
-              <div className="border-t border-gray-200 pt-6">
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Accessories Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Accessory Type:</span>
-                    <span className="text-gray-600">{product.product_accessories_details.accessory_type || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Compatible With:</span>
-                    <span className="text-gray-600">{product.product_accessories_details.compatible_with || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Material:</span>
-                    <span className="text-gray-600">{product.product_accessories_details.material || 'Not Specified'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="font-medium text-gray-700">Color:</span>
-                    <span className="text-gray-600">{product.product_accessories_details.color || 'Not Specified'}</span>
-                  </div>
+              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-200">
+                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-purple-300">Accessories Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {product.product_accessories_details.accessory_type && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Accessory Type:</span>
+                      <span className="text-gray-900 font-medium">{product.product_accessories_details.accessory_type}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details.compatible_with && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Compatible With:</span>
+                      <span className="text-gray-900 font-medium">{product.product_accessories_details.compatible_with}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details.material && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Material:</span>
+                      <span className="text-gray-900 font-medium">{product.product_accessories_details.material}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details.color && (
+                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[140px]">Color:</span>
+                      <span className="text-gray-900 font-medium">{product.product_accessories_details.color}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
+
+            {/* Quantity and Actions */}
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-5">
+              {/* Size Selection - Only show for apparel products */}
+              {product.product_apparel_details && (
+                <div>
+                  <label htmlFor="size" className="block text-sm font-semibold text-gray-900 mb-3">
+                    Size <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    id="size"
+                    value={selectedSize}
+                    onChange={(e) => setSelectedSize(e.target.value)}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4736FE] focus:border-[#4736FE] text-base font-medium bg-white transition-all"
+                    required
+                  >
+                    <option value="">Select Size</option>
+                    <option value="Small">Small</option>
+                    <option value="Medium">Medium</option>
+                    <option value="Large">Large</option>
+                  </select>
+                  {!selectedSize && (
+                    <p className="mt-2 text-sm text-red-600 font-medium">Please select a size</p>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label htmlFor="quantity" className="block text-sm font-semibold text-gray-900 mb-3">
+                  Quantity
+                </label>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                    disabled={quantity <= 1}
+                    className="w-12 h-12 border-2 border-gray-300 rounded-lg flex items-center justify-center hover:bg-white hover:border-[#4736FE] hover:text-[#4736FE] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-semibold text-lg bg-white shadow-sm"
+                  >
+                    −
+                  </button>
+                  <span className="w-16 text-center text-xl font-bold text-gray-900 bg-white py-2 px-4 rounded-lg border-2 border-gray-200">
+                    {quantity}
+                  </span>
+                  <button
+                    onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
+                    disabled={quantity >= product.stock_quantity}
+                    className="w-12 h-12 border-2 border-gray-300 rounded-lg flex items-center justify-center hover:bg-white hover:border-[#4736FE] hover:text-[#4736FE] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-semibold text-lg bg-white shadow-sm"
+                  >
+                    +
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+                <button
+                  onClick={handleAddToCart}
+                  disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
+                  className="flex-1 bg-[#4736FE] text-white py-4 px-6 rounded-xl font-semibold hover:bg-[#3a2dd8] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                >
+                  <CartIcon className="w-5 h-5 flex-shrink-0" />
+                  <span className="text-base">
+                    {isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
+                  </span>
+                </button>
+                <button
+                  onClick={handleBuyNow}
+                  disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
+                  className="flex-1 bg-gray-900 text-white py-4 px-6 rounded-xl font-semibold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                >
+                  Buy Now
+                </button>
+              </div>
+
+              {product.stock_quantity === 0 && (
+                <div className="text-center p-4 bg-red-50 border-2 border-red-200 rounded-xl">
+                  <p className="text-red-800 font-semibold">This product is currently out of stock</p>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
         </div>
 
         {/* Related Products Section */}
-        <div className="mt-16">
-          <div className="text-center mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Related Products</h2>
-            <p className="text-gray-600">You might also like these products</p>
+        <div className="mt-12 mb-8">
+          <div className="text-center mb-10">
+            <h2 className="text-3xl font-bold text-gray-900 mb-3">Related Products</h2>
+            <p className="text-gray-600 text-lg">You might also like these products</p>
           </div>
           
           {relatedLoading ? (
-            <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600">Loading related products...</span>
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4736FE]"></div>
+              <span className="ml-4 text-gray-600 text-lg">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
               {relatedProducts.map((relatedProduct: any) => (
                 <ProductCard 
                   key={relatedProduct.id} 
-                  product={relatedProduct as ProductCardProduct}
+                  product={{
+                    ...relatedProduct,
+                    original_price: relatedProduct.original_price ?? undefined
+                  }}
                 />
               ))}
             </div>
           ) : (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No related products found.</p>
-              <p className="text-sm text-gray-400 mt-2">
-                Debug: Related products count: {relatedProducts.length}
-              </p>
+            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
+              <p className="text-gray-500 text-lg">No related products found.</p>
             </div>
           )}
         </div>

@@ -8,7 +8,7 @@ interface CartIconProps {
 }
 
 export default function CartIcon({ 
-  className = "w-6 h-6", 
+  className = "w-5 h-5", 
   showCount = false, 
   count = 0,
   onClick 

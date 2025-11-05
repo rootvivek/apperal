@@ -662,19 +662,34 @@ export default function EditProductPage() {
             color: toNullIfEmpty(formData.mobileDetails?.color),
           };
           
-          const { data: existing } = await supabase
+          // Check if record exists
+          const { data: existingData, error: checkError } = await supabase
             .from('product_cover_details')
             .select('id')
             .eq('product_id', productId)
-            .single();
+            .maybeSingle();
           
-          if (existing) {
-            const { error: updateError } = await supabase.from('product_cover_details').update(mobileInsert).eq('id', existing.id);
+          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
+            throw new Error(`Failed to check cover details: ${checkError.message}`);
+          }
+          
+          const existing = existingData || null;
+          
+          if (existing && existing.id) {
+            // Update existing record
+            const { error: updateError } = await supabase
+              .from('product_cover_details')
+              .update(mobileInsert)
+              .eq('id', existing.id);
             if (updateError) {
               throw new Error(`Failed to update cover details: ${updateError.message}`);
             }
           } else {
-            const { error: insertError } = await supabase.from('product_cover_details').insert(mobileInsert).select();
+            // Insert new record
+            const { data: insertData, error: insertError } = await supabase
+              .from('product_cover_details')
+              .insert(mobileInsert)
+              .select();
             if (insertError) {
               throw new Error(`Failed to insert cover details: ${insertError.message}`);
             }
@@ -697,13 +712,21 @@ export default function EditProductPage() {
             sku: toNullIfEmpty(formData.apparelDetails?.sku),
           };
           
-          const { data: existing } = await supabase
+          // Check if record exists
+          const { data: existingData, error: checkError } = await supabase
             .from('product_apparel_details')
             .select('id')
             .eq('product_id', productId)
-            .single();
+            .maybeSingle();
           
-          if (existing) {
+          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
+            throw new Error(`Failed to check apparel details: ${checkError.message}`);
+          }
+          
+          const existing = existingData || null;
+          
+          if (existing && existing.id) {
+            // Update existing record
             const { error: updateError } = await supabase
               .from('product_apparel_details')
               .update(apparelInsert)
@@ -712,7 +735,11 @@ export default function EditProductPage() {
               throw new Error(`Failed to update apparel details: ${updateError.message}`);
             }
           } else {
-            const { error: insertError } = await supabase.from('product_apparel_details').insert(apparelInsert).select();
+            // Insert new record
+            const { data: insertData, error: insertError } = await supabase
+              .from('product_apparel_details')
+              .insert(apparelInsert)
+              .select();
             if (insertError) {
               throw new Error(`Failed to insert apparel details: ${insertError.message}`);
             }
@@ -732,13 +759,21 @@ export default function EditProductPage() {
             color: toNullIfEmpty(formData.accessoriesDetails?.color),
           };
           
-          const { data: existing } = await supabase
+          // Check if record exists
+          const { data: existingData, error: checkError } = await supabase
             .from('product_accessories_details')
             .select('id')
             .eq('product_id', productId)
-            .single();
+            .maybeSingle();
           
-          if (existing) {
+          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
+            throw new Error(`Failed to check accessories details: ${checkError.message}`);
+          }
+          
+          const existing = existingData || null;
+          
+          if (existing && existing.id) {
+            // Update existing record
             const { error: updateError } = await supabase
               .from('product_accessories_details')
               .update(accessoriesInsert)
@@ -747,7 +782,11 @@ export default function EditProductPage() {
               throw new Error(`Failed to update accessories details: ${updateError.message}`);
             }
           } else {
-            const { error: insertError } = await supabase.from('product_accessories_details').insert(accessoriesInsert).select();
+            // Insert new record
+            const { data: insertData, error: insertError } = await supabase
+              .from('product_accessories_details')
+              .insert(accessoriesInsert)
+              .select();
             if (insertError) {
               throw new Error(`Failed to insert accessories details: ${insertError.message}`);
             }

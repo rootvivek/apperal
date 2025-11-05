@@ -250,21 +250,21 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         }
         
         return {
-          id: product.id,
-          slug: product.slug,
-          name: product.name,
-          description: product.description || '',
-          price: product.price,
-          category: categoryData.name,
+        id: product.id,
+        slug: product.slug,
+        name: product.name,
+        description: product.description || '',
+        price: product.price,
+        category: categoryData.name,
           subcategory: subcategoryName,
-          image_url: product.image_url,
-          stock_quantity: product.stock_quantity || 0,
-          is_active: product.is_active,
+        image_url: product.image_url,
+        stock_quantity: product.stock_quantity || 0,
+        is_active: product.is_active,
           subcategories: subcategoryName ? [subcategoryName] : [],
-          created_at: product.created_at,
-          updated_at: product.updated_at,
-          product_images: product.product_images,
-          images: product.product_images?.map((img: any) => img.image_url) || []
+        created_at: product.created_at,
+        updated_at: product.updated_at,
+        product_images: product.product_images,
+        images: product.product_images?.map((img: any) => img.image_url) || []
         };
       });
 
@@ -368,7 +368,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
               <select
                 value={selectedSubcategory}
                 onChange={(e) => handleSubcategoryClick(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-center"
               >
                 <option value="all">All Products ({products.length})</option>
                 {subcategories.map((subcategory) => {

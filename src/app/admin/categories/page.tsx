@@ -134,41 +134,41 @@ export default function CategoriesPage() {
           if (categoryMatch && categoryMatch[1]) {
             imageFolder = categoryMatch[1];
             imageBucket = url.includes('subcategory-images') ? 'subcategory-images' : 'category-images';
-          } else {
+            } else {
             throw new Error('Could not extract folder ID from URL');
-          }
-        } catch (err) {
+            }
+          } catch (err) {
           imageFolder = '';
-        }
+          }
       }
       
       if (!imageFolder) {
         if (isCreatingSubcategory) {
           if (!tempCategoryId) {
             const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-              const r = Math.random() * 16 | 0;
-              const v = c === 'x' ? r : (r & 0x3 | 0x8);
-              return v.toString(16);
-            });
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
             setTempCategoryId(newId);
             imageFolder = newId;
           } else {
             imageFolder = tempCategoryId;
           }
           imageBucket = 'subcategory-images';
-        } else if (tempCategoryId) {
-          imageFolder = tempCategoryId;
+      } else if (tempCategoryId) {
+        imageFolder = tempCategoryId;
           imageBucket = 'category-images';
-        } else {
-          const categoryTempId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-          });
-          imageFolder = categoryTempId;
+      } else {
+        const categoryTempId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          const r = Math.random() * 16 | 0;
+          const v = c === 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+        imageFolder = categoryTempId;
           imageBucket = 'category-images';
-          setTempCategoryId(categoryTempId);
-        }
+        setTempCategoryId(categoryTempId);
+      }
       }
       
       if (!imageFolder) {
@@ -282,7 +282,7 @@ export default function CategoriesPage() {
           let { error: updateError } = await supabase
             .from('subcategories')
             .update(updateData)
-            .eq('id', editingCategory.id);
+          .eq('id', editingCategory.id);
 
           // If error about detail_type column, retry without it
           if (updateError && updateError.message?.includes('detail_type')) {
@@ -294,16 +294,16 @@ export default function CategoriesPage() {
             updateError = retryError;
           }
 
-          if (updateError) throw updateError;
-
+        if (updateError) throw updateError;
+        
           // Update subcategories cache
           if (subcategoriesList[editingCategory.parent_category_id]) {
-            setSubcategoriesList(prev => ({
-              ...prev,
-              [editingCategory.parent_category_id!]: prev[editingCategory.parent_category_id!].map(cat =>
-                cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
-              )
-            }));
+          setSubcategoriesList(prev => ({
+            ...prev,
+            [editingCategory.parent_category_id!]: prev[editingCategory.parent_category_id!].map(cat =>
+              cat.id === editingCategory.id ? { ...cat, ...categoryData } : cat
+            )
+          }));
           }
         } else {
           // Update parent category in categories table
@@ -343,7 +343,7 @@ export default function CategoriesPage() {
           let { data, error: insertError } = await supabase
             .from('subcategories')
             .insert([insertData])
-            .select();
+          .select();
 
           // If error about detail_type column, retry without it
           if (insertError && insertError.message?.includes('detail_type')) {
@@ -356,7 +356,7 @@ export default function CategoriesPage() {
             insertError = result.error;
           }
 
-          if (insertError) throw insertError;
+        if (insertError) throw insertError;
           if (!data || !data[0]) throw new Error('Failed to create subcategory');
 
           const newSubcategory: Category = {
@@ -423,7 +423,7 @@ export default function CategoriesPage() {
     try {
       let categoryToDelete = categories.find(cat => cat.id === categoryId);
       let isSubcategoryToDelete = false;
-
+      
       if (!categoryToDelete) {
         const { data: subcat, error: subcatFetchError } = await supabase
           .from('subcategories')
@@ -471,18 +471,18 @@ export default function CategoriesPage() {
             let prodDeleteError = del.error as any;
             if (prodDeleteError && (prodDeleteError.message?.includes('column') || prodDeleteError.message?.includes('does not exist'))) {
               await supabase
-                .from('products')
-                .delete()
-                .eq('subcategory', subcat.name);
+              .from('products')
+              .delete()
+              .eq('subcategory', subcat.name);
             }
             
             try {
               await deleteFolderContents('subcategory-images', subcat.id);
             } catch {}
-            try {
+              try {
               await deleteFolderContents('category-images', subcat.id);
             } catch {}
-          }
+            }
 
           const { error: subcatDeleteError } = await supabase
             .from('subcategories')
@@ -518,7 +518,7 @@ export default function CategoriesPage() {
       } else {
         try {
           let prodIdsRes = await supabase
-            .from('products')
+          .from('products')
             .select('id')
             .eq('subcategory_id', categoryToDelete.id);
           let prodIdsErr = prodIdsRes.error as any;
@@ -527,7 +527,7 @@ export default function CategoriesPage() {
             const legacy = await supabase
               .from('products')
               .select('id')
-              .eq('subcategory', categoryToDelete.name);
+          .eq('subcategory', categoryToDelete.name);
             prodIds = legacy.data as any[] | null;
           }
           if (prodIds && prodIds.length > 0) {
@@ -547,7 +547,7 @@ export default function CategoriesPage() {
             .from('products')
             .delete()
             .eq('subcategory', categoryToDelete.name);
-        }
+      }
       }
 
       if (isSubcategoryToDelete || categoryToDelete?.parent_category_id) {
@@ -557,11 +557,11 @@ export default function CategoriesPage() {
           .eq('id', categoryId);
         if (deleteError) throw deleteError;
       } else {
-        const { error: deleteError } = await supabase
-          .from('categories')
-          .delete()
-          .eq('id', categoryId);
-        if (deleteError) throw deleteError;
+      const { error: deleteError } = await supabase
+        .from('categories')
+        .delete()
+        .eq('id', categoryId);
+      if (deleteError) throw deleteError;
       }
       
       if (!categoryToDelete?.parent_category_id) {
@@ -577,12 +577,12 @@ export default function CategoriesPage() {
           }));
         }
       } else {
-        setCategories(categories.filter(cat => cat.id !== categoryId));
-        if (subcategoriesList[categoryId]) {
+      setCategories(categories.filter(cat => cat.id !== categoryId));
+      if (subcategoriesList[categoryId]) {
           const newSubcats = { ...subcategoriesList } as any;
-          delete newSubcats[categoryId];
-          setSubcategoriesList(newSubcats);
-        }
+        delete newSubcats[categoryId];
+        setSubcategoriesList(newSubcats);
+      }
       }
     } catch (err: any) {
       setError(err.message);
@@ -787,24 +787,24 @@ export default function CategoriesPage() {
                 </div>
                 
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Category Name *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.name}
-                      onChange={(e) => {
-                        setFormData(prev => ({
-                          ...prev,
-                          name: e.target.value,
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Category Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => {
+                          setFormData(prev => ({
+                            ...prev,
+                            name: e.target.value,
                           slug: generateSlug(e.target.value, isCreatingSubcategory, parentCategoryId || undefined)
-                        }));
-                      }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Enter category name"
-                      required
-                    />
+                          }));
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="Enter category name"
+                        required
+                      />
                   </div>
 
                   <div>
