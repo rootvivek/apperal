@@ -1,7 +1,16 @@
-export default function AuthCodeError() {
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
+
+function AuthCodeErrorContent() {
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+  const description = searchParams.get('description');
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-      <div className="sm:mx-auto sm:w-full">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
           <div className="text-center">
             <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100">
@@ -15,6 +24,14 @@ export default function AuthCodeError() {
             <p className="mt-2 text-center text-sm text-gray-600">
               There was an error with the authentication process.
             </p>
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800 font-medium">{error}</p>
+                {description && (
+                  <p className="text-xs text-red-600 mt-1">{description}</p>
+                )}
+              </div>
+            )}
             <div className="mt-6">
               <a
                 href="/login"
@@ -27,5 +44,17 @@ export default function AuthCodeError() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function AuthCodeError() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
+        <div className="text-gray-600">Loading...</div>
+      </div>
+    }>
+      <AuthCodeErrorContent />
+    </Suspense>
   )
 }

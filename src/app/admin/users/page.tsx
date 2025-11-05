@@ -12,6 +12,8 @@ interface User {
   full_name: string;
   phone: string;
   created_at: string;
+  user_number?: string;
+  total_orders?: number;
 }
 
 interface Order {
@@ -44,11 +46,28 @@ export default function UsersPage() {
       setLoading(true);
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, phone, created_at')
+        .select('id, email, full_name, phone, created_at, user_number')
         .order('created_at', { ascending: false });
       
-      console.log('Users fetched:', data?.length || 0);
-      setUsers(data || []);
+      if (error) throw error;
+      
+      // Fetch order counts for each user
+      const usersWithOrderCounts = await Promise.all(
+        (data || []).map(async (user) => {
+          const { count } = await supabase
+            .from('orders')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', user.id) as any;
+          
+          return {
+            ...user,
+            total_orders: count || 0
+          };
+        })
+      );
+      
+      console.log('Users fetched:', usersWithOrderCounts.length);
+      setUsers(usersWithOrderCounts);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {
@@ -168,6 +187,16 @@ export default function UsersPage() {
                     </div>
                   ),
                 },
+                {
+                  key: 'user_number',
+                  label: 'User ID',
+                  sortable: false,
+                  render: (value: string, row: User) => (
+                    <span className="text-sm font-mono text-gray-700">
+                      {row.user_number || row.id.substring(0, 8) + '...'}
+                    </span>
+                  ),
+                },
                 { 
                   key: 'phone', 
                   label: 'Phone', 
@@ -179,6 +208,16 @@ export default function UsersPage() {
                   label: 'Member Since',
                   sortable: true,
                   render: (value: string) => formatDate(value),
+                },
+                {
+                  key: 'total_orders',
+                  label: 'Total Orders',
+                  sortable: true,
+                  render: (value: number, row: User) => (
+                    <span className="font-medium text-gray-900">
+                      {row.total_orders || 0}
+                    </span>
+                  ),
                 },
               ]}
               data={filteredUsers}
@@ -239,6 +278,10 @@ export default function UsersPage() {
                     <div>
                       <p className="text-gray-600 text-sm">Phone</p>
                       <p className="font-medium">{selectedUser.phone || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm">User ID</p>
+                      <p className="font-medium font-mono">{selectedUser.user_number || selectedUser.id.substring(0, 8) + '...'}</p>
                     </div>
                     <div>
                       <p className="text-gray-600 text-sm">Joined</p>

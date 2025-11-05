@@ -107,10 +107,11 @@ function CartContent() {
                         </h3>
                         <p className="text-sm text-gray-500">
                           Stock: {item.product.stock_quantity} available
+                          <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
                         </p>
                         <div className="mt-2">
                           <span className="text-lg font-semibold text-gray-900">
-                            ${item.product.price.toFixed(2)}
+                            ₹{item.product.price.toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -135,7 +136,7 @@ function CartContent() {
                         
                         <div className="text-right">
                           <div className="text-lg font-semibold text-gray-900">
-                            ${(item.product.price * item.quantity).toFixed(2)}
+                            ₹{(item.product.price * item.quantity).toFixed(2)}
                           </div>
                         </div>
 
@@ -172,24 +173,24 @@ function CartContent() {
               <div className="px-6 py-4 space-y-4">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
-                  <span className="font-medium">${getSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">
-                    {getShipping() === 0 ? 'Free' : `$${getShipping().toFixed(2)}`}
+                    {getShipping() === 0 ? 'Free' : `₹${getShipping().toFixed(2)}`}
                   </span>
                 </div>
                 {getSubtotal() < 50 && (
                   <div className="text-sm text-gray-500">
-                    Add ${(50 - getSubtotal()).toFixed(2)} more for free shipping!
+                    Add ₹{(50 - getSubtotal()).toFixed(2)} more for free shipping!
                   </div>
                 )}
                 <div className="border-t border-gray-200 pt-4">
                   <div className="flex justify-between">
                     <span className="text-lg font-medium text-gray-900">Total</span>
                     <span className="text-lg font-medium text-gray-900">
-                      ${getTotal().toFixed(2)}
+                      ₹{getTotal().toFixed(2)}
                     </span>
                   </div>
                 </div>

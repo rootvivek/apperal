@@ -190,7 +190,7 @@ export default function Home() {
               )
             `)
             .eq('is_active', true)
-            .eq('category', category.name)
+            .eq('category_id', category.id)
             .order('created_at', { ascending: false })
             .limit(8);
 
@@ -241,7 +241,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white">
       {/* Categories Section - Show after navbar */}
-      <section className="pb-3 bg-white mb-4">
+      <section className="pt-1 pb-0 sm:pt-4 sm:pb-0 bg-white mb-0 sm:mb-1 h-auto">
         <CategoryGrid categories={categories} />
       </section>
 
@@ -249,10 +249,10 @@ export default function Home() {
       <HeroCarousel />
 
       {/* All Products Section */}
-      <section className="py-8 bg-white">
+      <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white">
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">All Products</h2>
+          <div className="text-center mb-2 sm:mb-4">
+            <h2 className="text-2xl font-semibold text-gray-900 mb-2 sm:mb-4">All Products</h2>
           </div>
           {allProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
@@ -299,7 +299,7 @@ export default function Home() {
           <section key={section.category.id} className={`py-16 ${bgColor}`}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
               <div className="text-center mb-12">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">{section.category.name}</h2>
+                <h2 className="text-2xl font-semibold text-gray-900 mb-4">{section.category.name}</h2>
               </div>
               {section.products.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">

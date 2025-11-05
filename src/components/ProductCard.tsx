@@ -285,7 +285,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
 
       {/* Product Image */}
       <div 
-        className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[4/5] overflow-hidden relative"} group`}
+        className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-square overflow-hidden relative"} group`}
         onMouseEnter={startImageSliding}
         onMouseLeave={stopImageSliding}
         onTouchStart={handleTouchStart}
@@ -299,7 +299,6 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           onError={(e) => {
             e.currentTarget.src = '/placeholder-product.jpg';
           }}
-          onLoad={() => {}}
         />
         
         {/* Image indicators (dots) - only show if there are multiple images */}
@@ -318,8 +317,8 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           </div>
         )}
         
-        {/* Multiple images indicator - subtle hint */}
-        {hasMultipleImages && variant !== 'image-only' && (
+        {/* Multiple images indicator - subtle hint - only show if no product badge */}
+        {hasMultipleImages && variant !== 'image-only' && !product.badge && (
           <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full opacity-80">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
@@ -327,19 +326,6 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           </div>
         )}
         
-        {/* Mobile swipe hint - only show on mobile */}
-        {hasMultipleImages && variant !== 'image-only' && (
-          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 md:hidden transition-opacity duration-300">
-            Swipe
-          </div>
-        )}
-        
-        {/* Desktop hover hint - only show on desktop */}
-        {hasMultipleImages && variant !== 'image-only' && (
-          <div className="absolute top-2 right-2 bg-black bg-opacity-60 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 hidden md:block transition-opacity duration-300">
-            Hover
-          </div>
-        )}
         
         {!product.is_active && !hideStockOverlay && (
           <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">

@@ -61,10 +61,10 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
   };
 
   return (
-    <div className="py-3 mx-3 sm:mx-6 lg:mx-8">
+    <div className="pt-0 pb-0 sm:py-0 mx-3 sm:mx-6 lg:mx-8 h-auto">
       {/* Desktop: Subcategories Grid - Smaller cards */}
-      <div className="hidden sm:flex sm:justify-center px-1.5 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap justify-center gap-5">
+      <div className="hidden sm:flex sm:justify-center px-0 sm:px-0 lg:px-0">
+        <div className="flex flex-wrap justify-center gap-6">
         {subcategoriesLoading ? (
           <div className="w-full text-gray-500 text-sm text-center py-8">Loading subcategories...</div>
         ) : subcategories.length === 0 ? (
@@ -73,9 +73,9 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
             <Link
               key={category.id}
               href={`/products/${category.slug}`}
-              className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300 w-[100px]"
+              className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300 w-[80px] sm:w-[70px]"
             >
-              <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 shadow-sm">
+              <div className="w-full aspect-square rounded-lg overflow-hidden mb-1 shadow-sm">
                 <img
                   src={category.image_url || category.image || '/images/categories/placeholder.svg'}
                   alt={category.name}
@@ -86,7 +86,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                   }}
                 />
               </div>
-              <h3 className="text-gray-900 text-xs sm:text-sm font-medium group-hover:text-blue-600 transition-colors">
+              <h3 className="text-gray-900 text-[10px] sm:text-xs font-medium group-hover:text-blue-600 transition-colors">
                 {category.name}
               </h3>
             </Link>
@@ -96,9 +96,9 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
             <Link
               key={subcategory.id}
               href={`/products/${getParentCategorySlug(subcategory.parent_category_id)}/${subcategory.slug}`}
-              className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300 w-[100px]"
+              className="group flex flex-col items-center text-center hover:scale-105 transition-transform duration-300 w-[80px] sm:w-[70px]"
             >
-              <div className="w-full aspect-square rounded-lg overflow-hidden mb-2 shadow-sm">
+              <div className="w-full aspect-square rounded-lg overflow-hidden mb-1 shadow-sm">
                 <img
                   src={subcategory.image_url || subcategory.image || '/images/categories/placeholder.svg'}
                   alt={subcategory.name}
@@ -109,7 +109,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                   }}
                 />
               </div>
-              <h3 className="text-gray-900 text-xs sm:text-sm font-medium group-hover:text-blue-600 transition-colors">
+              <h3 className="text-gray-900 text-[10px] sm:text-xs font-medium group-hover:text-blue-600 transition-colors">
                 {subcategory.name}
               </h3>
             </Link>

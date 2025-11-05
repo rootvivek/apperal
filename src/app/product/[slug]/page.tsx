@@ -92,11 +92,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const [isSharing, setIsSharing] = useState(false);
   const [imageContainerSize, setImageContainerSize] = useState({ width: 0, height: 0 });
+  const [zoomPreviewPosition, setZoomPreviewPosition] = useState({ left: 0, top: 0 });
   const imageContainerRef = useRef<HTMLDivElement>(null);
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
-      console.log('Fetching related products for category:', category, 'excluding product:', currentProductId);
       setRelatedLoading(true);
       const { data, error } = await supabase
         .from('products')
@@ -112,7 +112,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         return;
       }
 
-      console.log('Related products found:', data?.length || 0);
       if (data) {
         // Fetch images for each related product
         const productsWithImages = await Promise.all(
@@ -128,15 +127,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               images: images || []
             };
             
-            // If no images from product_images table, but product has image_url, create a fake image entry
-            if ((!images || images.length === 0) && product.image_url) {
-              productWithImages.images = [{
-                id: 'main-image',
-                image_url: product.image_url,
-                alt_text: product.name,
-                display_order: 0
-              }];
-            }
             
             return productWithImages;
           })
@@ -156,8 +146,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       try {
         setLoading(true);
         
-        console.log('Fetching product with slug:', params.slug);
-        
         // First try to find by exact slug match - include all detail tables
         let { data: product, error: productError } = await supabase
           .from('products')
@@ -172,13 +160,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           .eq('is_active', true)
           .maybeSingle();
         
-        console.log('First fetch result:', { product: !!product, error: productError });
-        
         // If not found by exact slug, try partial match (removing trailing numbers like -1, -2, etc.)
         if (!product && !productError) {
-          console.log('Trying partial slug match...');
           const slugWithoutSuffix = params.slug.replace(/-\d+$/, '');
-          console.log('Searching for slug without suffix:', slugWithoutSuffix);
           
           const { data: partialProduct, error: partialError } = await supabase
             .from('products')
@@ -194,8 +178,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             .limit(1)
             .maybeSingle();
           
-          console.log('Partial match result:', { product: !!partialProduct, error: partialError });
-          
           if (!partialError && partialProduct) {
             product = partialProduct;
             productError = null;
@@ -204,7 +186,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         
         // If not found by slug, try by ID (for backward compatibility)
         if (!product && !productError && params.slug && params.slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
-          console.log('Trying to fetch by ID:', params.slug);
           const { data, error } = await supabase
             .from('products')
             .select(`
@@ -217,8 +198,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             .eq('id', params.slug)
             .eq('is_active', true)
             .maybeSingle();
-          
-          console.log('ID fetch result:', { data: !!data, error });
           
           if (!error && data) {
             product = data;
@@ -240,12 +219,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
         // Extract images from product_images relationship
         const images = product.product_images || [];
-        
-        // Minimal debug logs retained for troubleshooting
-        console.log('Images count:', images?.length);
-        console.log('Images:', images);
-        console.log('Full product object:', product);
-        console.log('========================');
 
         if (product) {
           // Transform product to match ProductCardProduct interface
@@ -294,7 +267,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               : (product.product_accessories_details || undefined),
           };
           
-          console.log('Transformed product:', productWithImages);
           setProduct(productWithImages as ProductCardProduct);
           
           // Set default size if apparel product has size
@@ -360,7 +332,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     // Show brief feedback but don't disable the button
     setIsAddedToCart(true);
     setTimeout(() => setIsAddedToCart(false), 1500);
-    void addToCart(product.id, quantity);
+    void addToCart(product.id, quantity, selectedSize || null);
   };
 
   const handleBuyNow = () => {
@@ -379,10 +351,19 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       return;
     }
     
-    // Add to cart first, then redirect to checkout with direct purchase parameters
-    addToCart(product.id, quantity).then(() => {
-      window.location.href = `/checkout?direct=true&productId=${product.id}&quantity=${quantity}`;
+    // Redirect directly to checkout without adding to cart
+    const params = new URLSearchParams({
+      direct: 'true',
+      productId: product.id,
+      quantity: quantity.toString()
     });
+    
+    // Add size if it's an apparel product
+    if (selectedSize) {
+      params.append('size', selectedSize);
+    }
+    
+    window.location.href = `/checkout?${params.toString()}`;
   };
 
   const handleWishlistToggle = () => {
@@ -408,7 +389,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     }
 
     setIsSharing(true);
-    console.log('Share button clicked');
 
     const shareData = {
       title: product.name,
@@ -416,19 +396,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       url: window.location.href,
     };
 
-    console.log('Attempting to share:', shareData);
-
     if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
       try {
         await navigator.share(shareData);
-        console.log('Successfully shared via Web Share API');
       } catch (err) {
-        console.log('Error sharing via Web Share API:', err);
         // Fallback to clipboard if share was cancelled or failed
         await copyToClipboard();
       }
     } else {
-      console.log('Web Share API not available, using clipboard fallback');
       await copyToClipboard();
     }
 
@@ -456,7 +431,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading product...</p>
@@ -467,7 +442,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   if (error || !product) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center max-w-2xl mx-auto px-4">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
           <p className="text-gray-600 mb-4">The product you&apos;re looking for doesn&apos;t exist.</p>
@@ -487,14 +462,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
-      <div className="max-w-[1450px] mx-auto w-full px-4 sm:px-6 md:px-8 lg:px-10 pt-2 pb-8">
+    <div className="min-h-screen bg-white">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pt-1 pb-8">
         {/* Breadcrumb Navigation - Desktop only */}
-        <nav className="hidden sm:flex mb-4 pt-2" aria-label="Breadcrumb">
+        <nav className="hidden sm:flex mb-2" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
             <li>
-              <Link href="/" className="text-gray-500 hover:text-gray-700 text-sm">
-                Home
+              <Link href="/" className="text-gray-500 hover:text-gray-700 text-xs">
+                Home Page
               </Link>
             </li>
             <li>
@@ -503,7 +478,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </svg>
             </li>
             <li>
-              <Link href="/products" className="text-gray-500 hover:text-gray-700 text-sm">
+              <Link href="/products" className="text-gray-500 hover:text-gray-700 text-xs">
                 Products
               </Link>
             </li>
@@ -515,7 +490,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <li>
               <Link 
                 href={categorySlug ? `/products/${categorySlug}` : `/products`}
-                className="text-gray-500 hover:text-gray-700 text-sm"
+                className="text-gray-500 hover:text-gray-700 text-xs"
               >
                 {typeof product.category === 'string' ? product.category : product.category?.name || 'Category'}
               </Link>
@@ -530,7 +505,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <li>
                   <Link 
                     href={categorySlug && subcategorySlug ? `/products/${categorySlug}/${subcategorySlug}` : `/products/${categorySlug || 'category'}`}
-                    className="text-gray-500 hover:text-gray-700 text-sm"
+                    className="text-gray-500 hover:text-gray-700 text-xs"
                   >
                     {product.subcategory}
                   </Link>
@@ -543,54 +518,60 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </svg>
             </li>
             <li>
-              <span className="text-gray-900 font-medium text-sm" aria-current="page">
+              <span className="text-gray-900 font-medium text-xs" aria-current="page">
                 {product.name}
               </span>
             </li>
           </ol>
         </nav>
 
-        <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 lg:p-8 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 lg:gap-16">
+        <div className="bg-white mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8 overflow-visible">
             {/* Product Images */}
-            <div className="flex gap-4">
-            {/* Thumbnail Gallery - Left (Desktop only) */}
-            {product.images && product.images.length > 1 && (
-              <div className="hidden sm:flex flex-col gap-3">
-                {product.images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl border-2 transition-all duration-200 shadow-sm ${
-                      selectedImage === index 
-                        ? 'border-[#4736FE] ring-2 ring-[#4736FE] ring-opacity-30 scale-105' 
-                        : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
-                    }`}
-                  >
-                    <img
-                      src={image.image_url}
-                      alt={`${product.name} ${index + 1}`}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder-product.jpg';
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {/* Main Image Container */}
-            <div className="flex-1 space-y-4 w-full relative">
+            <div className="w-full">
+            {/* Desktop: Thumbnails on Left, Main Image on Right */}
+            <div className="hidden md:flex gap-4 overflow-visible">
+              {/* Thumbnail Gallery - Left (Desktop only) */}
+              {product.images && product.images.length > 1 && (
+                <div className="flex flex-col gap-3 flex-shrink-0">
+                  {product.images.map((image, index) => (
+                    <button
+                      key={image.id}
+                      onClick={() => setSelectedImage(index)}
+                      className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl transition-all duration-200 shadow-sm border-2 ${
+                        selectedImage === index 
+                          ? 'ring-2 ring-[#4736FE] ring-opacity-30 scale-105 border-[#4736FE]' 
+                          : 'border-gray-200 hover:border-[#4736FE] hover:shadow-md'
+                      }`}
+                    >
+                      <img
+                        src={image.image_url}
+                        alt={image.alt_text || `${product.name} ${index + 1}`}
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder-product.jpg';
+                        }}
+                      />
+                    </button>
+                  ))}
+                </div>
+              )}
+              
+              {/* Main Image Container - Desktop */}
+              <div className="flex-1 relative overflow-visible">
               {/* Main Image */}
             <div 
               ref={imageContainerRef}
-              className="aspect-square rounded-2xl bg-gradient-to-br from-gray-50 to-gray-100 cursor-crosshair relative sm:cursor-crosshair cursor-default w-full max-w-full shadow-inner border border-gray-200 overflow-hidden"
+              className="aspect-square rounded-lg bg-white cursor-default md:cursor-crosshair relative w-full max-w-full overflow-hidden"
               onMouseEnter={() => {
                 setShowZoomPreview(true);
                 if (imageContainerRef.current) {
                   const rect = imageContainerRef.current.getBoundingClientRect();
                   setImageContainerSize({ width: rect.width, height: rect.height });
+                  setZoomPreviewPosition({
+                    left: rect.right + 16,
+                    top: rect.top
+                  });
                 }
               }}
               onMouseLeave={() => setShowZoomPreview(false)}
@@ -599,12 +580,34 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 const x = ((e.clientX - rect.left) / rect.width) * 100;
                 const y = ((e.clientY - rect.top) / rect.height) * 100;
                 setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+                
+                // Update zoom preview position as mouse moves
+                if (imageContainerRef.current) {
+                  const containerRect = imageContainerRef.current.getBoundingClientRect();
+                  setZoomPreviewPosition({
+                    left: containerRect.right + 16,
+                    top: containerRect.top
+                  });
+                }
               }}
             >
+              {/* Fit Type Badge - Top Left Corner */}
+              {product.product_apparel_details?.fit_type && (
+                <div className="absolute top-2 left-2 z-30 pointer-events-none">
+                  <span className="px-3 py-1.5 bg-[#4736FE] text-white text-xs font-medium rounded-lg shadow-lg">
+                    {product.product_apparel_details.fit_type}
+                  </span>
+                </div>
+              )}
+              
               {/* Wishlist and Share Icons */}
-              <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
+              <div className="absolute top-4 right-4 z-30 flex flex-col gap-3">
                 <button
-                  onClick={handleWishlistToggle}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleWishlistToggle();
+                  }}
+                  onMouseEnter={(e) => e.stopPropagation()}
                   className="p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
                 >
                   <svg 
@@ -621,7 +624,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   </svg>
                 </button>
                 <button
-                  onClick={handleShare}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleShare();
+                  }}
+                  onMouseEnter={(e) => e.stopPropagation()}
                   disabled={isSharing}
                   className={`p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg transition-all duration-200 ${
                     isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:scale-110'
@@ -648,7 +655,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   ? product.images[selectedImage].image_url 
                   : product.image_url || '/placeholder-product.jpg'}
                 alt={product.name}
-                className="h-full w-full object-contain p-4"
+                className="h-full w-full object-cover"
                 onError={(e) => {
                   e.currentTarget.src = '/placeholder-product.jpg';
                 }}
@@ -657,7 +664,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Magnifying Glass Overlay */}
               {showZoomPreview && (
                 <div 
-                  className="hidden sm:block absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
+                  className="hidden md:block absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
                   style={{
                     left: `${mousePosition.x}%`,
                     top: `${mousePosition.y}%`,
@@ -688,10 +695,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Zoomed Image Preview - Right Side */}
             {showZoomPreview && imageContainerSize.width > 0 && (
               <div 
-                className="hidden sm:block absolute left-full top-0 ml-4 bg-white rounded-lg shadow-2xl border border-gray-200 z-50 overflow-hidden aspect-square"
+                className="hidden md:block fixed bg-white rounded-lg shadow-2xl z-50 overflow-hidden aspect-square"
                 style={{
                   width: `${imageContainerSize.width}px`,
-                  height: `${imageContainerSize.height}px`
+                  height: `${imageContainerSize.height}px`,
+                  left: `${zoomPreviewPosition.left}px`,
+                  top: `${zoomPreviewPosition.top}px`
                 }}
               >
                 <img
@@ -710,56 +719,131 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 />
               </div>
             )}
+              </div>
+            </div>
+            
+            {/* Mobile: Main Image Container */}
+            <div className="md:hidden w-full relative">
+              {/* Main Image */}
+              <div 
+                ref={imageContainerRef}
+                className="aspect-square rounded-lg bg-white cursor-default w-full max-w-full overflow-hidden"
+              >
+                {/* Fit Type Badge - Top Left Corner */}
+                {product.product_apparel_details?.fit_type && (
+                  <div className="absolute top-2 left-2 z-20">
+                    <span className="px-3 py-1.5 bg-[#4736FE] text-white text-xs font-medium rounded-lg shadow-lg">
+                      {product.product_apparel_details.fit_type}
+                    </span>
+                  </div>
+                )}
+                
+                {/* Wishlist and Share Icons */}
+                <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
+                  <button
+                    onClick={handleWishlistToggle}
+                    className="p-2.5 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
+                  >
+                    <svg 
+                      className={`w-4 h-4 transition-colors ${
+                        product && isInWishlist(product.id) 
+                          ? 'text-red-500 fill-current' 
+                          : 'text-gray-600 hover:text-red-500'
+                      }`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleShare}
+                    disabled={isSharing}
+                    className={`p-2.5 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg transition-all duration-200 ${
+                      isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:scale-110'
+                    }`}
+                    title="Share this product"
+                  >
+                    <svg 
+                      className={`w-4 h-4 transition-colors ${
+                        isSharing 
+                          ? 'text-blue-500' 
+                          : 'text-gray-600 hover:text-blue-500'
+                      }`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                    </svg>
+                  </button>
+                </div>
+
+                <img
+                  src={product.images && product.images.length > 0 
+                    ? product.images[selectedImage].image_url 
+                    : product.image_url || '/placeholder-product.jpg'}
+                  alt={product.name}
+                  className="h-full w-full object-cover"
+                  onError={(e) => {
+                    e.currentTarget.src = '/placeholder-product.jpg';
+                  }}
+                />
+              </div>
             </div>
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="sm:hidden flex gap-3 overflow-x-auto pb-2 -mx-2 px-2">
+              <div className="md:hidden flex gap-5 overflow-x-auto pb-2 -mx-1 px-1 mt-4">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl border-2 transition-all duration-200 shadow-sm ${
+                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl transition-all duration-200 shadow-sm border-2 ${
                       selectedImage === index 
-                        ? 'border-[#4736FE] ring-2 ring-[#4736FE] ring-opacity-30 scale-105' 
-                        : 'border-gray-200 hover:border-gray-400 hover:shadow-md'
+                        ? 'ring-2 ring-[#4736FE] ring-opacity-30 scale-105 border-[#4736FE]' 
+                        : 'border-gray-200 hover:border-[#4736FE] hover:shadow-md'
                     }`}
                   >
                     <img
                       src={image.image_url}
                       alt={image.alt_text || `${product.name} ${index + 1}`}
                       className="h-full w-full object-contain"
+                      onError={(e) => {
+                        e.currentTarget.src = '/placeholder-product.jpg';
+                      }}
                     />
                   </button>
                 ))}
               </div>
             )}
-          </div>
-
+            </div>
 
           {/* Product Info */}
           <div className="space-y-6">
             <div>
-              {product.brand && (
-                <div className="mb-3">
-                  <span className="text-base sm:text-lg font-medium text-gray-700 uppercase tracking-wide">{product.brand}</span>
+              {/* Brand Name - Always shown before product name */}
+              {(product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand) && (
+                <div className="mb-1">
+                  <span className="text-base sm:text-lg font-semibold text-gray-600 uppercase tracking-wide">
+                    {product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand}
+                  </span>
                 </div>
               )}
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3 leading-tight">{product.name}</h1>
-              <div className="mt-4 flex flex-wrap items-center gap-4">
+              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 leading-tight">{product.name}</h1>
+              <div className="mt-3 flex flex-wrap items-center gap-4">
                 <div className="flex items-baseline gap-3">
-                  <span className="text-2xl sm:text-3xl font-bold text-[#4736FE]">₹{product.price.toFixed(2)}</span>
+                  <span className="text-lg sm:text-xl font-semibold text-[#4736FE]">₹{product.price.toFixed(2)}</span>
                   {product.original_price && product.original_price > product.price && (
-                    <span className="text-base text-gray-500 line-through">₹{product.original_price.toFixed(2)}</span>
+                    <>
+                      <span className="text-sm text-gray-500 line-through">₹{product.original_price.toFixed(2)}</span>
+                      <span className="text-sm font-semibold text-green-600">
+                        ({Math.round(((product.original_price - product.price) / product.original_price) * 100)}% OFF)
+                      </span>
+                    </>
                   )}
                 </div>
-                <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  product.stock_quantity > 0 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {product.stock_quantity > 0 ? `${product.stock_quantity} in stock` : 'Out of stock'}
-                </span>
               </div>
               {product.rating !== null && product.rating !== undefined && (
                 <div className="mt-3 flex items-center gap-2">
@@ -773,20 +857,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               )}
             </div>
 
-            {/* Product Details - Show before Quantity */}
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-gray-300">Product Details</h3>
-              {product.description && (
-                <div className="mb-4">
-                  <p className="text-gray-700 leading-relaxed">{product.description}</p>
-                </div>
-              )}
-            </div>
-
             {/* Phone Cover Details */}
             {product.product_cover_details && (
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-blue-300">Phone Cover Details</h3>
+              <div className="bg-white rounded-xl p-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2">Phone Cover Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {product.product_cover_details.brand && (
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
@@ -816,49 +890,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
             )}
 
-            {/* Apparel Details */}
-            {product.product_apparel_details && (
-              <div className="bg-gradient-to-br from-pink-50 to-rose-50 rounded-xl p-6 border border-pink-200">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-pink-300">Apparel Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {product.product_apparel_details.brand && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px]">Brand:</span>
-                      <span className="text-gray-900 font-medium">{product.product_apparel_details.brand}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details.material && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px]">Material:</span>
-                      <span className="text-gray-900 font-medium">{product.product_apparel_details.material}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details.fit_type && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px]">Fit Type:</span>
-                      <span className="text-gray-900 font-medium">{product.product_apparel_details.fit_type}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details.color && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px]">Color:</span>
-                      <span className="text-gray-900 font-medium">{product.product_apparel_details.color}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details.size && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px]">Size:</span>
-                      <span className="text-gray-900 font-medium">{product.product_apparel_details.size}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Accessories Details */}
             {product.product_accessories_details && (
-              <div className="bg-gradient-to-br from-purple-50 to-violet-50 rounded-xl p-6 border border-purple-200">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2 border-b border-purple-300">Accessories Details</h3>
+              <div className="bg-white rounded-xl p-6">
+                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2">Accessories Details</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {product.product_accessories_details.accessory_type && (
                     <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
@@ -888,58 +924,37 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
             )}
 
-            {/* Quantity and Actions */}
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-5">
-              {/* Size Selection - Only show for apparel products */}
+            {/* Size Selection and Actions */}
+            <div className="space-y-5">
+              {/* Size Selection - Only show for apparel products - Chip buttons */}
               {product.product_apparel_details && (
                 <div>
-                  <label htmlFor="size" className="block text-sm font-semibold text-gray-900 mb-3">
-                    Size <span className="text-red-500">*</span>
+                  <label className="block text-base font-semibold text-gray-900 mb-3">
+                    Select Size <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    id="size"
-                    value={selectedSize}
-                    onChange={(e) => setSelectedSize(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-[#4736FE] focus:border-[#4736FE] text-base font-medium bg-white transition-all"
-                    required
-                  >
-                    <option value="">Select Size</option>
-                    <option value="Small">Small</option>
-                    <option value="Medium">Medium</option>
-                    <option value="Large">Large</option>
-                  </select>
+                  <div className="flex flex-wrap gap-2">
+                    {['Small', 'Medium', 'Large'].map((size) => (
+                      <button
+                        key={size}
+                        type="button"
+                        onClick={() => setSelectedSize(size)}
+                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                          selectedSize === size
+                            ? 'bg-[#4736FE] text-white shadow-lg scale-105'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:border-[#4736FE] hover:text-[#4736FE] hover:shadow-md'
+                        }`}
+                      >
+                        {size}
+                      </button>
+                    ))}
+                  </div>
                   {!selectedSize && (
                     <p className="mt-2 text-sm text-red-600 font-medium">Please select a size</p>
                   )}
                 </div>
               )}
 
-              <div>
-                <label htmlFor="quantity" className="block text-sm font-semibold text-gray-900 mb-3">
-                  Quantity
-                </label>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1}
-                    className="w-12 h-12 border-2 border-gray-300 rounded-lg flex items-center justify-center hover:bg-white hover:border-[#4736FE] hover:text-[#4736FE] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-semibold text-lg bg-white shadow-sm"
-                  >
-                    −
-                  </button>
-                  <span className="w-16 text-center text-xl font-bold text-gray-900 bg-white py-2 px-4 rounded-lg border-2 border-gray-200">
-                    {quantity}
-                  </span>
-                  <button
-                    onClick={() => setQuantity(Math.min(product.stock_quantity, quantity + 1))}
-                    disabled={quantity >= product.stock_quantity}
-                    className="w-12 h-12 border-2 border-gray-300 rounded-lg flex items-center justify-center hover:bg-white hover:border-[#4736FE] hover:text-[#4736FE] disabled:opacity-40 disabled:cursor-not-allowed transition-all font-semibold text-lg bg-white shadow-sm"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
@@ -964,6 +979,49 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   <p className="text-red-800 font-semibold">This product is currently out of stock</p>
                 </div>
               )}
+            </div>
+
+            {/* Product Details and Apparel Details - Combined in one frame */}
+            <div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">Product Details</h3>
+              <div className="space-y-1">
+                {product.product_apparel_details?.brand && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Brand:</span>
+                    <span className="text-gray-900">{product.product_apparel_details.brand}</span>
+                  </div>
+                )}
+                {product.product_apparel_details?.material && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Material:</span>
+                    <span className="text-gray-900">{product.product_apparel_details.material}</span>
+                  </div>
+                )}
+                {product.product_apparel_details?.fit_type && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Fit Type:</span>
+                    <span className="text-gray-900">{product.product_apparel_details.fit_type}</span>
+                  </div>
+                )}
+                {product.product_apparel_details?.color && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Color:</span>
+                    <span className="text-gray-900">{product.product_apparel_details.color}</span>
+                  </div>
+                )}
+                {product.product_apparel_details?.size && (
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Size:</span>
+                    <span className="text-gray-900">{product.product_apparel_details.size}</span>
+                  </div>
+                )}
+                {product.description && (
+                  <div className="flex items-start gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[120px]">Description:</span>
+                    <span className="text-gray-900 leading-relaxed">{product.description}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

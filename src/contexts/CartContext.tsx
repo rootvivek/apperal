@@ -8,6 +8,7 @@ export interface CartItem {
   id: string;
   product_id: string;
   quantity: number;
+  size?: string | null;
   product: {
     id: string;
     name: string;
@@ -21,7 +22,7 @@ interface CartContextType {
   cartItems: CartItem[];
   cartCount: number;
   loading: boolean;
-  addToCart: (productId: string, quantity?: number) => Promise<void>;
+  addToCart: (productId: string, quantity?: number, size?: string | null) => Promise<void>;
   removeFromCart: (cartItemId: string) => Promise<void>;
   updateQuantity: (cartItemId: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -175,6 +176,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           id,
           quantity,
           product_id,
+          size,
           products (
             id,
             name,
@@ -191,18 +193,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       // Transform the data to match our interface
-      const transformedItems: CartItem[] = items?.map((item: any) => ({
-        id: item.id,
-        product_id: item.product_id,
-        quantity: item.quantity,
-        product: {
-          id: item.products.id,
-          name: item.products.name,
-          price: item.products.price,
-          image_url: item.products.image_url,
-          stock_quantity: item.products.stock_quantity,
-        }
-      })) || [];
+      const transformedItems: CartItem[] = items?.map((item: any) => {
+        // Ensure size is properly extracted (handle both direct access and nested)
+        const sizeValue = item.size !== undefined ? item.size : null;
+        
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          quantity: item.quantity,
+          size: sizeValue,
+          product: {
+            id: item.products.id,
+            name: item.products.name,
+            price: item.products.price,
+            image_url: item.products.image_url,
+            stock_quantity: item.products.stock_quantity,
+          }
+        };
+      }) || [];
 
       setCartItems(transformedItems);
     } catch (error) {
@@ -221,7 +229,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user]);
 
-  const addToCart = async (productId: string, quantity: number = 1) => {
+  const addToCart = async (productId: string, quantity: number = 1, size: string | null = null) => {
     // Handle guest cart (localStorage) - save items but redirect to login
     if (!user) {
       try {
@@ -243,23 +251,28 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const guestCartStr = localStorage.getItem('guest-cart');
         const existingCart: CartItem[] = guestCartStr ? JSON.parse(guestCartStr) : [];
 
-        // Check if item already exists in cart
-        const existingItem = existingCart.find(item => item.product_id === productId);
+        // Check if item already exists in cart (same product_id AND same size)
+        const existingItem = existingCart.find(item => 
+          item.product_id === productId && 
+          (item.size === size || (!item.size && !size))
+        );
 
         let updatedCart: CartItem[];
         if (existingItem) {
-          // Update existing item quantity
+          // Update existing item quantity (same product and size)
           updatedCart = existingCart.map(item =>
-            item.product_id === productId
+            item.product_id === productId && 
+            (item.size === size || (!item.size && !size))
               ? { ...item, quantity: item.quantity + quantity }
               : item
           );
         } else {
-          // Add new item to cart
+          // Add new item to cart (different size = separate item)
           const newItem: CartItem = {
-            id: `guest-${productId}-${Date.now()}`,
+            id: `guest-${productId}-${size || 'no-size'}-${Date.now()}`,
             product_id: productId,
             quantity: quantity,
+            size: size || null,
             product: {
               id: product.id,
               name: product.name,
@@ -321,13 +334,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
 
-      // Check if item already exists in cart
-      const { data: existingItem, error: existingError } = await supabase
+      // Check if item already exists in cart (same product_id AND same size)
+      let query = supabase
         .from('cart_items')
         .select('id, quantity')
         .eq('cart_id', cart.id)
-        .eq('product_id', productId)
-        .maybeSingle();
+        .eq('product_id', productId);
+      
+      // Match by size (both null or same value)
+      if (size) {
+        query = query.eq('size', size);
+      } else {
+        query = query.is('size', null);
+      }
+      
+      const { data: existingItem, error: existingError } = await query.maybeSingle();
 
       if (existingError && existingError.code !== 'PGRST116') {
         console.error('Error checking existing cart item:', existingError);
@@ -375,7 +396,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .insert({
             cart_id: cart.id,
             product_id: productId,
-            quantity: quantity
+            quantity: quantity,
+            size: size || null
           })
           .select('id');
 

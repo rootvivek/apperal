@@ -277,6 +277,9 @@ export default function ProductsPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Image
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Product
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -303,23 +306,24 @@ export default function ProductsPage() {
                   {filteredProducts.map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-12 w-12">
+                        <div className="flex-shrink-0">
                             <img
-                              className="h-12 w-12 rounded-lg object-cover"
+                            className="h-16 w-16 rounded-lg object-cover border border-gray-200"
                               src={product.image_url || '/placeholder-product.jpg'}
                               alt={product.name}
+                            onError={(e) => {
+                              e.currentTarget.src = '/placeholder-product.jpg';
+                            }}
                             />
                           </div>
-                          <div className="ml-4">
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                             <div className="text-sm font-medium text-gray-900">
                               {product.name}
                             </div>
-                            <div className="text-sm text-gray-500 truncate">
+                        <div className="text-sm text-gray-500 truncate max-w-xs">
                               {product.description}
                             </div>
-                          </div>
-                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <div className="flex items-center gap-2">

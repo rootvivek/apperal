@@ -6,9 +6,10 @@ import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useSearchParams } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
 
 interface CheckoutFormData {
-  email: string;
+  email?: string;
   fullName: string;
   address: string;
   apartment: string;
@@ -28,9 +29,11 @@ function CheckoutContent() {
   const { user } = useAuth();
   const { cartItems, loading: cartLoading, clearCart } = useCart();
   const searchParams = useSearchParams();
+  const supabase = createClient();
   
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
   const [isDirectPurchase, setIsDirectPurchase] = useState(false);
+  const [loadingDirectProduct, setLoadingDirectProduct] = useState(false);
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     fullName: '',
@@ -55,17 +58,53 @@ function CheckoutContent() {
     const direct = searchParams.get('direct');
     const productId = searchParams.get('productId');
     const quantity = searchParams.get('quantity');
+    const size = searchParams.get('size');
     
     if (direct === 'true' && productId && quantity) {
       setIsDirectPurchase(true);
-      // For now, we'll use the cart items but filter to only show the direct purchase item
-      // In a real implementation, you'd fetch the product details here
-      setDirectPurchaseItems([{
-        product: cartItems.find(item => item.product.id === productId)?.product,
-        quantity: parseInt(quantity)
-      }].filter(item => item.product));
+      setLoadingDirectProduct(true);
+      
+      // Fetch product details directly from database
+      const fetchDirectProduct = async () => {
+        try {
+          const { data: product, error } = await supabase
+            .from('products')
+            .select('id, name, price, image_url, stock_quantity')
+            .eq('id', productId)
+            .eq('is_active', true)
+            .single();
+          
+          if (error || !product) {
+            console.error('Error fetching product for direct purchase:', error);
+            alert('Product not found. Redirecting to home page.');
+            window.location.href = '/';
+            return;
+          }
+          
+          // Create cart item format for direct purchase
+          setDirectPurchaseItems([{
+            product: {
+              id: product.id,
+              name: product.name,
+              price: product.price,
+              image_url: product.image_url,
+              stock_quantity: product.stock_quantity
+            },
+            quantity: parseInt(quantity),
+            size: size || null
+          }]);
+        } catch (error) {
+          console.error('Error in fetchDirectProduct:', error);
+          alert('Error loading product. Redirecting to home page.');
+          window.location.href = '/';
+        } finally {
+          setLoadingDirectProduct(false);
+        }
+      };
+      
+      fetchDirectProduct();
     }
-  }, [searchParams, cartItems]);
+  }, [searchParams, supabase]);
 
   // Update form data when user is available
   useEffect(() => {
@@ -92,7 +131,7 @@ function CheckoutContent() {
   };
 
   // Redirect if cart is empty
-  if (cartLoading) {
+  if (cartLoading || loadingDirectProduct) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -109,7 +148,7 @@ function CheckoutContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
           <p className="text-gray-600 mb-6">Add some items to your cart before checkout</p>
-          <Link href="/products" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+          <Link href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
             Continue Shopping
           </Link>
         </div>
@@ -117,31 +156,131 @@ function CheckoutContent() {
     );
   }
 
+  const validateForm = (): { isValid: boolean; errors: {[key: string]: string} } => {
+    const newErrors: {[key: string]: string} = {};
+    
+    // Validate name (fullName)
+    if (!formData.fullName || formData.fullName.trim() === '') {
+      newErrors.fullName = 'Name is required';
+    }
+    
+    // Validate phone number
+    if (!formData.phone || formData.phone.trim() === '') {
+      newErrors.phone = 'Phone number is required';
+    } else {
+      // Basic phone validation (should contain digits)
+      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
+      if (!phoneRegex.test(formData.phone.trim())) {
+        newErrors.phone = 'Please enter a valid phone number';
+      }
+    }
+    
+    // Validate address
+    if (!formData.address || formData.address.trim() === '') {
+      newErrors.address = 'Address is required';
+    }
+    
+    // Validate city
+    if (!formData.city || formData.city.trim() === '') {
+      newErrors.city = 'City is required';
+    }
+    
+    // Validate state
+    if (!formData.state || formData.state.trim() === '') {
+      newErrors.state = 'State is required';
+    }
+    
+    // Validate zip code
+    if (!formData.zipCode || formData.zipCode.trim() === '') {
+      newErrors.zipCode = 'Zip code is required';
+    }
+    
+    setErrors(newErrors);
+    
+    // Return validation result
+    return {
+      isValid: Object.keys(newErrors).length === 0,
+      errors: newErrors
+    };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate form before submission
+    const validation = validateForm();
+    if (!validation.isValid) {
+      // Scroll to first error after a short delay to ensure state is updated
+      setTimeout(() => {
+        const firstErrorField = Object.keys(validation.errors)[0];
+        if (firstErrorField) {
+          const element = document.querySelector(`[name="${firstErrorField}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      }, 100);
+      return;
+    }
+    
     setIsProcessing(true);
     
     try {
-      const { createClient } = await import('@/lib/supabase/client');
-      const supabase = createClient();
-      
       const items = isDirectPurchase ? directPurchaseItems : cartItems;
       const subtotal = getSubtotal();
       const shipping = getShipping();
       const total = getTotal();
       
-      // Generate unique order number
-      const orderNumber = `ORD-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+      // Generate unique short order number (4-6 digits) with ORD-ID: prefix
+      const generateShortOrderNumber = async (): Promise<string> => {
+        let attempts = 0;
+        const maxAttempts = 10;
+        
+        while (attempts < maxAttempts) {
+          // Generate a random number between 1000 and 999999 (4-6 digits)
+          const min = 1000;
+          const max = 999999;
+          const orderNum = Math.floor(Math.random() * (max - min + 1)) + min;
+          const orderNumber = `ORD-ID:${orderNum.toString()}`;
+          
+          // Check if this order number already exists
+          const { data: existingOrder } = await supabase
+            .from('orders')
+            .select('id')
+            .eq('order_number', orderNumber)
+            .maybeSingle();
+          
+          if (!existingOrder) {
+            return orderNumber;
+          }
+          
+          attempts++;
+        }
+        
+        // Fallback: use timestamp-based number if all attempts fail
+        const fallbackNum = Date.now().toString().slice(-6);
+        return `ORD-ID:${fallbackNum}`;
+      };
+      
+      const orderNumber = await generateShortOrderNumber();
       
       // Create order using the correct column names for your database
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
-          user_id: user?.id,
+          user_id: user?.id || null,
           order_number: orderNumber,
           payment_method: formData.paymentMethod,
           total_amount: total,
-          status: 'pending'
+          status: 'pending',
+          // Store customer information for guest orders
+          customer_name: formData.fullName || null,
+          customer_phone: formData.phone || null,
+          customer_email: formData.email || null,
+          shipping_address: formData.address || null,
+          shipping_city: formData.city || null,
+          shipping_state: formData.state || null,
+          shipping_zip_code: formData.zipCode || null
         })
         .select('id');
       
@@ -162,15 +301,30 @@ function CheckoutContent() {
         return;
       }
       
-      // Create order items with required fields
-      const orderItems = items.map(item => ({
-        order_id: createdOrder.id,
-        product_id: item.product.id,
-        product_name: item.product.name,
-        product_price: item.product.price,
-        total_price: item.product.price * item.quantity,
-        quantity: item.quantity
-      }));
+      // Create order items with required fields matching the schema
+      // For direct purchase, use the size from directPurchaseItems
+      // For cart items, use the size from cart items
+      const orderItems = items.map((item) => {
+        let sizeValue = null;
+        
+        // If it's a direct purchase, use the size from the item
+        if (isDirectPurchase && (item as any).size) {
+          sizeValue = (item as any).size;
+        } else if (!isDirectPurchase && (item as any).size) {
+          // For cart items, use the size from the cart item
+          sizeValue = (item as any).size;
+        }
+        
+        return {
+          order_id: createdOrder.id,
+          product_id: item.product.id,
+          product_name: item.product.name,
+          product_price: item.product.price,
+          total_price: item.product.price * item.quantity,
+          quantity: item.quantity,
+          size: sizeValue
+        };
+      });
       
       const insertResult = await supabase
         .from('order_items')
@@ -189,7 +343,8 @@ function CheckoutContent() {
       
       console.log('Order items created successfully!');
       
-      // Clear cart after successful order
+      // Clear cart only if items were purchased from cart (not direct purchase)
+      // For direct purchases, don't clear cart since those items weren't in cart
       if (!isDirectPurchase) {
         await clearCart();
       }
@@ -239,32 +394,12 @@ function CheckoutContent() {
           {/* Checkout Form */}
           <div>
             <form onSubmit={handleSubmit} className="space-y-8">
-              {/* Contact Information */}
-              <div className="bg-white rounded-lg shadow-sm p-6">
-                <h2 className="text-lg font-semibold text-gray-900 mb-4">Contact Information</h2>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
-                    Email address
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    required
-                    value={formData.email}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Enter your email"
-                  />
-                </div>
-              </div>
-
               {/* Shipping Address */}
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Address</h2>
                 <div className="mb-4">
                   <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Full name
+                    Full name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -273,14 +408,19 @@ function CheckoutContent() {
                     required
                     value={formData.fullName}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.fullName ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="e.g., John Doe"
                   />
+                  {errors.fullName && (
+                    <p className="mt-1 text-sm text-red-600">{errors.fullName}</p>
+                  )}
                 </div>
                 
                 <div className="mb-4">
                   <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">
-                    Address
+                    Address <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -289,9 +429,14 @@ function CheckoutContent() {
                     required
                     value={formData.address}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.address ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="Street address"
                   />
+                  {errors.address && (
+                    <p className="mt-1 text-sm text-red-600">{errors.address}</p>
+                  )}
                 </div>
                 
                 <div className="mb-4">
@@ -312,7 +457,7 @@ function CheckoutContent() {
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div>
                   <label htmlFor="state" className="block text-sm font-medium text-gray-700 mb-1">
-                      State
+                      State <span className="text-red-500">*</span>
                     </label>
                     <select
                       id="state"
@@ -320,7 +465,9 @@ function CheckoutContent() {
                       required
                       value={formData.state}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        errors.state ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     >
                       <option value="">Select state</option>
                       <option value="AP">Andhra Pradesh</option>
@@ -352,10 +499,13 @@ function CheckoutContent() {
                       <option value="WB">West Bengal</option>
                       <option value="DL">Delhi (NCT)</option>
                     </select>
+                    {errors.state && (
+                      <p className="mt-1 text-sm text-red-600">{errors.state}</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor="city" className="block text-sm font-medium text-gray-700 mb-1">
-                      City
+                      City <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -364,13 +514,18 @@ function CheckoutContent() {
                       required
                       value={formData.city}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        errors.city ? 'border-red-500' : 'border-gray-300'
+                      }`}
                       placeholder="Enter your city"
                     />
+                    {errors.city && (
+                      <p className="mt-1 text-sm text-red-600">{errors.city}</p>
+                    )}
                   </div>
                   <div>
                     <label htmlFor="zipCode" className="block text-sm font-medium text-gray-700 mb-1">
-                      ZIP code
+                      ZIP code <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -379,14 +534,19 @@ function CheckoutContent() {
                       required
                       value={formData.zipCode}
                       onChange={handleChange}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                        errors.zipCode ? 'border-red-500' : 'border-gray-300'
+                      }`}
                     />
+                    {errors.zipCode && (
+                      <p className="mt-1 text-sm text-red-600">{errors.zipCode}</p>
+                    )}
                   </div>
                 </div>
                 
                 <div>
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone number
+                    Phone number <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="tel"
@@ -395,9 +555,14 @@ function CheckoutContent() {
                     required
                     value={formData.phone}
                     onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.phone ? 'border-red-500' : 'border-gray-300'
+                    }`}
                     placeholder="(555) 123-4567"
                   />
+                  {errors.phone && (
+                    <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
+                  )}
                 </div>
               </div>
 
@@ -541,24 +706,30 @@ function CheckoutContent() {
               
               {/* Real cart items */}
               <div className="space-y-4 mb-6">
-                {cartItems.length === 0 ? (
+                {cartItems.length === 0 && directPurchaseItems.length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-gray-500">Your cart is empty</p>
-                    <Link href="/products" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                    <Link href="/" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
                       Continue Shopping
                     </Link>
                   </div>
                 ) : (
-                  (isDirectPurchase ? directPurchaseItems : cartItems).map((item) => (
-                    <div key={item.id} className="flex items-center space-x-3">
+                  (isDirectPurchase ? directPurchaseItems : cartItems).map((item, index) => (
+                    <div key={item.id || `item-${index}`} className="flex items-center space-x-3">
                       <img
                         src={item.product.image_url || '/placeholder-product.jpg'}
                         alt={item.product.name}
                         className="w-12 h-12 object-cover rounded-md"
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder-product.jpg';
+                        }}
                       />
                       <div className="flex-1">
                         <h3 className="text-sm font-medium text-gray-900">{item.product.name}</h3>
-                        <p className="text-xs text-gray-600">Qty: {item.quantity}</p>
+                        <p className="text-xs text-gray-600">
+                          Qty: {item.quantity}
+                          <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                        </p>
                       </div>
                       <span className="text-sm font-medium">
                         ₹{(item.product.price * item.quantity).toFixed(2)}

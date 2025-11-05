@@ -11,6 +11,8 @@ interface AuthContextType {
   signingOut: boolean;
   sendOTP: (phone: string) => Promise<any>;
   verifyOTP: (phone: string, token: string) => Promise<any>;
+  signInWithEmail: (email: string, password: string) => Promise<{ data: any; error: any }>;
+  signUpWithEmail: (email: string, password: string, fullName?: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithFacebook: () => Promise<void>;
@@ -223,27 +225,115 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
-    localStorage.removeItem('manual-sign-out');
-    manualSignOutRef.current = false;
-    
-    await supabase.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      localStorage.removeItem('manual-sign-out');
+      manualSignOutRef.current = false;
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      
+      if (error) {
+        console.error('Google sign in error:', error);
+        alert('Google sign in is not enabled. Please use email or phone authentication.');
+      }
+    } catch (error: any) {
+      console.error('Google sign in error:', error);
+      alert('Google sign in is not available. Please use email or phone authentication.');
+    }
   };
 
   const signInWithFacebook = async () => {
-    localStorage.removeItem('manual-sign-out');
-    manualSignOutRef.current = false;
-    
-    await supabase.auth.signInWithOAuth({
-      provider: 'facebook',
-      options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
-      },
-    });
+    try {
+      localStorage.removeItem('manual-sign-out');
+      manualSignOutRef.current = false;
+      
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'facebook',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
+      
+      if (error) {
+        console.error('Facebook sign in error:', error);
+        alert('Facebook sign in is not enabled. Please use email or phone authentication.');
+      }
+    } catch (error: any) {
+      console.error('Facebook sign in error:', error);
+      alert('Facebook sign in is not available. Please use email or phone authentication.');
+    }
+  };
+
+  const signInWithEmail = async (email: string, password: string) => {
+    try {
+      localStorage.removeItem('manual-sign-out');
+      manualSignOutRef.current = false;
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: password,
+      });
+      
+      if (error) throw error;
+      
+      return { data, error: null };
+    } catch (error: any) {
+      console.error('Email sign in error:', error);
+      return { data: null, error: error.message || 'Failed to sign in' };
+    }
+  };
+
+  const signUpWithEmail = async (email: string, password: string, fullName?: string) => {
+    try {
+      localStorage.removeItem('manual-sign-out');
+      manualSignOutRef.current = false;
+      
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
+        password: password,
+        options: {
+          data: {
+            full_name: fullName || '',
+          },
+        },
+      });
+      
+      if (error) throw error;
+      
+      // Create user profile after successful signup
+      if (data?.user?.id) {
+        const [firstName, ...lastNameParts] = (fullName || '').split(' ') || ['User', ''];
+        const lastName = lastNameParts.join(' ') || data.user.id.substring(0, 8);
+        
+        const response = await (supabase
+          .from('user_profiles')
+          .insert([{
+            id: data.user.id,
+            email: email.trim(),
+            first_name: firstName,
+            last_name: lastName,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }]) as any);
+        
+        const profileError = response.error;
+        
+        if (profileError && profileError.code !== '23505') {
+          console.error('Error creating user profile:', profileError);
+        } else {
+          console.log('✅ User profile created successfully!');
+        }
+      }
+      
+      return { data, error: null };
+    } catch (error: any) {
+      console.error('Email sign up error:', error);
+      return { data: null, error: error.message || 'Failed to sign up' };
+    }
   };
 
   const value = {
@@ -253,6 +343,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signingOut,
     sendOTP,
     verifyOTP,
+    signInWithEmail,
+    signUpWithEmail,
     signOut,
     signInWithGoogle,
     signInWithFacebook,

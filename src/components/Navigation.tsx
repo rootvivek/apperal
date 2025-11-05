@@ -189,12 +189,12 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="shadow-sm border-b sticky top-0 z-50" style={{ backgroundColor: '#4736FE', paddingTop: '14px', paddingBottom: '14px' }}>
+      <nav className="shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5" style={{ backgroundColor: '#4736FE' }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center relative">
           {/* Logo */}
           <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
-            <span className="text-3xl sm:text-4xl font-normal text-white mr-0">Apperal</span>
+            <span className="text-lg font-normal text-white mr-0">Apperal</span>
           </Link>
 
           {/* Categories Navigation - Hidden on mobile, visible on larger screens */}
@@ -269,17 +269,6 @@ export default function Navigation() {
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
 
-            {/* Orders Icon - Show only for logged in users */}
-            {user && (
-              <Link href="/orders" className={`text-white hover:text-blue-200 nav-orders-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-                <div className="relative">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                  </svg>
-                </div>
-              </Link>
-            )}
-            
             {/* Cart Icon - Show for all users (logged in and guests) */}
             <Link href="/cart" className={`text-white hover:text-blue-200 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <CartIcon showCount={true} count={cartCount} />
@@ -325,6 +314,16 @@ export default function Navigation() {
                           <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
                           <p className="text-xs text-gray-500">{user.email}</p>
                         </div>
+                        <Link
+                          href="/orders"
+                          onClick={() => setShowUserDropdown(false)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          </svg>
+                          <span>Orders</span>
+                        </Link>
                         <button
                           onClick={() => {
                             setShowUserDropdown(false);
@@ -376,22 +375,19 @@ export default function Navigation() {
 
       {/* Mobile Subcategories Section - Only visible on mobile and home page */}
       {!showMobileSearch && pathname === '/' && (
-        <div className="md:hidden bg-white border-t border-gray-100 min-h-[180px] flex items-center justify-center">
-          <div className="w-full pt-1 -mb-12">
+        <div className="sm:hidden bg-white border-t border-gray-100 pt-1 pb-2">
+          <div className="flex justify-center items-center">
             {categoriesLoading ? (
-              <div className="flex justify-center">
-                <div className="grid grid-cols-5 gap-1.5" style={{ width: 'fit-content' }}>
-                  {[...Array(10)].map((_, index) => (
+              <div className="flex flex-wrap justify-center gap-1.5" style={{ width: 'fit-content' }}>
+                {[...Array(10)].map((_, index) => (
                     <div key={index} className="flex flex-col items-center text-center">
-                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
+                      <div className="w-16 h-16 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
                       <div className="h-3 w-12 bg-gray-200 animate-pulse rounded"></div>
                     </div>
-                  ))}
-                </div>
+                ))}
               </div>
             ) : getAllSubcategories().length > 0 ? (
-              <div className="flex justify-center px-2.5">
-                <div className="grid grid-cols-5 gap-1.5" style={{ width: 'fit-content' }}>
+              <div className="flex flex-wrap justify-center gap-1.5" style={{ width: 'fit-content' }}>
                   {getAllSubcategories().slice(0, 20).map((subcategory) => {
                     // Find parent category for the link
                     const parentCategory = categories.find(cat => cat.id === subcategory.parent_category_id);
@@ -401,7 +397,7 @@ export default function Navigation() {
                         href={`/products/${parentCategory?.slug || 'all'}/${subcategory.slug}`}
                         className="flex flex-col items-center text-center group"
                       >
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
+                        <div className="w-16 h-16 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
                           <img
                             src={subcategory.image_url || '/images/categories/placeholder.svg'}
                             alt={subcategory.name}
@@ -412,13 +408,12 @@ export default function Navigation() {
                             }}
                           />
                         </div>
-                        <span className="text-[11px] sm:text-[12px] text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2 text-center max-w-[64px] sm:max-w-[80px]">
+                        <span className="text-[11px] text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2 text-center max-w-[64px]">
                           {subcategory.name}
                         </span>
                       </Link>
                     );
                   })}
-                </div>
               </div>
             ) : (
               <div className="text-gray-500 text-xs text-center">No subcategories available</div>

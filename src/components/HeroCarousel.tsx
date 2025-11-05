@@ -11,7 +11,6 @@ interface Product {
   price: number;
   original_price?: number;
   image_url: string;
-  category: string;
   discount_percentage?: number;
 }
 
@@ -31,7 +30,7 @@ export default function HeroCarousel() {
       // Fetch products that are marked to show in hero section
       const { data, error } = await supabase
         .from('products')
-        .select('id, name, price, original_price, image_url, category, discount_percentage')
+        .select('id, name, price, original_price, image_url, discount_percentage')
         .eq('is_active', true)
         .eq('show_in_hero', true)
         .order('created_at', { ascending: false })
@@ -39,48 +38,12 @@ export default function HeroCarousel() {
 
       if (error) throw error;
       
+      console.log('Hero products fetched:', data?.length || 0, 'products');
+      console.log('Hero products data:', data);
       setProducts(data || []);
     } catch (err: any) {
       console.error('Error fetching featured products:', err);
-      // Fallback to placeholder products if database fails
-      setProducts([
-        {
-          id: '1',
-          name: 'Featured Product 1',
-          price: 299,
-          original_price: 499,
-          image_url: 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400',
-          category: 'Men\'s Clothing',
-          discount_percentage: 40
-        },
-        {
-          id: '2',
-          name: 'Featured Product 2',
-          price: 199,
-          original_price: 299,
-          image_url: 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=400',
-          category: 'Women\'s Clothing',
-          discount_percentage: 33
-        },
-        {
-          id: '3',
-          name: 'Featured Product 3',
-          price: 149,
-          original_price: 199,
-          image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=400',
-          category: 'Accessories',
-          discount_percentage: 25
-        },
-        {
-          id: '4',
-          name: 'Featured Product 4',
-          price: 399,
-          original_price: 599,
-          image_url: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=400',
-          category: 'Kids\' Clothing',
-          discount_percentage: 33
-        }
-      ]);
+      setProducts([]);
     } finally {
       setLoading(false);
     }
@@ -96,6 +59,16 @@ export default function HeroCarousel() {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading featured products...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (products.length === 0) {
+    return (
+      <div className="w-full h-[50vh] bg-white mb-0 flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <p>No featured products available</p>
         </div>
       </div>
     );
@@ -119,7 +92,7 @@ export default function HeroCarousel() {
                     is_active: true,
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
-                    images: [product.image_url]
+                    images: product.image_url ? [product.image_url] : []
                   }} 
                   variant="image-only"
                 />

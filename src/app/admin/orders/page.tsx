@@ -14,6 +14,7 @@ interface Order {
   created_at: string;
   first_item_image?: string;
   item_count?: number;
+  user_number?: string;
 }
 
 interface OrderItem {
@@ -25,6 +26,7 @@ interface OrderItem {
   product_price: number;
   quantity: number;
   total_price: number;
+  size?: string | null;
 }
 
 export default function OrdersPage() {
@@ -36,6 +38,9 @@ export default function OrdersPage() {
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [userEmail, setUserEmail] = useState<string>('');
+  const [userName, setUserName] = useState<string>('');
+  const [userPhone, setUserPhone] = useState<string>('');
+  const [userAddress, setUserAddress] = useState<any>(null);
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -49,7 +54,27 @@ export default function OrdersPage() {
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false }) as any;
-      setOrders(data || []);
+      
+      // Get unique user IDs
+      const userIds = Array.from(new Set((data || []).map((o: Order) => o.user_id).filter(Boolean)));
+      
+      // Fetch user numbers for all users
+      const userNumberMap: { [key: string]: string } = {};
+      if (userIds.length > 0) {
+        const { data: userProfiles } = await supabase
+          .from('user_profiles')
+          .select('id, user_number')
+          .in('id', userIds);
+        
+        if (userProfiles) {
+          userProfiles.forEach((profile: any) => {
+            if (profile.user_number) {
+              userNumberMap[profile.id] = profile.user_number;
+            }
+          });
+        }
+      }
+      
       const ordersWithImages = await Promise.all(
         (data || []).map(async (order: Order) => {
           const { data: itemsData } = await supabase
@@ -64,7 +89,8 @@ export default function OrdersPage() {
           return {
             ...order,
             first_item_image: itemsData?.[0]?.product_image,
-            item_count: count || 0
+            item_count: count || 0,
+            user_number: userNumberMap[order.user_id] || null
           };
         })
       );
@@ -79,20 +105,112 @@ export default function OrdersPage() {
   const handleOrderClick = async (order: Order) => {
     setSelectedOrder(order);
     try {
+      // Fetch order items
       const { data: itemsData } = await supabase
         .from('order_items')
         .select('*')
         .eq('order_id', order.id) as any;
-      setOrderItems(itemsData || []);
+      
+      // Fetch product images for each order item
+      const itemsWithImages = await Promise.all(
+        (itemsData || []).map(async (item: any) => {
+          let productImage = item.product_image;
+          
+          // If no product_image in order_items, fetch from products table
+          if (!productImage && item.product_id) {
+            const { data: productData } = await supabase
+              .from('products')
+              .select('image_url')
+              .eq('id', item.product_id)
+              .single();
+            
+            if (productData?.image_url) {
+              productImage = productData.image_url;
+            }
+          }
+          
+          return {
+            ...item,
+            product_image: productImage || null
+          };
+        })
+      );
+      
+      setOrderItems(itemsWithImages);
+      
+      // Fetch user information if user_id exists
       if (order.user_id) {
-        const { data: userData } = await supabase
-          .from('profiles')
-          .select('email')
+        // Fetch user profile (name, phone, email)
+        const { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('email, full_name, phone, first_name, last_name')
           .eq('id', order.user_id)
           .single() as any;
-        setUserEmail(userData?.email || 'Guest User');
+        
+        if (userProfile) {
+          setUserEmail(userProfile.email || 'N/A');
+          setUserName(userProfile.full_name || `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'N/A');
+          setUserPhone(userProfile.phone || 'N/A');
+        } else {
+          // Fallback to order customer info if available
+          setUserEmail((order as any).customer_email || 'N/A');
+          setUserName((order as any).customer_name || 'N/A');
+          setUserPhone((order as any).customer_phone || 'N/A');
+        }
+        
+        // Priority 1: Check if address is stored directly in the order
+        if ((order as any).shipping_address) {
+          setUserAddress({
+            address_line1: (order as any).shipping_address || '',
+            address_line2: (order as any).shipping_address_line2 || null,
+            city: (order as any).shipping_city || '',
+            state: (order as any).shipping_state || '',
+            zip_code: (order as any).shipping_zip_code || '',
+            country: (order as any).shipping_country || 'India'
+          });
+        } 
+        // Priority 2: Check if order has shipping_address_id
+        else if ((order as any).shipping_address_id) {
+          const { data: addressData } = await supabase
+            .from('addresses')
+            .select('*')
+            .eq('id', (order as any).shipping_address_id)
+            .single() as any;
+          
+          setUserAddress(addressData || null);
+        } 
+        // Priority 3: Try to fetch default shipping address for user
+        else {
+          const { data: addressData } = await supabase
+            .from('addresses')
+            .select('*')
+            .eq('user_id', order.user_id)
+            .eq('address_type', 'shipping')
+            .order('is_default', { ascending: false })
+            .limit(1)
+            .maybeSingle() as any;
+          
+          setUserAddress(addressData || null);
+        }
       } else {
-        setUserEmail('Guest User');
+        // Guest order - use customer information from order
+        setUserEmail((order as any).customer_email || 'N/A');
+        setUserName((order as any).customer_name || 'Guest User');
+        setUserPhone((order as any).customer_phone || 'N/A');
+        
+        // Use shipping address from order if available
+        if ((order as any).shipping_address) {
+          setUserAddress({
+            address_line1: (order as any).shipping_address || '',
+            address_line2: (order as any).shipping_address_line2 || null,
+            city: (order as any).shipping_city || '',
+            state: (order as any).shipping_state || '',
+            zip_code: (order as any).shipping_zip_code || '',
+            country: (order as any).shipping_country || 'India'
+          });
+        } else {
+          setUserAddress(null);
+        }
       }
     } catch (error) {
       console.error('Error fetching order details:', error);
@@ -102,11 +220,40 @@ export default function OrdersPage() {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
+      // If cancelling, prompt for reason
+      let cancellationReason = '';
+      let updateData: any = { status: newStatus };
+      
+      if (newStatus === 'cancelled') {
+        const reason = prompt('Please provide a reason for cancellation:');
+        if (!reason || !reason.trim()) {
+          alert('Cancellation reason is required');
+          return;
+        }
+        cancellationReason = reason;
+        updateData = {
+          status: 'cancelled',
+          cancellation_reason: cancellationReason.trim(),
+          cancelled_by: 'admin',
+          cancelled_at: new Date().toISOString()
+        };
+      } else {
+        // For other status updates, clear cancellation fields if they exist
+        updateData = {
+          status: newStatus,
+          cancellation_reason: null,
+          cancelled_by: null,
+          cancelled_at: null
+        };
+      }
+      
       const { error } = await supabase
         .from('orders')
-        .update({ status: newStatus })
+        .update(updateData)
         .eq('id', orderId);
+      
       if (error) throw error;
+      
       setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       if (selectedOrder && selectedOrder.id === orderId) {
         setSelectedOrder({ ...selectedOrder, status: newStatus });
@@ -118,7 +265,17 @@ export default function OrdersPage() {
     }
   };
 
-  const formatDate = (date: string) => new Date(date).toLocaleDateString();
+  const formatDate = (date: string) => {
+    const d = new Date(date);
+    return d.toLocaleString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
   const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
 
   return (
@@ -126,7 +283,7 @@ export default function OrdersPage() {
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Orders Management</h1>
-          <p className="text-gray-600">View and manage all orders grouped by user</p>
+          <p className="text-gray-600">View and manage all orders</p>
         </div>
 
         <div className="bg-white rounded-lg shadow p-6 space-y-4">
@@ -141,71 +298,67 @@ export default function OrdersPage() {
             <span className="text-sm text-gray-600">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
           </div>
           
-          <div className="space-y-6">
+          <div className="space-y-4">
             {ordersLoading ? (
               <div className="text-center py-12">
                 <p className="text-gray-600">Loading orders...</p>
               </div>
             ) : (() => {
               const filteredOrders = orders.filter(order => !orderSearch || order.order_number?.toLowerCase().includes(orderSearch.toLowerCase()));
-              const groupedOrders = filteredOrders.reduce((acc, order) => {
-                const userId = order.user_id || 'guest';
-                if (!acc[userId]) acc[userId] = [];
-                acc[userId].push(order);
-                return acc;
-              }, {} as Record<string, Order[]>);
 
-              if (Object.keys(groupedOrders).length === 0) return <div className="text-center py-12"><p className="text-gray-600">No orders found</p></div>;
+              if (filteredOrders.length === 0) {
+                return <div className="text-center py-12"><p className="text-gray-600">No orders found</p></div>;
+              }
 
-              return Object.entries(groupedOrders).map(([userId, userOrders]) => {
-                const isExpanded = expandedUsers.has(userId);
-                const toggleExpand = () => {
-                  const newExpanded = new Set(expandedUsers);
-                  if (isExpanded) newExpanded.delete(userId);
-                  else newExpanded.add(userId);
-                  setExpandedUsers(newExpanded);
-                };
+              return filteredOrders.map((order) => {
+                // For guest orders, show customer name if available, otherwise show "Guest User"
+                // For registered users, show user number or shortened ID
+                const userDisplayId = order.user_id === 'guest' || !order.user_id
+                  ? ((order as any).customer_name || 'Guest User')
+                  : (order.user_number || `User ID: ${order.user_id.substring(0, 8)}...`);
 
                 return (
-                  <div key={userId} className="border rounded-lg overflow-hidden">
-                    <div className="bg-gray-100 px-6 py-4 border-b cursor-pointer hover:bg-gray-200 transition-colors" onClick={toggleExpand}>
+                  <div 
+                    key={order.id} 
+                    className="border rounded-lg bg-white hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => handleOrderClick(order)}
+                  >
+                    <div className="px-6 py-4">
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-3">
-                          <svg className={`w-5 h-5 text-gray-600 transform transition-transform ${isExpanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
+                        <div className="flex items-center space-x-4 flex-1">
+                          {order.first_item_image && (
+                            <img 
+                              src={order.first_item_image} 
+                              alt="Product" 
+                              className="w-12 h-12 object-cover rounded" 
+                              onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-product.jpg'} 
+                            />
+                          )}
                           <div>
-                            <h3 className="font-bold text-gray-900">{userId === 'guest' ? 'Guest User' : `User ID: ${userId}`}</h3>
-                            <p className="text-sm text-gray-600">{userOrders.length} order(s)</p>
+                            <div className="flex items-center space-x-3">
+                              <button className="text-blue-600 hover:text-blue-900 font-medium">
+                                #{order.order_number}
+                              </button>
+                              <span className="text-sm text-gray-500">•</span>
+                              <span className="text-sm text-gray-600">{userDisplayId}</span>
+                            </div>
+                            <p className="text-sm text-gray-600 mt-1 font-medium">{formatDate(order.created_at)}</p>
                           </div>
                         </div>
-                        <div className="text-right">
-                          <p className="text-sm text-gray-600">Total</p>
-                          <p className="font-bold text-blue-600">{formatCurrency(userOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0))}</p>
+                        <div className="flex items-center space-x-6">
+                          <span className={`px-3 py-1 rounded text-xs font-medium ${
+                            order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
+                            order.status === 'shipped' ? 'bg-blue-100 text-blue-800' : 
+                            order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' : 
+                            order.status === 'pending' ? 'bg-orange-100 text-orange-800' : 
+                            'bg-gray-100 text-gray-800'
+                          }`}>
+                            {order.status}
+                          </span>
+                          <span className="font-semibold w-24 text-right">{formatCurrency(order.total_amount)}</span>
                         </div>
                       </div>
                     </div>
-                    {isExpanded && (
-                      <div className="bg-white divide-y">
-                        {userOrders.map((order) => (
-                          <div key={order.id} className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors" onClick={() => handleOrderClick(order)}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-4 flex-1">
-                                {order.first_item_image && <img src={order.first_item_image} alt="Product" className="w-12 h-12 object-cover rounded" onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-product.jpg'} />}
-                                <div>
-                                  <button className="text-blue-600 hover:text-blue-900 font-medium">#{order.order_number}</button>
-                                  <p className="text-xs text-gray-500 mt-1">{formatDate(order.created_at)}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-6">
-                                <span className={`px-3 py-1 rounded text-xs font-medium ${order.status === 'delivered' ? 'bg-green-100 text-green-800' : order.status === 'shipped' ? 'bg-blue-100 text-blue-800' : order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' : order.status === 'pending' ? 'bg-orange-100 text-orange-800' : 'bg-gray-100 text-gray-800'}`}>{order.status}</span>
-                                <span className="font-semibold w-24 text-right">{formatCurrency(order.total_amount)}</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 );
               });
@@ -225,6 +378,38 @@ export default function OrdersPage() {
               </div>
               
               <div className="p-6 space-y-6">
+                {/* Customer Information */}
+                <div className="bg-gray-50 rounded-lg p-4">
+                  <h3 className="font-semibold mb-4 text-gray-900">Customer Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Name</p>
+                      <p className="font-medium">{userName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Email</p>
+                      <p className="font-medium">{userEmail || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Phone Number</p>
+                      <p className="font-medium">{userPhone || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600 text-sm mb-1">Address</p>
+                      {userAddress ? (
+                        <div className="font-medium text-sm">
+                          <p>{userAddress.address_line1 || ''}</p>
+                          {userAddress.address_line2 && <p>{userAddress.address_line2}</p>}
+                          <p>{userAddress.city || ''}, {userAddress.state || ''} {userAddress.zip_code || ''}</p>
+                          {userAddress.country && <p>{userAddress.country}</p>}
+                        </div>
+                      ) : (
+                        <p className="font-medium text-sm text-gray-500">No address available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div><p className="text-gray-600 text-sm">Date</p><p className="font-medium">{formatDate(selectedOrder.created_at)}</p></div>
                   <div><p className="text-gray-600 text-sm">Payment Method</p><p className="font-medium capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p></div>
@@ -239,10 +424,28 @@ export default function OrdersPage() {
                       {orderItems.map((item) => (
                         <div key={item.id} className="border rounded-lg p-4">
                           <div className="flex items-start space-x-4">
-                            {item.product_image && <img src={item.product_image} alt={item.product_name} className="w-20 h-20 object-cover rounded-lg" onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-product.jpg'} />}
+                            {item.product_image ? (
+                              <img 
+                                src={item.product_image} 
+                                alt={item.product_name} 
+                                className="w-20 h-20 object-cover rounded-lg" 
+                                onError={(e) => {
+                                  (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
+                                }} 
+                              />
+                            ) : (
+                              <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
                             <div className="flex-1">
                               <h4 className="font-medium">{item.product_name}</h4>
-                              <p className="text-sm text-gray-600">Price: {formatCurrency(item.product_price)} × Quantity: {item.quantity}</p>
+                              <p className="text-sm text-gray-600">
+                                Price: {formatCurrency(item.product_price)} × Quantity: {item.quantity}
+                                <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                              </p>
                             </div>
                             <div className="text-right"><p className="font-semibold">{formatCurrency(item.total_price)}</p></div>
                           </div>

@@ -24,6 +24,7 @@ interface OrderItem {
   product_price: number;
   quantity: number;
   total_price: number;
+  size?: string | null;
 }
 
 function OrdersContent() {
@@ -34,6 +35,9 @@ function OrdersContent() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancellationReason, setCancellationReason] = useState('');
+  const [isCancelling, setIsCancelling] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -62,12 +66,38 @@ function OrdersContent() {
     setSelectedOrder(order);
     
     try {
+      // Fetch order items
       const { data: itemsData } = await supabase
         .from('order_items')
         .select('*')
         .eq('order_id', order.id);
       
-      setOrderItems(itemsData || []);
+      // Fetch product images for each order item
+      const itemsWithImages = await Promise.all(
+        (itemsData || []).map(async (item: any) => {
+          let productImage = item.product_image;
+          
+          // If no product_image in order_items, fetch from products table
+          if (!productImage && item.product_id) {
+            const { data: productData } = await supabase
+              .from('products')
+              .select('image_url')
+              .eq('id', item.product_id)
+              .single();
+            
+            if (productData?.image_url) {
+              productImage = productData.image_url;
+            }
+          }
+          
+          return {
+            ...item,
+            product_image: productImage || null
+          };
+        })
+      );
+      
+      setOrderItems(itemsWithImages);
     } catch (error) {
       console.error('Error fetching order details:', error);
     }
@@ -87,6 +117,55 @@ function OrdersContent() {
   };
 
   const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
+
+  const canCancelOrder = (order: Order) => {
+    // Can only cancel if order is pending or processing
+    return order.status === 'pending' || order.status === 'processing';
+  };
+
+  const handleCancelOrder = async () => {
+    if (!selectedOrder || !cancellationReason.trim()) {
+      alert('Please provide a reason for cancellation');
+      return;
+    }
+
+    if (!canCancelOrder(selectedOrder)) {
+      alert('This order cannot be cancelled. Only pending or processing orders can be cancelled.');
+      return;
+    }
+
+    setIsCancelling(true);
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({
+          status: 'cancelled',
+          cancellation_reason: cancellationReason.trim(),
+          cancelled_by: 'customer',
+          cancelled_at: new Date().toISOString()
+        })
+        .eq('id', selectedOrder.id);
+
+      if (error) throw error;
+
+      // Update local state
+      setOrders(orders.map(o => 
+        o.id === selectedOrder.id 
+          ? { ...o, status: 'cancelled' as any } 
+          : o
+      ));
+      
+      setSelectedOrder({ ...selectedOrder, status: 'cancelled' as any });
+      setShowCancelModal(false);
+      setCancellationReason('');
+      alert('Order cancelled successfully!');
+    } catch (error: any) {
+      console.error('Error cancelling order:', error);
+      alert('Failed to cancel order: ' + (error.message || 'Unknown error'));
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -169,7 +248,7 @@ function OrdersContent() {
                           {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                         </span>
                       </div>
-                      <p className="text-sm text-gray-500">{formatDate(order.created_at)}</p>
+                      <p className="text-sm text-gray-600 font-medium">{formatDate(order.created_at)}</p>
                       <p className="text-sm text-gray-600 mt-1">
                         {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method.charAt(0).toUpperCase() + order.payment_method.slice(1)}
                       </p>
@@ -260,6 +339,7 @@ function OrdersContent() {
                             <h4 className="font-medium text-gray-900">{item.product_name}</h4>
                             <p className="text-sm text-gray-600 mt-1">
                               ₹{item.product_price.toFixed(2)} × {item.quantity} item{item.quantity !== 1 ? 's' : ''}
+                              <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
                             </p>
                           </div>
                           <div className="text-right">
@@ -284,11 +364,77 @@ function OrdersContent() {
             </div>
             
             <div className="p-6 border-t border-gray-200 sticky bottom-0 bg-white">
+              <div className="flex gap-3">
+                {canCancelOrder(selectedOrder) && (
+                  <button
+                    onClick={() => setShowCancelModal(true)}
+                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                  >
+                    Cancel Order
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowOrderDetails(false)}
+                  className={`px-4 py-2 ${canCancelOrder(selectedOrder) ? 'flex-1' : 'w-full'} bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors`}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Modal */}
+      {showCancelModal && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900">Cancel Order</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                Order #{selectedOrder.order_number}
+              </p>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div>
+                <label htmlFor="cancellationReason" className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Cancellation <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  id="cancellationReason"
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  placeholder="Please provide a reason for cancelling this order..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                  rows={4}
+                />
+              </div>
+              
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <strong>Note:</strong> Once cancelled, this order cannot be restored. Are you sure you want to proceed?
+                </p>
+              </div>
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 flex gap-3">
               <button
-                onClick={() => setShowOrderDetails(false)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                onClick={() => {
+                  setShowCancelModal(false);
+                  setCancellationReason('');
+                }}
+                disabled={isCancelling}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
               >
-                Close
+                Keep Order
+              </button>
+              <button
+                onClick={handleCancelOrder}
+                disabled={isCancelling || !cancellationReason.trim()}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
               </button>
             </div>
           </div>
