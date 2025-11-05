@@ -57,23 +57,23 @@ function AuthCallbackContent() {
                 .then(({ data: existingProfile }: { data: any }) => {
                   // Create profile if it doesn't exist
                   if (!existingProfile) {
-                supabase
-                  .from('user_profiles')
-                  .insert([{
-                    id: userId,
-                    email: userEmail,
-                    first_name: firstName,
-                    last_name: lastName,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                  }])
-                  .then(({ error: insertError }) => {
-                    if (insertError) {
-                      console.error('Error creating profile:', insertError);
-                    }
-                  });
-              }
-            });
+                    supabase
+                      .from('user_profiles')
+                      .insert([{
+                        id: userId,
+                        email: userEmail,
+                        first_name: firstName,
+                        last_name: lastName,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                      }])
+                      .then((result: any) => {
+                        if (result.error) {
+                          console.error('Error creating profile:', result.error);
+                        }
+                      });
+                  }
+                });
           
           // Redirect to the intended page
           router.push(next);
