@@ -48,15 +48,15 @@ function AuthCallbackContent() {
           const [firstName, ...lastNameParts] = fullName.split(' ') || ['User', ''];
           const lastName = lastNameParts.join(' ') || userId.substring(0, 8);
           
-          // Check if profile exists (don't wait for this to complete)
-          supabase
-            .from('user_profiles')
-            .select('id')
-            .eq('id', userId)
-            .maybeSingle()
-            .then(({ data: existingProfile }) => {
-              // Create profile if it doesn't exist
-              if (!existingProfile) {
+              // Check if profile exists (don't wait for this to complete)
+              supabase
+                .from('user_profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle()
+                .then(({ data: existingProfile }: { data: any }) => {
+                  // Create profile if it doesn't exist
+                  if (!existingProfile) {
                 supabase
                   .from('user_profiles')
                   .insert([{
