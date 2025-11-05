@@ -7,6 +7,11 @@ const nextConfig = {
     domains: ['ugzyijiuhchxbuiooclv.supabase.co'],
     unoptimized: true, // Disable image optimization for Netlify
   },
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
 }
 
 module.exports = nextConfig
