@@ -154,8 +154,8 @@ export async function deleteImageFromSupabase(
     
     const filePath = urlParts[1];
     
-    const { error } = await supabase.storage
-      .from(bucket)
+    const { error } = await (supabase.storage
+      .from(bucket) as any)
       .remove([filePath]);
     
     if (error) {
@@ -177,8 +177,8 @@ export async function deleteFolderContents(
     const supabase = createClient();
     
     // List all files in the folder
-    const { data: files, error: listError } = await supabase.storage
-      .from(bucket)
+    const { data: files, error: listError } = await (supabase.storage
+      .from(bucket) as any)
       .list(folder);
     
     if (listError) {
@@ -192,8 +192,8 @@ export async function deleteFolderContents(
     // Delete all files in the folder
     const filePaths = files.map((file: any) => `${folder}/${file.name}`);
     
-    const { error } = await supabase.storage
-      .from(bucket)
+    const { error } = await (supabase.storage
+      .from(bucket) as any)
       .remove(filePaths);
     
     if (error) {
