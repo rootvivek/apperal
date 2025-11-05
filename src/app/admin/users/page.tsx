@@ -53,7 +53,7 @@ export default function UsersPage() {
       
       // Fetch order counts for each user
       const usersWithOrderCounts = await Promise.all(
-        (data || []).map(async (user) => {
+        (data || []).map(async (user: any) => {
           const { count } = await supabase
             .from('orders')
             .select('*', { count: 'exact', head: true })
