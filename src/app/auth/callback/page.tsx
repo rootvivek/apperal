@@ -67,6 +67,7 @@ function AuthCallbackContent() {
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
                       }])
+                      .select()
                       .then((result: any) => {
                         if (result.error) {
                           console.error('Error creating profile:', result.error);
