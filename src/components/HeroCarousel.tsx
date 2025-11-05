@@ -87,6 +87,7 @@ export default function HeroCarousel() {
                   product={{
                     ...product,
                     description: '',
+                    category: 'Featured',
                     subcategories: [],
                     stock_quantity: 0,
                     is_active: true,
