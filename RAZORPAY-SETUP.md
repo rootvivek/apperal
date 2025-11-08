@@ -138,11 +138,25 @@ For testing in Razorpay test mode, you can use:
 ## Production Checklist
 
 - [ ] Switch to Live Mode API keys
-- [ ] Update environment variables in production
+- [ ] **Add environment variables in Netlify** (See NETLIFY-RAZORPAY-SETUP.md)
+- [ ] Redeploy site after adding environment variables
 - [ ] Test with real payment methods
 - [ ] Set up webhook handlers (optional but recommended)
 - [ ] Configure payment success/failure redirect URLs in Razorpay dashboard
 - [ ] Enable payment notifications
+
+## Netlify Deployment
+
+**IMPORTANT:** For Netlify deployment, you must add the Razorpay environment variables in the Netlify dashboard:
+
+1. Go to Netlify Dashboard → Your Site → Site configuration → Environment variables
+2. Add these three variables:
+   - `RAZORPAY_KEY_ID`
+   - `RAZORPAY_KEY_SECRET`
+   - `NEXT_PUBLIC_RAZORPAY_KEY_ID`
+3. Redeploy your site
+
+See `NETLIFY-RAZORPAY-SETUP.md` for detailed instructions.
 
 ## Support
 

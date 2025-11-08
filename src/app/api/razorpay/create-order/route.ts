@@ -25,9 +25,26 @@ export async function POST(request: NextRequest) {
   try {
     // Check if Razorpay is initialized
     if (!razorpay) {
-      console.error('Razorpay not initialized. Check environment variables.');
+      const keyId = process.env.RAZORPAY_KEY_ID;
+      const keySecret = process.env.RAZORPAY_KEY_SECRET;
+      
+      console.error('Razorpay not initialized. Environment check:', {
+        hasKeyId: !!keyId,
+        hasKeySecret: !!keySecret,
+        keyIdLength: keyId?.length || 0,
+        keySecretLength: keySecret?.length || 0,
+        nodeEnv: process.env.NODE_ENV,
+      });
+      
       return NextResponse.json(
-        { error: 'Payment gateway not configured. Please contact support.' },
+        { 
+          error: 'Payment gateway not configured. Please contact support.',
+          details: process.env.NODE_ENV === 'development' ? {
+            message: 'Razorpay environment variables are missing. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your environment variables.',
+            hasKeyId: !!keyId,
+            hasKeySecret: !!keySecret,
+          } : undefined,
+        },
         { status: 500 }
       );
     }

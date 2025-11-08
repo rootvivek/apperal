@@ -25,11 +25,20 @@ function AuthCodeErrorContent() {
               There was an error with the authentication process.
             </p>
             {error && (
-              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                <p className="text-sm text-red-800 font-medium">{error}</p>
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-800 font-medium mb-2">{error}</p>
                 {description && (
-                  <p className="text-xs text-red-600 mt-1">{description}</p>
+                  <p className="text-xs text-red-600 mb-3">{description}</p>
                 )}
+                <div className="mt-3 pt-3 border-t border-red-200">
+                  <p className="text-xs text-red-700 font-medium mb-2">Common causes:</p>
+                  <ul className="text-xs text-red-600 space-y-1 list-disc list-inside">
+                    <li>OAuth provider (Google/Facebook) configuration issue</li>
+                    <li>Redirect URI mismatch in Supabase or OAuth provider settings</li>
+                    <li>Network connectivity issues</li>
+                    <li>Session expired or invalid</li>
+                  </ul>
+                </div>
               </div>
             )}
             <div className="mt-6">

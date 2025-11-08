@@ -15,6 +15,7 @@ function AuthCallbackContent() {
   useEffect(() => {
     let subscription: any = null;
     let timeoutId: NodeJS.Timeout | null = null;
+    let maxWaitTimeout: NodeJS.Timeout | null = null;
     
     const code = searchParams.get('code');
     const errorParam = searchParams.get('error');
@@ -23,7 +24,8 @@ function AuthCallbackContent() {
 
     // Handle OAuth errors from provider
     if (errorParam) {
-      console.error('OAuth error:', errorParam, errorDescription);
+      console.error('OAuth error from provider:', errorParam, errorDescription);
+      setError(errorParam);
       router.push(`/auth/auth-code-error?error=${encodeURIComponent(errorParam)}&description=${encodeURIComponent(errorDescription || 'Unknown error')}`);
       return;
     }
@@ -31,14 +33,23 @@ function AuthCallbackContent() {
     // If there's a code, listen for auth state changes
     // Supabase will automatically exchange the code when the page loads
     if (code) {
+      console.log('OAuth callback received with code, waiting for session...');
+      
+      let sessionReceived = false;
+      
       // Set up a listener for auth state changes
       const {
         data: { subscription: authSubscription },
       } = supabase.auth.onAuthStateChange(async (event, session) => {
-        if (redirected) return;
+        if (redirected || sessionReceived) return;
+        
+        console.log('Auth state change event:', event, 'Has session:', !!session);
         
         if (event === 'SIGNED_IN' && session?.user) {
+          sessionReceived = true;
           setRedirected(true);
+          
+          console.log('✅ User signed in successfully:', session.user.email);
           
           // Update user profile for OAuth users (profile is created automatically by database trigger)
           const userId = session.user.id;
@@ -67,40 +78,73 @@ function AuthCallbackContent() {
           
           // Redirect to the intended page
           router.push(next);
-        } else if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
-          // If we're signed out or token refresh failed, show error
+        } else if (event === 'SIGNED_OUT') {
+          console.error('User was signed out during OAuth callback');
           if (!redirected) {
             setRedirected(true);
-            router.push(`/auth/auth-code-error?error=${encodeURIComponent('Authentication failed')}`);
+            router.push(`/auth/auth-code-error?error=${encodeURIComponent('Authentication failed: User was signed out')}`);
           }
+        } else if (event === 'TOKEN_REFRESHED' && !session) {
+          console.error('Token refresh failed - no session');
+          // Don't treat this as an error immediately, wait for the timeout
         }
       });
 
       subscription = authSubscription;
 
-      // Also try to get session immediately (with timeout)
-      timeoutId = setTimeout(async () => {
-        if (redirected) return;
+      // Try to get session with multiple attempts
+      const checkSession = async (attempt: number = 1) => {
+        if (redirected || sessionReceived) return;
         
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError) {
-          console.error('Error getting session:', sessionError);
-          if (!redirected) {
-            setRedirected(true);
-            router.push(`/auth/auth-code-error?error=${encodeURIComponent(sessionError.message || 'Failed to get session')}`);
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          
+          if (sessionError) {
+            console.error(`Error getting session (attempt ${attempt}):`, sessionError);
+            // Don't fail immediately, wait for auth state change listener
+            if (attempt < 3) {
+              setTimeout(() => checkSession(attempt + 1), 1000);
+            } else if (!redirected) {
+              setRedirected(true);
+              router.push(`/auth/auth-code-error?error=${encodeURIComponent(sessionError.message || 'Failed to get session after multiple attempts')}`);
+            }
+            return;
           }
-          return;
-        }
 
-        if (session?.user && !redirected) {
-          setRedirected(true);
-          router.push(next);
+          if (session?.user && !redirected && !sessionReceived) {
+            sessionReceived = true;
+            setRedirected(true);
+            console.log('✅ Session found via getSession:', session.user.email);
+            router.push(next);
+          } else if (!session && attempt < 3) {
+            // Session not ready yet, try again
+            setTimeout(() => checkSession(attempt + 1), 1000);
+          }
+        } catch (err: any) {
+          console.error(`Exception getting session (attempt ${attempt}):`, err);
+          if (attempt >= 3 && !redirected) {
+            setRedirected(true);
+            router.push(`/auth/auth-code-error?error=${encodeURIComponent(err.message || 'Failed to complete authentication')}`);
+          }
         }
-      }, 1000);
+      };
+
+      // Start checking for session after a short delay
+      timeoutId = setTimeout(() => checkSession(1), 500);
+      
+      // Maximum wait time before showing error (10 seconds)
+      maxWaitTimeout = setTimeout(() => {
+        if (!redirected && !sessionReceived) {
+          console.error('Authentication timeout: No session received after 10 seconds');
+          setRedirected(true);
+          router.push(`/auth/auth-code-error?error=${encodeURIComponent('Authentication timeout. Please try again.')}&description=${encodeURIComponent('The authentication process took too long. This might be due to network issues or configuration problems.')}`);
+        }
+      }, 10000);
     } else {
       // No code provided
-      router.push(`/auth/auth-code-error?error=${encodeURIComponent('No code provided')}`);
+      console.error('OAuth callback received without code parameter');
+      setError('No code provided');
+      router.push(`/auth/auth-code-error?error=${encodeURIComponent('No authorization code provided')}&description=${encodeURIComponent('The OAuth provider did not return an authorization code. Please try signing in again.')}`);
     }
 
     // Cleanup
@@ -110,6 +154,9 @@ function AuthCallbackContent() {
       }
       if (timeoutId) {
         clearTimeout(timeoutId);
+      }
+      if (maxWaitTimeout) {
+        clearTimeout(maxWaitTimeout);
       }
     };
   }, [router, searchParams, supabase]);
