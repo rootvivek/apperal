@@ -17,7 +17,7 @@ interface CheckoutFormData {
   state: string;
   zipCode: string;
   phone: string;
-  paymentMethod: 'card' | 'cod' | 'razorpay';
+  paymentMethod: 'cod' | 'razorpay';
   cardNumber: string;
   expiryDate: string;
   cvv: string;
@@ -43,7 +43,7 @@ function CheckoutContent() {
     state: '',
     zipCode: '',
     phone: '',
-    paymentMethod: 'card',
+    paymentMethod: 'razorpay',
     cardNumber: '',
     expiryDate: '',
     cvv: '',
@@ -143,7 +143,7 @@ function CheckoutContent() {
 
   const getShipping = () => {
     const subtotal = getSubtotal();
-    return subtotal >= 50 ? 0 : 9.99;
+    return subtotal >= 50 ? 0 : 0.00;
   };
 
   const getTotal = () => {
@@ -406,7 +406,7 @@ function CheckoutContent() {
     }
   };
 
-  const handlePaymentMethodChange = (method: 'card' | 'cod' | 'razorpay') => {
+  const handlePaymentMethodChange = (method: 'cod' | 'razorpay') => {
     setFormData(prev => ({
       ...prev,
       paymentMethod: method
@@ -727,24 +727,6 @@ function CheckoutContent() {
                     <input
                       type="radio"
                       name="paymentMethod"
-                      value="card"
-                      checked={formData.paymentMethod === 'card'}
-                      onChange={() => handlePaymentMethodChange('card')}
-                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900">Credit/Debit Card</div>
-                      <div className="text-sm text-gray-500">Pay securely with your card</div>
-                    </div>
-                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                  </label>
-                  
-                  <label className="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
-                    <input
-                      type="radio"
-                      name="paymentMethod"
                       value="razorpay"
                       checked={formData.paymentMethod === 'razorpay'}
                       onChange={() => handlePaymentMethodChange('razorpay')}
@@ -777,76 +759,6 @@ function CheckoutContent() {
                     </svg>
                   </label>
                 </div>
-                
-                {/* Card Details - Only show when card is selected */}
-                {formData.paymentMethod === 'card' && (
-                  <>
-                    <div className="mb-4">
-                      <label htmlFor="cardNumber" className="block text-sm font-medium text-gray-700 mb-1">
-                    Card number
-                  </label>
-                  <input
-                    type="text"
-                    id="cardNumber"
-                    name="cardNumber"
-                    required={formData.paymentMethod === 'card'}
-                    value={formData.cardNumber}
-                    onChange={handleChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="1234 5678 9012 3456"
-                      />
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                  <div>
-                        <label htmlFor="expiryDate" className="block text-sm font-medium text-gray-700 mb-1">
-                          Expiry date
-                        </label>
-                        <input
-                          type="text"
-                          id="expiryDate"
-                          name="expiryDate"
-                          required={formData.paymentMethod === 'card'}
-                          value={formData.expiryDate}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="MM/YY"
-                        />
-                      </div>
-                      <div>
-                        <label htmlFor="cvv" className="block text-sm font-medium text-gray-700 mb-1">
-                          CVV
-                        </label>
-                        <input
-                          type="text"
-                          id="cvv"
-                          name="cvv"
-                          required={formData.paymentMethod === 'card'}
-                          value={formData.cvv}
-                          onChange={handleChange}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="123"
-                        />
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="cardName" className="block text-sm font-medium text-gray-700 mb-1">
-                        Name on card
-                      </label>
-                      <input
-                        type="text"
-                        id="cardName"
-                        name="cardName"
-                        required={formData.paymentMethod === 'card'}
-                        value={formData.cardName}
-                        onChange={handleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="John Doe"
-                      />
-                    </div>
-                  </>
-                )}
               </div>
 
               {/* Submit Button */}
@@ -863,9 +775,7 @@ function CheckoutContent() {
                   ? 'Processing...' 
                   : formData.paymentMethod === 'cod' 
                     ? 'Place Order (Cash on Delivery)' 
-                    : formData.paymentMethod === 'razorpay'
-                    ? 'Pay with Razorpay'
-                    : 'Complete Order'
+                    : 'Pay with Razorpay'
                 }
               </button>
             </form>
