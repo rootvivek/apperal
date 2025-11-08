@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
+import AdminGuard from '@/components/admin/AdminGuard';
 import DashboardCard from '@/components/DashboardCard';
 import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
@@ -257,13 +258,13 @@ function AdminDashboardContent() {
         // Fetch user profile (name, phone, email)
         const { data: userProfile } = await supabase
           .from('user_profiles')
-          .select('email, full_name, phone, first_name, last_name')
+          .select('email, full_name, phone')
           .eq('id', order.user_id)
           .single() as any;
         
         if (userProfile) {
           setUserEmail(userProfile.email || 'N/A');
-          setUserName(userProfile.full_name || `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'N/A');
+          setUserName(userProfile.full_name || 'N/A');
           setUserPhone(userProfile.phone || 'N/A');
       } else {
           // Fallback to order customer info if available
@@ -1195,17 +1196,17 @@ function AdminDashboardContent() {
 
 export default function AdminDashboard() {
   return (
-    <Suspense fallback={
-      <AdminLayout>
+    <AdminGuard>
+      <Suspense fallback={
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading...</p>
           </div>
         </div>
-      </AdminLayout>
-    }>
-      <AdminDashboardContent />
-    </Suspense>
+      }>
+        <AdminDashboardContent />
+      </Suspense>
+    </AdminGuard>
   );
 }

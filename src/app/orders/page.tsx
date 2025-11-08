@@ -120,7 +120,9 @@ function OrdersContent() {
 
   const canCancelOrder = (order: Order) => {
     // Can only cancel if order is pending or processing
-    return order.status === 'pending' || order.status === 'processing';
+    // Cannot cancel if order is delivered, shipped, or already cancelled
+    const cancelableStatuses = ['pending', 'processing'];
+    return cancelableStatuses.includes(order.status);
   };
 
   const handleCancelOrder = async () => {
@@ -268,8 +270,8 @@ function OrdersContent() {
       {/* Order Details Modal */}
       {showOrderDetails && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+          <div className="bg-white rounded-lg shadow-lg w-full max-h-[90vh] flex flex-col max-w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl">
+            <div className="p-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
               <div>
                 <h2 className="text-xl font-bold">Order #{selectedOrder.order_number}</h2>
                 <p className="text-sm text-gray-600">{formatDate(selectedOrder.created_at)}</p>
@@ -282,7 +284,7 @@ function OrdersContent() {
               </button>
             </div>
             
-            <div className="p-6 space-y-6">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1">
               {/* Order Summary */}
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -363,19 +365,19 @@ function OrdersContent() {
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-200 sticky bottom-0 bg-white">
-              <div className="flex gap-3">
+            <div className="p-4 sm:p-6 border-t border-gray-200 bg-white flex-shrink-0">
+              <div className="flex flex-col sm:flex-row gap-3">
                 {canCancelOrder(selectedOrder) && (
                   <button
                     onClick={() => setShowCancelModal(true)}
-                    className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                    className="w-full sm:flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm sm:text-base font-medium"
                   >
                     Cancel Order
                   </button>
                 )}
                 <button
                   onClick={() => setShowOrderDetails(false)}
-                  className={`px-4 py-2 ${canCancelOrder(selectedOrder) ? 'flex-1' : 'w-full'} bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors`}
+                  className={`w-full ${canCancelOrder(selectedOrder) ? 'sm:flex-1' : ''} px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium`}
                 >
                   Close
                 </button>
@@ -388,7 +390,7 @@ function OrdersContent() {
       {/* Cancellation Modal */}
       {showCancelModal && selectedOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-md w-full">
+          <div className="bg-white rounded-lg shadow-lg w-full max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg">
             <div className="p-6 border-b border-gray-200">
               <h3 className="text-lg font-bold text-gray-900">Cancel Order</h3>
               <p className="text-sm text-gray-600 mt-1">

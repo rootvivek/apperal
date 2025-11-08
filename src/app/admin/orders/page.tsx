@@ -143,13 +143,13 @@ export default function OrdersPage() {
         // Fetch user profile (name, phone, email)
         const { data: userProfile } = await supabase
           .from('user_profiles')
-          .select('email, full_name, phone, first_name, last_name')
+          .select('email, full_name, phone')
           .eq('id', order.user_id)
           .single() as any;
         
         if (userProfile) {
           setUserEmail(userProfile.email || 'N/A');
-          setUserName(userProfile.full_name || `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'N/A');
+          setUserName(userProfile.full_name || 'N/A');
           setUserPhone(userProfile.phone || 'N/A');
         } else {
           // Fallback to order customer info if available

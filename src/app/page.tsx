@@ -73,6 +73,23 @@ export default function Home() {
 
       if (error) {
         // Silently fallback to regular queries if RPC function is not available
+        // Suppress expected errors for missing RPC function (404, function not found, etc.)
+        const errorMessage = error.message || '';
+        const errorCode = 'code' in error ? error.code : undefined;
+        const isExpectedError = 
+          errorCode === 'PGRST116' ||
+          errorMessage.includes('function get_home_page_data') ||
+          errorMessage.includes('Could not find the function') ||
+          errorMessage.includes('does not exist') ||
+          errorMessage.includes('schema cache') ||
+          ('status' in error && error.status === 404) ||
+          ('statusCode' in error && error.statusCode === 404);
+        
+        // Only log unexpected errors
+        if (!isExpectedError) {
+          console.warn('RPC function error (falling back):', error.message);
+        }
+        // Silently fallback - no console error for expected missing function
         await fetchDataFallback();
         return;
       }
@@ -241,7 +258,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-white">
       {/* Categories Section - Show after navbar */}
-      <section className="pt-1 pb-0 sm:pt-4 sm:pb-0 bg-white mb-0 sm:mb-1 h-auto">
+      <section className="pt-2 pb-2 sm:pt-3 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto">
         <CategoryGrid categories={categories} />
       </section>
 
@@ -255,7 +272,7 @@ export default function Home() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-2 sm:mb-4">All Products</h2>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {allProducts.map((product) => (
                 <ProductCard key={product.id} product={product as any} />
               ))}
@@ -302,7 +319,7 @@ export default function Home() {
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">{section.category.name}</h2>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {section.products.map((product) => (
                     <ProductCard key={product.id} product={product as any} />
                   ))}

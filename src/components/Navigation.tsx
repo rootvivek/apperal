@@ -17,6 +17,7 @@ interface Category {
   slug: string;
   description: string;
   image_url: string;
+  parent_category_id?: string | null;
   subcategories?: Subcategory[];
 }
 
@@ -40,6 +41,8 @@ export default function Navigation() {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
+  const [userName, setUserName] = useState<string | null>(null);
+  const [userNameLoading, setUserNameLoading] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -49,6 +52,58 @@ export default function Navigation() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataFetched]);
+
+  // Fetch user name from profile when user is available
+  useEffect(() => {
+    const fetchUserName = async () => {
+      if (user?.id) {
+        setUserNameLoading(true);
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('full_name')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (error) {
+            console.error('Error fetching user profile:', error);
+            setUserName(null);
+            setUserNameLoading(false);
+            return;
+          }
+
+          if (data) {
+            // Handle null, undefined, and empty strings
+            const fullName = data.full_name ? String(data.full_name).trim() : '';
+            
+            console.log('Fetched user name data:', { fullName, rawData: data });
+            
+            if (fullName && fullName !== 'User') {
+              setUserName(fullName);
+            } else {
+              // No name available
+              console.log('No name found in user profile - will show "Hi User"');
+              setUserName(null);
+            }
+          } else {
+            // No profile found
+            console.log('No user profile found in database');
+            setUserName(null);
+          }
+        } catch (err) {
+          console.error('Error fetching user name:', err);
+          setUserName(null);
+        } finally {
+          setUserNameLoading(false);
+        }
+      } else {
+        setUserName(null);
+        setUserNameLoading(false);
+      }
+    };
+
+    fetchUserName();
+  }, [user, supabase]);
 
   useEffect(() => {
     // Close mobile search and user dropdown when clicking outside
@@ -141,15 +196,56 @@ export default function Navigation() {
     }
   };
 
-  // Helper function to get user display name
+  // Helper function to get user display name for greeting
+  const getUserGreeting = () => {
+    if (!user) return '';
+    
+    // Wait for userName to load if still loading
+    if (userNameLoading) {
+      return 'Hi User'; // Show default while loading
+    }
+    
+    // Use fetched userName from database (prioritize database over metadata)
+    if (userName && userName.trim() && userName !== 'null' && userName !== 'undefined' && userName !== 'User') {
+      return `Hi ${userName}`;
+    }
+    
+    // Fallback to user_metadata if database fetch hasn't completed or returned null
+    const fullName = user.user_metadata?.full_name?.trim();
+    const firstName = user.user_metadata?.first_name?.trim();
+    const lastName = user.user_metadata?.last_name?.trim();
+    
+    if (fullName) {
+      return `Hi ${fullName}`;
+    } else if (firstName && lastName) {
+      return `Hi ${firstName} ${lastName}`;
+    } else if (firstName) {
+      return `Hi ${firstName}`;
+    } else if (lastName) {
+      return `Hi ${lastName}`;
+    }
+    
+    // Default greeting if no name is available (never show email in greeting)
+    return 'Hi User';
+  };
+
+  // Helper function to get full user display name for dropdown
   const getUserDisplayName = () => {
     if (!user) return '';
     
-    // Try to get name from user_metadata first
-    const firstName = user.user_metadata?.first_name;
-    const lastName = user.user_metadata?.last_name;
+    // Use fetched userName from database (prioritize database over metadata)
+    if (userName && userName.trim() && userName !== 'User') {
+      return userName;
+    }
     
-    if (firstName && lastName) {
+    // Fallback to user_metadata if database fetch hasn't completed or returned null
+    const fullName = user.user_metadata?.full_name?.trim();
+    const firstName = user.user_metadata?.first_name?.trim();
+    const lastName = user.user_metadata?.last_name?.trim();
+    
+    if (fullName) {
+      return fullName;
+    } else if (firstName && lastName) {
       return `${firstName} ${lastName}`;
     } else if (firstName) {
       return firstName;
@@ -157,7 +253,7 @@ export default function Navigation() {
       return lastName;
     }
     
-    // Fallback to email if no name is available
+    // Fallback to email if no name is available (for dropdown display)
     return user.email || 'User';
   };
 
@@ -169,22 +265,10 @@ export default function Navigation() {
     setShowMobileSearch(false);
   };
 
-  // Get all subcategories for mobile display (unique by ID)
-  const getAllSubcategories = () => {
-    const allSubcategories: Subcategory[] = [];
-    const seenIds = new Set<string>();
-    
-    categories.forEach(category => {
-      if (category.subcategories && category.subcategories.length > 0) {
-        category.subcategories.forEach(subcat => {
-          if (!seenIds.has(subcat.id)) {
-            seenIds.add(subcat.id);
-            allSubcategories.push(subcat);
-          }
-        });
-      }
-    });
-    return allSubcategories;
+  // Get all categories for mobile display (showing categories instead of subcategories)
+  const getAllCategories = () => {
+    // Filter to only show main categories (those without parent_category_id or is null)
+    return categories.filter(category => !category.parent_category_id);
   };
 
   return (
@@ -289,7 +373,7 @@ export default function Navigation() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                       <span className="text-sm sm:text-base">
-                        {getUserDisplayName()}
+                        {getUserGreeting()}
                     </span>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -314,6 +398,16 @@ export default function Navigation() {
                           <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
                           <p className="text-xs text-gray-500">{user.email}</p>
                         </div>
+                        <Link
+                          href="/profile"
+                          onClick={() => setShowUserDropdown(false)}
+                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center space-x-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span>Profile</span>
+                        </Link>
                         <Link
                           href="/orders"
                           onClick={() => setShowUserDropdown(false)}
@@ -378,29 +472,27 @@ export default function Navigation() {
         <div className="sm:hidden bg-white border-t border-gray-100 pt-1 pb-2">
           <div className="flex justify-center items-center">
             {categoriesLoading ? (
-              <div className="flex flex-wrap justify-center gap-1.5" style={{ width: 'fit-content' }}>
+              <div className="flex flex-wrap justify-center gap-3" style={{ width: 'fit-content' }}>
                 {[...Array(10)].map((_, index) => (
                     <div key={index} className="flex flex-col items-center text-center">
-                      <div className="w-16 h-16 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
-                      <div className="h-3 w-12 bg-gray-200 animate-pulse rounded"></div>
+                      <div className="w-20 h-20 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
+                      <div className="h-3 w-16 bg-gray-200 animate-pulse rounded"></div>
                     </div>
                 ))}
               </div>
-            ) : getAllSubcategories().length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-1.5" style={{ width: 'fit-content' }}>
-                  {getAllSubcategories().slice(0, 20).map((subcategory) => {
-                    // Find parent category for the link
-                    const parentCategory = categories.find(cat => cat.id === subcategory.parent_category_id);
+            ) : getAllCategories().length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-3" style={{ width: 'fit-content' }}>
+                  {getAllCategories().slice(0, 20).map((category) => {
                     return (
                       <Link
-                        key={subcategory.id}
-                        href={`/products/${parentCategory?.slug || 'all'}/${subcategory.slug}`}
+                        key={category.id}
+                        href={`/products/${category.slug}`}
                         className="flex flex-col items-center text-center group"
                       >
-                        <div className="w-16 h-16 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
+                        <div className="w-20 h-20 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
                           <img
-                            src={subcategory.image_url || '/images/categories/placeholder.svg'}
-                            alt={subcategory.name}
+                            src={category.image_url || '/images/categories/placeholder.svg'}
+                            alt={category.name}
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
@@ -408,15 +500,15 @@ export default function Navigation() {
                             }}
                           />
                         </div>
-                        <span className="text-[11px] text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2 text-center max-w-[64px]">
-                          {subcategory.name}
+                        <span className="text-xs text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2 text-center max-w-[80px]">
+                          {category.name}
                         </span>
                       </Link>
                     );
                   })}
               </div>
             ) : (
-              <div className="text-gray-500 text-xs text-center">No subcategories available</div>
+              <div className="text-gray-500 text-xs text-center">No categories available</div>
             )}
           </div>
         </div>

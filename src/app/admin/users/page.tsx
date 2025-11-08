@@ -14,6 +14,7 @@ interface User {
   created_at: string;
   user_number?: string;
   total_orders?: number;
+  isAdmin?: boolean;
 }
 
 interface Order {
@@ -28,6 +29,8 @@ export default function UsersPage() {
   const supabase = createClient();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [search, setSearch] = useState('');
   
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -36,6 +39,7 @@ export default function UsersPage() {
   const [userCartItems, setUserCartItems] = useState<any[]>([]);
   const [userWishlistItems, setUserWishlistItems] = useState<any[]>([]);
   const [userDetailsTab, setUserDetailsTab] = useState<'orders' | 'cart' | 'wishlist'>('orders');
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -44,32 +48,68 @@ export default function UsersPage() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      
       const { data, error } = await supabase
         .from('user_profiles')
         .select('id, email, full_name, phone, created_at, user_number')
         .order('created_at', { ascending: false });
       
-      if (error) throw error;
+      if (error) {
+        throw error;
+      }
       
-      // Fetch order counts for each user
+      if (!data || data.length === 0) {
+        setUsers([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Admin phone number - must match AdminGuard
+      const ADMIN_PHONE = '8881765192';
+      
+      // Fetch order counts for each user and check admin status
       const usersWithOrderCounts = await Promise.all(
         (data || []).map(async (user: any) => {
-          const { count } = await supabase
-            .from('orders')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', user.id) as any;
-          
-          return {
-            ...user,
-            total_orders: count || 0
-          };
+          try {
+            const { count } = await supabase
+              .from('orders')
+              .select('*', { count: 'exact', head: true })
+              .eq('user_id', user.id);
+            
+            // Check if user is admin based on phone number
+            const userPhone = user.phone || '';
+            const normalizedUserPhone = userPhone.replace(/\D/g, '');
+            const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
+            const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
+                           normalizedUserPhone.endsWith(normalizedAdminPhone);
+            
+            return {
+              ...user,
+              total_orders: count || 0,
+              isAdmin
+            };
+          } catch (err) {
+            // Check admin status even if order count fails
+            const userPhone = user.phone || '';
+            const normalizedUserPhone = userPhone.replace(/\D/g, '');
+            const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
+            const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
+                           normalizedUserPhone.endsWith(normalizedAdminPhone);
+            
+            return {
+              ...user,
+              total_orders: 0,
+              isAdmin
+            };
+          }
         })
       );
       
-      console.log('Users fetched:', usersWithOrderCounts.length);
       setUsers(usersWithOrderCounts);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+      setError(null);
+    } catch (error: any) {
+      setUsers([]);
+      setError(error?.message || 'Failed to fetch users. Please check your database permissions (RLS policies).');
     } finally {
       setLoading(false);
     }
@@ -136,11 +176,69 @@ export default function UsersPage() {
     setShowUserDetails(true);
   };
 
-  const filteredUsers = users.filter(user =>
-    user.email?.toLowerCase().includes(search.toLowerCase()) ||
-    user.full_name?.toLowerCase().includes(search.toLowerCase()) ||
-    user.phone?.toLowerCase().includes(search.toLowerCase())
-  );
+  const handleDeleteUser = async (user: User) => {
+    const confirmMessage = `Are you sure you want to delete user "${user.full_name || user.email}"?\n\nThis will permanently delete:\n- User account (auth)\n- User profile\n- All addresses\n- All cart items\n- All wishlist items\n- All reviews\n- All orders (order history will be lost)\n\nThis action cannot be undone!`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setDeletingUserId(user.id);
+      setError(null);
+      setSuccess(false);
+
+      // Get session token for API authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error('No active session. Please log in again.');
+      }
+
+      // Call API route to delete user completely (including auth user)
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete user');
+      }
+
+      // Refresh users list
+      await fetchUsers();
+      
+      // Close user details modal if it's open for this user
+      if (selectedUser?.id === user.id) {
+        setShowUserDetails(false);
+        setSelectedUser(null);
+      }
+
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      setError(error?.message || 'Failed to delete user. Please try again.');
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const filteredUsers = users.filter(user => {
+    if (!search) return true;
+    const searchLower = search.toLowerCase();
+    return (
+      user.email?.toLowerCase().includes(searchLower) ||
+      user.full_name?.toLowerCase().includes(searchLower) ||
+      user.phone?.toLowerCase().includes(searchLower)
+    );
+  });
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString();
   const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
@@ -155,6 +253,25 @@ export default function UsersPage() {
           </div>
 
           <div className="bg-white rounded-lg shadow p-6">
+            {error && (
+              <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
+                <p className="font-semibold">Error loading users</p>
+                <p className="text-sm">{error}</p>
+                <button
+                  onClick={fetchUsers}
+                  className="mt-2 text-sm underline hover:no-underline"
+                >
+                  Try again
+                </button>
+              </div>
+            )}
+            
+            {success && (
+              <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
+                User deleted successfully!
+              </div>
+            )}
+            
             <div className="flex items-center justify-between mb-4">
               <div className="px-4 py-2 bg-blue-50 rounded-lg">
                 <p className="text-sm text-gray-600">Total Users</p>
@@ -177,11 +294,20 @@ export default function UsersPage() {
                   sortable: true,
                   render: (value: string, row: User) => (
                     <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-600 text-white flex items-center justify-center text-lg font-bold">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                        row.isAdmin ? 'bg-red-600' : 'bg-blue-600'
+                      } text-white`}>
                         {row.full_name?.[0]?.toUpperCase() || 'U'}
                       </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{row.full_name || 'Unnamed'}</p>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2">
+                          <p className="font-medium text-gray-900">{row.full_name || 'Unnamed'}</p>
+                          {row.isAdmin && (
+                            <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                              ADMIN
+                            </span>
+                          )}
+                        </div>
                         <p className="text-sm text-gray-500">{value || 'No email'}</p>
                       </div>
                     </div>
@@ -201,7 +327,14 @@ export default function UsersPage() {
                   key: 'phone', 
                   label: 'Phone', 
                   sortable: false,
-                  render: (value: string) => value || '—',
+                  render: (value: string, row: User) => (
+                    <div className="flex items-center space-x-2">
+                      <span>{value || '—'}</span>
+                      {row.isAdmin && (
+                        <span className="text-xs text-red-600 font-medium">(Admin)</span>
+                      )}
+                    </div>
+                  ),
                 },
                 {
                   key: 'created_at',
@@ -219,11 +352,48 @@ export default function UsersPage() {
                     </span>
                   ),
                 },
+                {
+                  key: 'actions',
+                  label: 'Actions',
+                  sortable: false,
+                  render: (value: any, row: User) => (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleUserClick(row);
+                        }}
+                        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                      >
+                        View
+                      </button>
+                      {!row.isAdmin && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteUser(row);
+                          }}
+                          disabled={deletingUserId === row.id}
+                          className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Delete user and all their data"
+                        >
+                          {deletingUserId === row.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                      {row.isAdmin && (
+                        <span className="px-3 py-1 text-sm text-gray-500 italic">
+                          Protected
+                        </span>
+                      )}
+                    </div>
+                  ),
+                },
               ]}
               data={filteredUsers}
               isLoading={loading}
               emptyMessage="No users found"
               onRowClick={handleUserClick}
+              rowKey="id"
             />
           </div>
 

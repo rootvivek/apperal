@@ -230,7 +230,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
   // Conditional styling based on variant
   const cardClasses = variant === 'minimal' || variant === 'image-only'
     ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
-    : "group relative bg-white rounded shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
+    : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
   
   const imageClasses = variant === 'minimal' || variant === 'image-only'
     ? "h-full w-full object-cover transition-transform duration-300"

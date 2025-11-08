@@ -40,41 +40,30 @@ function AuthCallbackContent() {
         if (event === 'SIGNED_IN' && session?.user) {
           setRedirected(true);
           
-          // Create user profile for OAuth users if it doesn't exist
+          // Update user profile for OAuth users (profile is created automatically by database trigger)
           const userId = session.user.id;
           const userEmail = session.user.email || '';
           const userMetadata = session.user.user_metadata || {};
-          const fullName = userMetadata.full_name || userMetadata.name || '';
-          const [firstName, ...lastNameParts] = fullName.split(' ') || ['User', ''];
-          const lastName = lastNameParts.join(' ') || userId.substring(0, 8);
+          const displayName = userMetadata.full_name || userMetadata.name || 'User';
           
-              // Check if profile exists (don't wait for this to complete)
-              supabase
-                .from('user_profiles')
-                .select('id')
-                .eq('id', userId)
-                .maybeSingle()
-                .then(({ data: existingProfile }: { data: any }) => {
-                  // Create profile if it doesn't exist
-                  if (!existingProfile) {
-                    supabase
-                      .from('user_profiles')
-                      .insert([{
-                        id: userId,
-                        email: userEmail,
-                        first_name: firstName,
-                        last_name: lastName,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                      }])
-                      .select()
-                      .then((result: any) => {
-                        if (result.error) {
-                          console.error('Error creating profile:', result.error);
-                        }
-                      });
-                  }
-                });
+          // Update profile if metadata has changed (profile already exists from trigger)
+          supabase
+            .from('user_profiles')
+            .update({
+              email: userEmail,
+              full_name: displayName,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', userId)
+            .then((result: any) => {
+              if (result.error) {
+                // Silently fail - profile might not exist yet (race condition with trigger)
+                // The trigger will create it, and this update will work on next OAuth login
+                console.log('Profile update skipped (will be handled by trigger):', result.error.message);
+              } else {
+                console.log('✅ User profile updated for OAuth user!');
+              }
+            });
           
           // Redirect to the intended page
           router.push(next);

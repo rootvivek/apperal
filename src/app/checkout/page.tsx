@@ -17,7 +17,7 @@ interface CheckoutFormData {
   state: string;
   zipCode: string;
   phone: string;
-  paymentMethod: 'card' | 'cod';
+  paymentMethod: 'card' | 'cod' | 'razorpay';
   cardNumber: string;
   expiryDate: string;
   cvv: string;
@@ -52,6 +52,7 @@ function CheckoutContent() {
   });
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isProcessing, setIsProcessing] = useState(false);
+  const [razorpayLoaded, setRazorpayLoaded] = useState(false);
 
   // Handle direct purchase from URL parameters
   useEffect(() => {
@@ -115,6 +116,25 @@ function CheckoutContent() {
       }));
     }
   }, [user]);
+
+  // Load Razorpay script
+  useEffect(() => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.async = true;
+    script.onload = () => {
+      setRazorpayLoaded(true);
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      // Cleanup script on unmount
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) {
+        document.body.removeChild(existingScript);
+      }
+    };
+  }, []);
 
   const getSubtotal = () => {
     const items = isDirectPurchase ? directPurchaseItems : cartItems;
@@ -343,6 +363,14 @@ function CheckoutContent() {
       
       console.log('Order items created successfully!');
       
+      // Handle payment based on payment method
+      if (formData.paymentMethod === 'razorpay') {
+        // Initiate Razorpay payment
+        await handleRazorpayPayment(createdOrder.id, orderNumber);
+        return; // Don't clear cart or redirect yet - wait for payment completion
+      }
+      
+      // For COD and card (manual), proceed with normal flow
       // Clear cart only if items were purchased from cart (not direct purchase)
       // For direct purchases, don't clear cart since those items weren't in cart
       if (!isDirectPurchase) {
@@ -378,11 +406,135 @@ function CheckoutContent() {
     }
   };
 
-  const handlePaymentMethodChange = (method: 'card' | 'cod') => {
+  const handlePaymentMethodChange = (method: 'card' | 'cod' | 'razorpay') => {
     setFormData(prev => ({
       ...prev,
       paymentMethod: method
     }));
+  };
+
+  const handleRazorpayPayment = async (orderId: string, orderNumber: string) => {
+    // Check if Razorpay script is loaded
+    if (!razorpayLoaded) {
+      console.log('Razorpay script not loaded yet, waiting...');
+      // Wait a bit and check again
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      if (!(window as any).Razorpay) {
+        alert('Payment gateway is loading. Please wait a moment and try again.');
+        setIsProcessing(false);
+        return;
+      }
+    }
+
+    // Double check Razorpay is available
+    if (!(window as any).Razorpay) {
+      console.error('Razorpay object not found on window');
+      alert('Payment gateway failed to load. Please refresh the page and try again.');
+      setIsProcessing(false);
+      return;
+    }
+
+    try {
+      const total = getTotal();
+      console.log('Creating Razorpay order for amount:', total, 'Order ID:', orderId);
+      
+      // Create Razorpay order
+      const response = await fetch('/api/razorpay/create-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include', // Include cookies for authentication
+        body: JSON.stringify({
+          amount: total,
+          currency: 'INR',
+          orderId: orderId,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Razorpay order creation failed:', error);
+        throw new Error(error.error || 'Failed to create payment order');
+      }
+
+      const razorpayOrder = await response.json();
+      console.log('Razorpay order created:', razorpayOrder);
+
+      // Check if key is available
+      if (!razorpayOrder.key) {
+        console.error('Razorpay key not found in response');
+        throw new Error('Payment gateway configuration error. Please contact support.');
+      }
+
+      // Initialize Razorpay checkout
+      const options = {
+        key: razorpayOrder.key,
+        amount: razorpayOrder.amount,
+        currency: razorpayOrder.currency,
+        name: 'Apperal',
+        description: `Order ${orderNumber}`,
+        order_id: razorpayOrder.id,
+        handler: async function (response: any) {
+          try {
+            console.log('Payment successful, verifying...', response);
+            // Verify payment on server
+            const verifyResponse = await fetch('/api/razorpay/verify-payment', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              credentials: 'include', // Include cookies for authentication
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                orderId: orderId,
+              }),
+            });
+
+            if (!verifyResponse.ok) {
+              const error = await verifyResponse.json();
+              throw new Error(error.error || 'Payment verification failed');
+            }
+
+            // Clear cart
+            if (!isDirectPurchase) {
+              await clearCart();
+            }
+
+            // Redirect to success page
+            window.location.href = `/checkout/success?orderId=${orderId}&orderNumber=${orderNumber}`;
+          } catch (error: any) {
+            console.error('Payment verification error:', error);
+            alert(`Payment verification failed: ${error.message}. Please contact support.`);
+            setIsProcessing(false);
+          }
+        },
+        prefill: {
+          name: formData.fullName,
+          email: formData.email || user?.email || '',
+          contact: formData.phone,
+        },
+        theme: {
+          color: '#4736FE',
+        },
+        modal: {
+          ondismiss: function() {
+            console.log('Razorpay modal dismissed');
+            setIsProcessing(false);
+          },
+        },
+      };
+
+      console.log('Opening Razorpay checkout...');
+      const razorpay = new (window as any).Razorpay(options);
+      razorpay.open();
+    } catch (error: any) {
+      console.error('Razorpay payment error:', error);
+      alert(`Payment failed: ${error.message}. Please try again.`);
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -593,6 +745,24 @@ function CheckoutContent() {
                     <input
                       type="radio"
                       name="paymentMethod"
+                      value="razorpay"
+                      checked={formData.paymentMethod === 'razorpay'}
+                      onChange={() => handlePaymentMethodChange('razorpay')}
+                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900">Razorpay</div>
+                      <div className="text-sm text-gray-500">Pay securely with UPI, Cards, Wallets & more</div>
+                    </div>
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  </label>
+                  
+                  <label className="flex items-center p-4 border border-gray-300 rounded-md cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                      type="radio"
+                      name="paymentMethod"
                       value="cod"
                       checked={formData.paymentMethod === 'cod'}
                       onChange={() => handlePaymentMethodChange('cod')}
@@ -693,6 +863,8 @@ function CheckoutContent() {
                   ? 'Processing...' 
                   : formData.paymentMethod === 'cod' 
                     ? 'Place Order (Cash on Delivery)' 
+                    : formData.paymentMethod === 'razorpay'
+                    ? 'Pay with Razorpay'
                     : 'Complete Order'
                 }
               </button>

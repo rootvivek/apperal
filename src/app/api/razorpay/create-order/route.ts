@@ -1,0 +1,165 @@
+import { NextRequest, NextResponse } from 'next/server';
+import Razorpay from 'razorpay';
+import { createServerAuthClient } from '@/lib/supabase/server-auth';
+
+// Initialize Razorpay only if keys are available
+let razorpay: Razorpay | null = null;
+
+try {
+  const keyId = process.env.RAZORPAY_KEY_ID;
+  const keySecret = process.env.RAZORPAY_KEY_SECRET;
+  
+  if (keyId && keySecret) {
+    razorpay = new Razorpay({
+      key_id: keyId,
+      key_secret: keySecret,
+    });
+  } else {
+    console.error('Razorpay keys not configured');
+  }
+} catch (error) {
+  console.error('Error initializing Razorpay:', error);
+}
+
+export async function POST(request: NextRequest) {
+  try {
+    // Check if Razorpay is initialized
+    if (!razorpay) {
+      console.error('Razorpay not initialized. Check environment variables.');
+      return NextResponse.json(
+        { error: 'Payment gateway not configured. Please contact support.' },
+        { status: 500 }
+      );
+    }
+
+    // Verify user is authenticated
+    const supabase = createServerAuthClient(request);
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      console.error('Authentication error:', authError);
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to continue.' },
+        { status: 401 }
+      );
+    }
+
+    const body = await request.json();
+    const { amount, currency = 'INR', orderId } = body;
+
+    console.log('Creating Razorpay order:', { amount, currency, orderId, userId: user.id });
+
+    if (!amount || !orderId) {
+      return NextResponse.json(
+        { error: 'Amount and orderId are required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate amount
+    if (amount <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid amount' },
+        { status: 400 }
+      );
+    }
+
+    // Convert amount to paise (Razorpay expects amount in smallest currency unit)
+    const amountInPaise = Math.round(amount * 100);
+
+    if (amountInPaise < 100) {
+      return NextResponse.json(
+        { error: 'Minimum order amount is ₹1.00' },
+        { status: 400 }
+      );
+    }
+
+    // Create a shorter receipt ID (Razorpay receipt max 40 chars, alphanumeric only)
+    // Use first 8 chars of orderId + timestamp for uniqueness
+    const shortReceipt = `ord_${orderId.substring(0, 8)}${Date.now().toString().slice(-6)}`.substring(0, 40);
+
+    console.log('Creating Razorpay order with:', {
+      amount: amountInPaise,
+      currency,
+      receipt: shortReceipt,
+      orderId,
+    });
+
+    // Create Razorpay order
+    const razorpayOrder = await razorpay.orders.create({
+      amount: amountInPaise,
+      currency: currency,
+      receipt: shortReceipt,
+      notes: {
+        order_id: orderId,
+        user_id: user.id,
+      },
+    });
+
+    console.log('Razorpay order created successfully:', razorpayOrder.id);
+
+    const publicKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
+    
+    if (!publicKey) {
+      console.error('NEXT_PUBLIC_RAZORPAY_KEY_ID not configured');
+      return NextResponse.json(
+        { error: 'Payment gateway configuration error' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      id: razorpayOrder.id,
+      amount: razorpayOrder.amount,
+      currency: razorpayOrder.currency,
+      key: publicKey,
+    });
+  } catch (error: any) {
+    console.error('Error creating Razorpay order:', error);
+    console.error('Error details:', {
+      message: error.message,
+      statusCode: error.statusCode,
+      error: error.error,
+      description: error.description,
+      field: error.field,
+      source: error.source,
+      step: error.step,
+      reason: error.reason,
+      metadata: error.metadata,
+      fullError: JSON.stringify(error, null, 2),
+    });
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to create payment order';
+    
+    if (error.statusCode === 401 || error.statusCode === 403) {
+      errorMessage = 'Invalid Razorpay API keys. Please check your configuration.';
+    } else if (error.statusCode === 400) {
+      // Razorpay 400 errors usually have a description or field error
+      if (error.description) {
+        errorMessage = error.description;
+      } else if (error.error && error.error.description) {
+        errorMessage = error.error.description;
+      } else if (error.field) {
+        errorMessage = `Invalid ${error.field}: ${error.description || error.message}`;
+      } else {
+        errorMessage = error.message || 'Invalid request to payment gateway. Please check your order details.';
+      }
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
+    return NextResponse.json(
+      { 
+        error: errorMessage,
+        details: process.env.NODE_ENV === 'development' ? {
+          statusCode: error.statusCode,
+          field: error.field,
+          description: error.description,
+        } : undefined,
+      },
+      { status: error.statusCode || 500 }
+    );
+  }
+}
+

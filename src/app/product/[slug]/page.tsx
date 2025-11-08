@@ -1040,7 +1040,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <span className="ml-4 text-gray-600 text-lg">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
               {relatedProducts.map((relatedProduct: any) => (
                 <ProductCard 
                   key={relatedProduct.id} 

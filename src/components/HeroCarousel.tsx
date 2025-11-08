@@ -78,10 +78,10 @@ export default function HeroCarousel() {
     <div className="w-full h-[50vh] bg-white mb-0">
       <div className="h-full w-full px-0 py-0">
         {/* Product Grid - Images Only */}
-        <div className="h-full overflow-hidden">
+        <div className="h-full overflow-hidden relative">
           <div className="flex animate-scroll h-full gap-2">
-            {/* Create enough products for seamless cycling - responsive widths */}
-            {[...products, ...products].map((product, index) => (
+            {/* Show products once for now - can add infinite scroll later if needed */}
+            {products.map((product, index) => (
               <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full w-full md:w-1/2 lg:w-1/4">
                 <ProductCard 
                   product={{
