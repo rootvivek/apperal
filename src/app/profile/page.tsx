@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 interface UserProfile {
   id: string;
-  email: string;
+  email: string | null;
   full_name: string | null;
   phone: string | null;
   user_number?: string | null;
