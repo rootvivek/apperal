@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
@@ -66,12 +66,15 @@ interface ProductCardProduct {
 }
 
 interface ProductDetailPageProps {
-  params: {
+  params: Promise<{
     slug: string;
-  };
+  }>;
 }
 
 export default function ProductDetailPage({ params }: ProductDetailPageProps) {
+  // Unwrap params Promise (Next.js 15+)
+  const { slug } = use(params);
+  
   const [product, setProduct] = useState<ProductCardProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<ProductCardProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -156,13 +159,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             product_apparel_details (*),
             product_accessories_details (*)
           `)
-          .eq('slug', params.slug)
+          .eq('slug', slug)
           .eq('is_active', true)
           .maybeSingle();
         
         // If not found by exact slug, try partial match (removing trailing numbers like -1, -2, etc.)
         if (!product && !productError) {
-          const slugWithoutSuffix = params.slug.replace(/-\d+$/, '');
+          const slugWithoutSuffix = slug.replace(/-\d+$/, '');
           
           const { data: partialProduct, error: partialError } = await supabase
             .from('products')
@@ -185,7 +188,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         }
         
         // If not found by slug, try by ID (for backward compatibility)
-        if (!product && !productError && params.slug && params.slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
+        if (!product && !productError && slug && slug.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)) {
           const { data, error } = await supabase
             .from('products')
             .select(`
@@ -195,7 +198,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               product_apparel_details (*),
               product_accessories_details (*)
             `)
-            .eq('id', params.slug)
+            .eq('id', slug)
             .eq('is_active', true)
             .maybeSingle();
           
@@ -212,7 +215,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         }
 
         if (!product) {
-          console.error('No product found with slug:', params.slug);
+          console.error('No product found with slug:', slug);
           setError('Product not found');
           return;
         }
@@ -314,10 +317,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       }
     };
 
-    if (params.slug) {
+    if (slug) {
       fetchProduct();
     }
-  }, [params.slug, supabase]);
+  }, [slug, supabase]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -447,7 +450,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
           <p className="text-gray-600 mb-4">The product you&apos;re looking for doesn&apos;t exist.</p>
           <p className="text-sm text-gray-500 mb-6">
-            Slug: {params.slug}<br />
+            Slug: {slug}<br />
             {error && `Error: ${error}`}
           </p>
           <Link

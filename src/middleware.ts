@@ -14,14 +14,14 @@ export function middleware(request: NextRequest) {
   // Content Security Policy (adjust based on your needs)
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com", // Allow Razorpay checkout script
-    "script-src-elem 'self' 'unsafe-inline' https://checkout.razorpay.com", // Explicitly allow Razorpay script element
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://www.google-analytics.com", // Allow Razorpay, Firebase, and Google reCAPTCHA scripts
+    "script-src-elem 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://www.google-analytics.com", // Explicitly allow Razorpay, Firebase, and Google reCAPTCHA script elements
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase styles
+    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase style elements
     "img-src 'self' data: https:",
     "font-src 'self' data: https://fonts.gstatic.com",
-    "connect-src 'self' https://*.supabase.co https://api.razorpay.com", // Allow Razorpay API calls
-    "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com", // Allow Razorpay iframes
+    "connect-src 'self' https://*.supabase.co https://api.razorpay.com https://*.razorpay.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://www.google.com https://www.google-analytics.com", // Allow Firebase API calls, Razorpay, and Google services
+    "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com", // Allow Razorpay and Google reCAPTCHA iframes
     "frame-ancestors 'none'",
   ].join('; ');
   
@@ -43,14 +43,10 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    // Skip Next.js internals and all static files, unless found in search params
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
   ],
 };
 

@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import { createClient } from '@/lib/supabase/client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 
 interface Category {
   id: string;
@@ -43,12 +43,15 @@ interface Product {
 }
 
 interface CategoryPageProps {
-  params: {
+  params: Promise<{
     category: string;
-  };
+  }>;
 }
 
 export default function CategoryPage({ params }: CategoryPageProps) {
+  // Unwrap params Promise (Next.js 15+)
+  const { category: categorySlug } = use(params);
+  
   const [category, setCategory] = useState<Category | null>(null);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -59,7 +62,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
   useEffect(() => {
     fetchCategoryAndProducts();
-  }, [params.category]);
+  }, [categorySlug]);
 
   // Filter products by subcategory
   useEffect(() => {
@@ -85,7 +88,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       setLoading(true);
       
       // Decode URL parameter
-      const decodedCategory = decodeURIComponent(params.category);
+      const decodedCategory = decodeURIComponent(categorySlug);
       
       // ULTRA-FAST: Single database call using optimized function
       const { data: result, error } = await supabase.rpc('get_category_products', {
@@ -159,7 +162,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   const fetchCategoryAndProductsFallback = async () => {
     try {
       // Decode URL parameter to handle encoding issues
-      const decodedCategory = decodeURIComponent(params.category);
+      const decodedCategory = decodeURIComponent(categorySlug);
       
       // Fetch category by slug (only active categories)
       const { data: categoryData, error: categoryError } = await supabase
@@ -292,7 +295,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   if (!category) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center py-12">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Category Not Found</h1>
             <p className="text-gray-600 mb-8">The category you&apos;re looking for doesn&apos;t exist.</p>
@@ -312,7 +315,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Category Header */}
       <div className="bg-white py-12">
-        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">{category.name}</h1>
           </div>
@@ -320,7 +323,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       </div>
 
       {/* Main Content */}
-        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Sidebar - Subcategories */}
           <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">

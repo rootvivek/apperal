@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 
-function LoginPageContent() {
+function SignUpPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, sendOTP, verifyOTP } = useAuth();
@@ -101,7 +101,7 @@ function LoginPageContent() {
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full">
         <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Sign in or create account
+          Create your account
         </h2>
       </div>
 
@@ -203,16 +203,25 @@ function LoginPageContent() {
               </button>
             </form>
           )}
+
+          <div className="mt-6 text-center">
+            <p className="text-sm text-gray-600">
+              Already have an account?{' '}
+              <Link href="/login" className="font-medium text-blue-600 hover:text-blue-500">
+                Sign in
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
-      <LoginPageContent />
+      <SignUpPageContent />
     </Suspense>
   );
 }

@@ -46,7 +46,7 @@ export default function ProductsPage() {
     return (
       <div className="min-h-screen bg-gray-50">
         <div className="bg-white py-6">
-          <div className="px-2 sm:px-4 md:px-6 lg:px-8">
+          <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
             <div className="text-center">
               <h1 className="text-3xl font-bold text-gray-900 mb-4">Our Products</h1>
               <p className="text-xl text-gray-600">
@@ -77,7 +77,7 @@ export default function ProductsPage() {
         </div>
       </div>
       
-      <div className="max-w-[1450px] mx-auto w-full px-1.5 sm:px-5">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
         <CategoryGrid categories={categories} />
       </div>
     </div>

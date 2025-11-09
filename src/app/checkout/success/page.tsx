@@ -20,7 +20,8 @@ interface OrderItem {
 interface Order {
   id: string;
   order_number: string;
-  total_amount: number;
+  total: number; // Schema uses 'total' not 'total_amount'
+  total_amount?: number; // Support both for backward compatibility
   payment_method: string;
   status: string;
   created_at: string;
@@ -50,10 +51,22 @@ function CheckoutSuccessContent() {
           .from('orders')
           .select('*')
           .eq('id', orderId)
-          .single() as any;
+          .maybeSingle();
         
         if (orderError) {
-          console.error('Error fetching order:', orderError);
+          console.error('Error fetching order:', {
+            message: orderError.message,
+            code: orderError.code,
+            details: orderError.details,
+            hint: orderError.hint,
+            fullError: orderError
+          });
+          setLoading(false);
+          return;
+        }
+
+        if (!orderData) {
+          console.error('Order not found with ID:', orderId);
           setLoading(false);
           return;
         }
@@ -149,7 +162,7 @@ function CheckoutSuccessContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-12">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-lg shadow-sm p-8">
           {/* Success Icon */}
           <div className="text-center mb-8">
@@ -275,7 +288,7 @@ function CheckoutSuccessContent() {
               <div className="flex justify-between items-center">
                 <span className="text-xl font-semibold text-gray-900">Total Amount</span>
                 <span className="text-2xl font-bold text-blue-600">
-                  ₹{order.total_amount.toFixed(2)}
+                  ₹{(order.total_amount || order.total || 0).toFixed(2)}
                 </span>
               </div>
             </div>

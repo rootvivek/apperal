@@ -12,6 +12,9 @@ interface Order {
   status: string;
   payment_method: string;
   created_at: string;
+  notes?: string;
+  razorpay_payment_id?: string;
+  razorpay_order_id?: string;
   first_item_image?: string;
   item_count?: number;
   user_number?: string;
@@ -77,19 +80,40 @@ export default function OrdersPage() {
       
       const ordersWithImages = await Promise.all(
         (data || []).map(async (order: Order) => {
-          const { data: itemsData } = await supabase
-            .from('order_items')
-            .select('product_image')
-            .eq('order_id', order.id)
-            .limit(1) as any;
-          const { count } = await supabase
-            .from('order_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('order_id', order.id) as any;
+          let firstItemImage = null;
+          let itemCount = 0;
+          
+          try {
+            const { data: itemsData, error: itemsError } = await supabase
+              .from('order_items')
+              .select('product_image')
+              .eq('order_id', order.id)
+              .limit(1);
+            
+            if (!itemsError && itemsData && itemsData.length > 0) {
+              firstItemImage = itemsData[0]?.product_image || null;
+            }
+          } catch (error) {
+            console.log('Note: Could not fetch product_image for order:', order.id);
+          }
+          
+          try {
+            const { count, error: countError } = await supabase
+              .from('order_items')
+              .select('*', { count: 'exact', head: true })
+              .eq('order_id', order.id);
+            
+            if (!countError) {
+              itemCount = count || 0;
+            }
+          } catch (error) {
+            console.log('Note: Could not count items for order:', order.id);
+          }
+          
           return {
             ...order,
-            first_item_image: itemsData?.[0]?.product_image,
-            item_count: count || 0,
+            first_item_image: firstItemImage,
+            item_count: itemCount,
             user_number: userNumberMap[order.user_id] || null
           };
         })
@@ -147,16 +171,11 @@ export default function OrdersPage() {
           .eq('id', order.user_id)
           .single() as any;
         
-        if (userProfile) {
-          setUserEmail(userProfile.email || 'N/A');
-          setUserName(userProfile.full_name || 'N/A');
-          setUserPhone(userProfile.phone || 'N/A');
-        } else {
-          // Fallback to order customer info if available
-          setUserEmail((order as any).customer_email || 'N/A');
-          setUserName((order as any).customer_name || 'N/A');
-          setUserPhone((order as any).customer_phone || 'N/A');
-        }
+        // Prioritize order customer info (from checkout form) over profile data
+        // This ensures we show what was actually entered during checkout
+        setUserEmail((order as any).customer_email || userProfile?.email || 'N/A');
+        setUserName((order as any).customer_name || userProfile?.full_name || 'N/A');
+        setUserPhone((order as any).customer_phone || userProfile?.phone || 'N/A');
         
         // Priority 1: Check if address is stored directly in the order
         if ((order as any).shipping_address) {
@@ -179,13 +198,12 @@ export default function OrdersPage() {
           
           setUserAddress(addressData || null);
         } 
-        // Priority 3: Try to fetch default shipping address for user
+        // Priority 3: Try to fetch default address for user
         else {
           const { data: addressData } = await supabase
             .from('addresses')
             .select('*')
             .eq('user_id', order.user_id)
-            .eq('address_type', 'shipping')
             .order('is_default', { ascending: false })
             .limit(1)
             .maybeSingle() as any;
@@ -205,8 +223,7 @@ export default function OrdersPage() {
             address_line2: (order as any).shipping_address_line2 || null,
             city: (order as any).shipping_city || '',
             state: (order as any).shipping_state || '',
-            zip_code: (order as any).shipping_zip_code || '',
-            country: (order as any).shipping_country || 'India'
+            zip_code: (order as any).shipping_zip_code || ''
           });
         } else {
           setUserAddress(null);
@@ -415,6 +432,22 @@ export default function OrdersPage() {
                   <div><p className="text-gray-600 text-sm">Payment Method</p><p className="font-medium capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p></div>
                   <div><p className="text-gray-600 text-sm">Total Amount</p><p className="font-bold text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p></div>
                   <div><p className="text-gray-600 text-sm">Status</p><select value={selectedOrder.status} onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)} className="mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></div>
+                  {selectedOrder.payment_method === 'razorpay' && (
+                    <>
+                      {selectedOrder.razorpay_payment_id && (
+                        <div>
+                          <p className="text-gray-600 text-sm">Razorpay Payment ID</p>
+                          <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_payment_id}</p>
+                        </div>
+                      )}
+                      {selectedOrder.razorpay_order_id && (
+                        <div>
+                          <p className="text-gray-600 text-sm">Razorpay Order ID</p>
+                          <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_order_id}</p>
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
 
                 <div>

@@ -139,8 +139,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (cartError && cartError.code !== 'PGRST116') {
-        console.error('Error fetching cart:', cartError);
-        if (cartError.message.includes('Could not find the table')) {
+        // Only log actual errors, not empty results
+        console.log('Note: Error fetching cart:', cartError.message || cartError);
+        if (cartError.message?.includes('Could not find the table')) {
           console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
         }
         return;
@@ -155,9 +156,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
         if (createError || !newCartData || newCartData.length === 0) {
           if (createError) {
-            console.error('Error creating cart:', createError);
-            if (createError.message.includes('Could not find the table')) {
-              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+            // Only log if it's not a "no rows" type error
+            if (createError.code !== 'PGRST116') {
+              console.log('Note: Error creating cart:', createError.message || createError);
+              if (createError.message?.includes('Could not find the table')) {
+                console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+              }
             }
           }
           return;
@@ -188,7 +192,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('cart_id', cart.id);
 
       if (itemsError) {
-        console.error('Error fetching cart items:', itemsError);
+        // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
+        // This is expected for users who don't have items in their cart yet
+        if (itemsError.code !== 'PGRST116') {
+          console.log('Note: Error fetching cart items:', itemsError.message || itemsError);
+        }
+        setCartItems([]);
         return;
       }
 
@@ -213,8 +222,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }) || [];
 
       setCartItems(transformedItems);
-    } catch (error) {
-      console.error('Error fetching cart items:', error);
+    } catch (error: any) {
+      // Silently handle errors - cart might not exist yet for new users
+      console.log('Note: Error fetching cart items:', error?.message || error);
     } finally {
       setLoading(false);
     }

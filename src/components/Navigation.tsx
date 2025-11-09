@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
@@ -41,8 +41,7 @@ export default function Navigation() {
   const [showMobileSearch, setShowMobileSearch] = useState(false);
   const [dataFetched, setDataFetched] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [userName, setUserName] = useState<string | null>(null);
-  const [userNameLoading, setUserNameLoading] = useState(false);
+  const [userFullName, setUserFullName] = useState<string | null>(null);
   const supabase = createClient();
 
   useEffect(() => {
@@ -53,60 +52,57 @@ export default function Navigation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataFetched]);
 
-  // Fetch user name from profile when user is available
-  useEffect(() => {
-    const fetchUserName = async () => {
-      if (user?.id) {
-        setUserNameLoading(true);
-        try {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .maybeSingle();
+  // Fetch user's full name from Supabase profile
+  const fetchUserFullName = useCallback(async () => {
+    if (!user?.id) {
+      setUserFullName(null);
+      return;
+    }
 
-          if (error) {
-            console.error('Error fetching user profile:', error);
-            setUserName(null);
-            setUserNameLoading(false);
-            return;
-          }
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
 
-          if (data) {
-            // Handle null, undefined, and empty strings
-            const fullName = data.full_name ? String(data.full_name).trim() : '';
-            
-            console.log('Fetched user name data:', { fullName, rawData: data });
-            
-            if (fullName && fullName !== 'User') {
-              setUserName(fullName);
-            } else {
-              // No name available
-              console.log('No name found in user profile - will show "Hi User"');
-              setUserName(null);
-            }
-          } else {
-            // No profile found
-            console.log('No user profile found in database');
-            setUserName(null);
-          }
-        } catch (err) {
-          console.error('Error fetching user name:', err);
-          setUserName(null);
-        } finally {
-          setUserNameLoading(false);
-        }
+      if (!error && data?.full_name) {
+        setUserFullName(data.full_name);
       } else {
-        setUserName(null);
-        setUserNameLoading(false);
+        setUserFullName(null);
+      }
+    } catch (error) {
+      console.error('Error fetching user full name:', error);
+      setUserFullName(null);
+    }
+  }, [user?.id, supabase]);
+
+  useEffect(() => {
+    fetchUserFullName();
+  }, [fetchUserFullName]);
+
+  // Listen for profile updates
+  useEffect(() => {
+    const handleProfileUpdate = (event: CustomEvent) => {
+      if (event.detail?.full_name !== undefined) {
+        setUserFullName(event.detail.full_name);
+      } else {
+        // If no name in event, refetch from database
+        fetchUserFullName();
       }
     };
 
-    fetchUserName();
-  }, [user, supabase]);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      return () => {
+        window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      };
+    }
+  }, [fetchUserFullName]);
+
 
   useEffect(() => {
-    // Close mobile search and user dropdown when clicking outside
+    // Close mobile search when clicking outside
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as Element;
       
@@ -119,9 +115,9 @@ export default function Navigation() {
         }
       }
 
+      // Close user dropdown when clicking outside
       if (showUserDropdown) {
         const userDropdown = document.getElementById('user-dropdown');
-        
         if (userDropdown && !userDropdown.contains(target)) {
           setShowUserDropdown(false);
         }
@@ -196,66 +192,6 @@ export default function Navigation() {
     }
   };
 
-  // Helper function to get user display name for greeting
-  const getUserGreeting = () => {
-    if (!user) return '';
-    
-    // Wait for userName to load if still loading
-    if (userNameLoading) {
-      return 'Hi User'; // Show default while loading
-    }
-    
-    // Use fetched userName from database (prioritize database over metadata)
-    if (userName && userName.trim() && userName !== 'null' && userName !== 'undefined' && userName !== 'User') {
-      return `Hi ${userName}`;
-    }
-    
-    // Fallback to user_metadata if database fetch hasn't completed or returned null
-    const fullName = user.user_metadata?.full_name?.trim();
-    const firstName = user.user_metadata?.first_name?.trim();
-    const lastName = user.user_metadata?.last_name?.trim();
-    
-    if (fullName) {
-      return `Hi ${fullName}`;
-    } else if (firstName && lastName) {
-      return `Hi ${firstName} ${lastName}`;
-    } else if (firstName) {
-      return `Hi ${firstName}`;
-    } else if (lastName) {
-      return `Hi ${lastName}`;
-    }
-    
-    // Default greeting if no name is available (never show email in greeting)
-    return 'Hi User';
-  };
-
-  // Helper function to get full user display name for dropdown
-  const getUserDisplayName = () => {
-    if (!user) return '';
-    
-    // Use fetched userName from database (prioritize database over metadata)
-    if (userName && userName.trim() && userName !== 'User') {
-      return userName;
-    }
-    
-    // Fallback to user_metadata if database fetch hasn't completed or returned null
-    const fullName = user.user_metadata?.full_name?.trim();
-    const firstName = user.user_metadata?.first_name?.trim();
-    const lastName = user.user_metadata?.last_name?.trim();
-    
-    if (fullName) {
-      return fullName;
-    } else if (firstName && lastName) {
-      return `${firstName} ${lastName}`;
-    } else if (firstName) {
-      return firstName;
-    } else if (lastName) {
-      return lastName;
-    }
-    
-    // Fallback to email if no name is available (for dropdown display)
-    return user.email || 'User';
-  };
 
   const openMobileSearch = () => {
     setShowMobileSearch(true);
@@ -363,70 +299,97 @@ export default function Navigation() {
               {loading ? (
                 <div className="text-white text-sm sm:text-base flex items-center h-full opacity-70">Loading...</div>
               ) : user ? (
-                <div id="user-dropdown" className="relative flex items-center h-full">
-                  <div className="hidden sm:flex items-center space-x-1.5 h-full">
-                    <button
-                      onClick={() => setShowUserDropdown(!showUserDropdown)}
-                      className="flex items-center space-x-1.5 text-white hover:text-blue-200 transition-colors"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div 
+                  id="user-dropdown" 
+                  className="relative flex items-center h-full"
+                >
+                  {/* Desktop: User name/icon button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowUserDropdown(!showUserDropdown);
+                    }}
+                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-blue-200 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
-                      <span className="text-sm sm:text-base">
-                        {getUserGreeting()}
+                    <span className="text-sm sm:text-base">
+                      {userFullName || 'Hi, User'}
                     </span>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  </div>
-                  {/* Mobile: Show user icon only */}
+                    <svg 
+                      className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  
+                  {/* Mobile: User icon button */}
                   <button
-                    onClick={() => setShowUserDropdown(!showUserDropdown)}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowUserDropdown(!showUserDropdown);
+                    }}
                     className="sm:hidden text-white hover:text-blue-200 p-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </button>
-                  
+
                   {/* Dropdown Menu */}
                   {showUserDropdown && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50">
-                      <div className="py-2">
-                        <div className="px-4 py-2 border-b border-gray-200">
-                          <p className="text-sm font-medium text-gray-900">{getUserDisplayName()}</p>
-                          <p className="text-xs text-gray-500">{user.email}</p>
-                        </div>
+                    <div 
+                      className="absolute right-0 top-full mt-2 w-48 bg-white rounded-md shadow-xl border border-gray-200 z-[100]"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="py-1">
                         <Link
                           href="/profile"
                           onClick={() => setShowUserDropdown(false)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center space-x-2"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
-                          <span>Profile</span>
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span>View Profile</span>
+                          </div>
                         </Link>
                         <Link
                           href="/orders"
                           onClick={() => setShowUserDropdown(false)}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors flex items-center space-x-2"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                          </svg>
-                          <span>Orders</span>
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                            <span>Orders</span>
+                          </div>
                         </Link>
+                        <div className="border-t border-gray-200 my-1"></div>
                         <button
-                          onClick={() => {
+                          type="button"
+                          onClick={async (e) => {
+                            e.stopPropagation();
                             setShowUserDropdown(false);
-                            signOut();
+                            await signOut();
                           }}
                           disabled={signingOut}
-                          className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-red-600 transition-colors disabled:opacity-50 cursor-pointer"
                         >
-                          {signingOut ? 'Signing Out...' : 'Sign Out'}
+                          <div className="flex items-center space-x-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                            <span>{signingOut ? 'Signing out...' : 'Sign Out'}</span>
+                          </div>
                         </button>
                       </div>
                     </div>

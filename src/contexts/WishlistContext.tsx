@@ -36,7 +36,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
             .eq('user_id', user.id);
 
           if (error) {
-            console.error('Error loading wishlist from database:', error);
+            // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
+            // This is expected for users who don't have items in their wishlist yet
+            if (error.code !== 'PGRST116') {
+              console.log('Note: Error loading wishlist from database:', error.message || error);
+            }
             setWishlist([]);
           } else {
             const productIds = (wishlistRows || []).map((r: any) => r.product_id).filter(Boolean);
@@ -63,7 +67,10 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                 .in('id', productIds);
 
               if (productsError) {
-                console.error('Error loading wishlist products:', productsError);
+                // Only log actual errors, not empty results
+                if (productsError.code !== 'PGRST116') {
+                  console.log('Note: Error loading wishlist products:', productsError.message || productsError);
+                }
                 setWishlist([]);
               } else {
                 // Transform to Product type
@@ -98,8 +105,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
               }
             }
           }
-        } catch (error) {
-          console.error('Error loading wishlist:', error);
+        } catch (error: any) {
+          // Silently handle errors - wishlist might not exist yet for new users
+          console.log('Note: Error loading wishlist:', error?.message || error);
           setWishlist([]);
         }
       } else {

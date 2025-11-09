@@ -19,13 +19,11 @@ interface UserProfile {
 interface Address {
   id: string;
   user_id: string;
-  address_type: string;
   address_line1: string;
   address_line2: string | null;
   city: string;
   state: string;
   zip_code: string;
-  country: string;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -43,6 +41,7 @@ function ProfileContent() {
   const [success, setSuccess] = useState(false);
   
   // Form state
+  const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   
@@ -55,8 +54,6 @@ function ProfileContent() {
     city: '',
     state: '',
     zip_code: '',
-    country: 'USA',
-    address_type: 'shipping',
     is_default: false,
   });
   const [savingAddress, setSavingAddress] = useState(false);
@@ -92,17 +89,19 @@ function ProfileContent() {
 
       if (data) {
         setProfile(data);
+        setEmail(data.email || '');
         setFullName(data.full_name || '');
         setPhone(data.phone || '');
       } else {
-        // Profile doesn't exist, create one
-        // Note: Profile should be created by database trigger, but if it doesn't exist, try to create it
+        // Profile doesn't exist, create one for Firebase user
+        // Note: Firebase users don't trigger Supabase auth.users triggers, so we create manually
+        console.log('Creating user profile for Firebase user:', user.id);
         const insertQuery = supabase
           .from('user_profiles')
           .insert({
             id: user.id,
             email: user.email || '',
-            full_name: user.user_metadata?.full_name || 'User',
+            full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
             phone: user.phone || null,
           })
           .select();
@@ -110,25 +109,39 @@ function ProfileContent() {
         const insertResult = await insertQuery;
 
         if (insertResult.error) {
-          // If insert fails (e.g., RLS policy), profile will be created by trigger
-          // Just fetch it again after a short delay
-          console.log('Profile creation handled by trigger, fetching...');
-          setTimeout(async () => {
-            const { data: profileData } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('id', user.id)
-              .maybeSingle();
-            
-            if (profileData) {
-              setProfile(profileData);
-              setFullName(profileData.full_name || '');
-              setPhone(profileData.phone || '');
-            }
-          }, 500);
+          // If insert fails (e.g., RLS policy or duplicate), try to fetch existing profile
+          console.log('Profile insert failed, checking if profile exists:', insertResult.error.message);
+          const { data: existingProfile } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .maybeSingle();
+          
+          if (existingProfile) {
+            setProfile(existingProfile);
+            setEmail(existingProfile.email || '');
+            setFullName(existingProfile.full_name || '');
+            setPhone(existingProfile.phone || '');
+          } else {
+            // Profile doesn't exist and couldn't be created - set defaults
+            setProfile({
+              id: user.id,
+              email: user.email || '',
+              full_name: user.user_metadata?.full_name || null,
+              phone: user.phone || null,
+              user_number: null,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            setEmail(user.email || '');
+            setFullName(user.user_metadata?.full_name || '');
+            setPhone(user.phone || '');
+            console.warn('Could not create profile in database, using in-memory profile');
+          }
         } else if (insertResult.data && insertResult.data.length > 0) {
           const newProfile = insertResult.data[0];
           setProfile(newProfile);
+          setEmail(newProfile.email || '');
           setFullName(newProfile.full_name || '');
           setPhone(newProfile.phone || '');
         }
@@ -154,6 +167,7 @@ function ProfileContent() {
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
+          email: email.trim() || null,
           full_name: fullName.trim() || null,
           phone: phone.trim() || null,
           updated_at: new Date().toISOString(),
@@ -168,9 +182,17 @@ function ProfileContent() {
       if (profile) {
         setProfile({
           ...profile,
+          email: email.trim() || null,
           full_name: fullName.trim() || null,
           phone: phone.trim() || null,
         });
+      }
+
+      // Dispatch custom event to notify Navigation component to refresh user name
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('profileUpdated', {
+          detail: { full_name: fullName.trim() || null }
+        }));
       }
 
       setSuccess(true);
@@ -191,16 +213,24 @@ function ProfileContent() {
         .from('addresses')
         .select('*')
         .eq('user_id', user.id)
-        .order('is_default', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (fetchError) {
-        throw fetchError;
+        // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
+        // This is expected for new users who don't have addresses yet
+        if (fetchError.code !== 'PGRST116') {
+          // Only log actual errors, not empty results
+          console.log('Note: No addresses found or error fetching addresses:', fetchError.message || fetchError);
+        }
+        setAddresses([]);
+        return;
       }
 
       setAddresses(data || []);
     } catch (err: any) {
-      console.error('Error fetching addresses:', err);
+      // Silently handle errors - addresses might not exist yet for new users
+      console.log('No addresses found or error fetching addresses:', err.message || err);
+      setAddresses([]);
     }
   };
 
@@ -224,8 +254,6 @@ function ProfileContent() {
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
-            country: addressForm.country.trim(),
-            address_type: addressForm.address_type,
             is_default: addressForm.is_default,
             updated_at: new Date().toISOString(),
           })
@@ -264,8 +292,6 @@ function ProfileContent() {
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
-            country: addressForm.country.trim(),
-            address_type: addressForm.address_type,
             is_default: addressForm.is_default,
           })
           .select();
@@ -285,8 +311,6 @@ function ProfileContent() {
         city: '',
         state: '',
         zip_code: '',
-        country: 'USA',
-        address_type: 'shipping',
         is_default: false,
       });
       setShowAddressForm(false);
@@ -309,8 +333,6 @@ function ProfileContent() {
       city: address.city,
       state: address.state,
       zip_code: address.zip_code,
-      country: address.country,
-      address_type: address.address_type,
       is_default: address.is_default,
     });
     setShowAddressForm(true);
@@ -380,7 +402,7 @@ function ProfileContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
         {/* Header */}
         <div className="mb-8">
           <Link
@@ -414,18 +436,19 @@ function ProfileContent() {
           {/* Profile Form */}
           <form onSubmit={handleSubmit} className="p-6">
             <div className="space-y-6">
-              {/* Email (Read-only) */}
+              {/* Email */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                   Email
                 </label>
                 <input
                   type="email"
-                  value={user.email || profile?.email || ''}
-                  disabled
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
+                  id="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
                 />
-                <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
               </div>
 
               {/* Full Name */}
@@ -492,23 +515,6 @@ function ProfileContent() {
                 </div>
               )}
             </div>
-
-            {/* Submit Button */}
-            <div className="mt-8 flex justify-end space-x-4">
-              <Link
-                href="/"
-                className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-6 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
           </form>
 
           {/* Addresses Section */}
@@ -527,8 +533,6 @@ function ProfileContent() {
                     city: '',
                     state: '',
                     zip_code: '',
-                    country: 'USA',
-                    address_type: 'shipping',
                     is_default: false,
                   });
                   setShowAddressForm(!showAddressForm);
@@ -615,33 +619,6 @@ function ProfileContent() {
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Country *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={addressForm.country}
-                      onChange={(e) => setAddressForm({ ...addressForm, country: e.target.value })}
-                      placeholder="Country"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address Type
-                  </label>
-                  <select
-                    value={addressForm.address_type}
-                    onChange={(e) => setAddressForm({ ...addressForm, address_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                  >
-                    <option value="shipping">Shipping</option>
-                    <option value="billing">Billing</option>
-                  </select>
                 </div>
 
                 <div className="flex items-center">
@@ -669,8 +646,6 @@ function ProfileContent() {
                         city: '',
                         state: '',
                         zip_code: '',
-                        country: 'USA',
-                        address_type: 'shipping',
                         is_default: false,
                       });
                     }}
@@ -708,7 +683,7 @@ function ProfileContent() {
                             Default
                           </span>
                         )}
-                        <p className="font-medium text-gray-900 capitalize">{address.address_type} Address</p>
+                        <p className="font-medium text-gray-900">Address</p>
                         <p className="text-gray-700 mt-1">{address.address_line1}</p>
                         {address.address_line2 && (
                           <p className="text-gray-700">{address.address_line2}</p>
@@ -716,7 +691,6 @@ function ProfileContent() {
                         <p className="text-gray-700">
                           {address.city}, {address.state} {address.zip_code}
                         </p>
-                        <p className="text-gray-700">{address.country}</p>
                       </div>
                       <div className="flex space-x-2 ml-4">
                         {!address.is_default && (
@@ -747,6 +721,37 @@ function ProfileContent() {
               </div>
             )}
             </div>
+          </div>
+
+          {/* Profile Submit Buttons - At the end of all profile content */}
+          <div className="p-6 border-t border-gray-200 flex justify-end space-x-4">
+            <button
+              type="button"
+                onClick={() => {
+                  // Reset form to original profile values
+                  if (profile) {
+                    setEmail(profile.email || '');
+                    setFullName(profile.full_name || '');
+                    setPhone(profile.phone || '');
+                  }
+                  setError(null);
+                  setSuccess(false);
+                }}
+              className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }}
+              disabled={saving}
+              className="px-6 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
           </div>
         </div>
       </div>

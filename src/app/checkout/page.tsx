@@ -133,15 +133,124 @@ function CheckoutContent() {
     }
   }, [searchParams, supabase]);
 
-  // Update form data when user is available
-  useEffect(() => {
-    if (user?.email) {
-      setFormData(prev => ({
-        ...prev,
-        email: user.email || ''
-      }));
+  // Helper function to map state name to state code
+  const getStateCode = (stateName: string | null | undefined): string => {
+    if (!stateName) return '';
+    
+    const stateMap: { [key: string]: string } = {
+      'Andhra Pradesh': 'AP',
+      'Assam': 'AS',
+      'Bihar': 'BR',
+      'Chhattisgarh': 'CG',
+      'Goa': 'GA',
+      'Gujarat': 'GJ',
+      'Haryana': 'HR',
+      'Himachal Pradesh': 'HP',
+      'Jharkhand': 'JH',
+      'Karnataka': 'KA',
+      'Kerala': 'KL',
+      'Madhya Pradesh': 'MP',
+      'Maharashtra': 'MH',
+      'Manipur': 'MN',
+      'Meghalaya': 'ML',
+      'Mizoram': 'MZ',
+      'Nagaland': 'NL',
+      'Odisha': 'OD',
+      'Punjab': 'PB',
+      'Rajasthan': 'RJ',
+      'Sikkim': 'SK',
+      'Tamil Nadu': 'TN',
+      'Telangana': 'TS',
+      'Tripura': 'TR',
+      'Uttar Pradesh': 'UP',
+      'Uttarakhand': 'UK',
+      'West Bengal': 'WB',
+      'Delhi (NCT)': 'DL',
+      'Delhi': 'DL',
+    };
+
+    // Check if it's already a code (2 letters)
+    if (stateName.length === 2 && stateName === stateName.toUpperCase()) {
+      return stateName;
     }
-  }, [user]);
+
+    // Try to find by exact match
+    if (stateMap[stateName]) {
+      return stateMap[stateName];
+    }
+
+    // Try case-insensitive match
+    const stateNameLower = stateName.toLowerCase();
+    for (const [key, value] of Object.entries(stateMap)) {
+      if (key.toLowerCase() === stateNameLower) {
+        return value;
+      }
+    }
+
+    // If no match found, return the original value (might be a custom state)
+    return stateName;
+  };
+
+  // Update form data when user is available and fetch default address
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (!user?.id) return;
+
+      try {
+        // Fetch user profile for full name and phone
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('full_name, phone')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        // Fetch default address, or most recent address if no default
+        const { data: defaultAddress } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('is_default', true)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // If no default address, try to get the most recent address
+        let address = defaultAddress;
+        if (!address) {
+          const { data: recentAddress } = await supabase
+            .from('addresses')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          address = recentAddress;
+        }
+
+        // Map state name to state code for the dropdown
+        const stateCode = getStateCode(address?.state);
+
+        // Update form with profile data only (don't use Firebase user data or previous form data)
+        // This ensures if user removes data from profile, it won't show in checkout
+        setFormData(prev => ({
+          ...prev,
+          email: user.email || '', // Only use Firebase email (can't be removed)
+          fullName: profile?.full_name || '', // Only from profile, empty if removed
+          phone: profile?.phone || '', // Only from profile, empty if removed
+          address: address?.address_line1 || '', // Only from address, empty if removed
+          apartment: address?.address_line2 || '', // Only from address, empty if removed
+          city: address?.city || '', // Only from address, empty if removed
+          state: stateCode || '', // Only from address, empty if removed
+          zipCode: address?.zip_code || '' // Only from address, empty if removed
+        }));
+      } catch (error) {
+        console.error('Error fetching user data for checkout:', error);
+        // Don't show error to user, just continue with empty form
+      }
+    };
+
+    fetchUserData();
+  }, [user, supabase]);
 
   // Load Razorpay script
   useEffect(() => {
@@ -523,16 +632,24 @@ function CheckoutContent() {
     try {
       console.log('Creating Razorpay order for amount:', orderData.total, 'Order Number:', orderNumber);
       
+      // Verify user is logged in
+      if (!user || !user.id) {
+        alert('Please log in to continue with payment.');
+        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+        setIsProcessing(false);
+        return;
+      }
+
       // Create Razorpay order (no database order created yet)
       const response = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        credentials: 'include', // Include cookies for authentication
         body: JSON.stringify({
           amount: orderData.total,
           currency: 'INR',
+          userId: user.id, // Send Firebase user ID
         }),
       });
 
@@ -568,7 +685,6 @@ function CheckoutContent() {
               headers: {
                 'Content-Type': 'application/json',
               },
-              credentials: 'include', // Include cookies for authentication
               body: JSON.stringify({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
@@ -581,19 +697,86 @@ function CheckoutContent() {
                   total: orderData.total,
                   formData: orderData.formData,
                 },
+                userId: user.id, // Send Firebase user ID
               }),
             });
 
             if (!verifyResponse.ok) {
-              const error = await verifyResponse.json();
-              throw new Error(error.error || 'Payment verification failed');
+              let errorData: any = {};
+              const contentType = verifyResponse.headers.get('content-type');
+              
+              try {
+                // Clone the response so we can read it multiple times
+                const responseClone = verifyResponse.clone();
+                
+                if (contentType && contentType.includes('application/json')) {
+                  errorData = await responseClone.json();
+                } else {
+                  const text = await responseClone.text();
+                  console.error('Non-JSON response:', text);
+                  errorData = { 
+                    error: text || `Payment verification failed (${verifyResponse.status})`,
+                    rawResponse: text
+                  };
+                }
+              } catch (parseError: any) {
+                console.error('Error parsing response:', parseError);
+                // Try to get the raw text
+                try {
+                  const text = await verifyResponse.text();
+                  errorData = { 
+                    error: `Payment verification failed (${verifyResponse.status})`,
+                    message: 'Could not parse error response',
+                    rawResponse: text,
+                    parseError: parseError.message
+                  };
+                } catch (textError) {
+                  errorData = { 
+                    error: `Payment verification failed (${verifyResponse.status})`,
+                    message: 'Could not read error response',
+                    status: verifyResponse.status,
+                    statusText: verifyResponse.statusText
+                  };
+                }
+              }
+              
+              // Log full error details
+              console.error('=== Payment Verification Error ===');
+              console.error('Status:', verifyResponse.status, verifyResponse.statusText);
+              console.error('Content-Type:', contentType);
+              console.error('Full Error Object:', JSON.stringify(errorData, null, 2));
+              console.error('Error Keys:', Object.keys(errorData || {}));
+              if (errorData?.details) {
+                console.error('Error Details:', JSON.stringify(errorData.details, null, 2));
+              }
+              if (errorData?.fullError) {
+                console.error('Full Database Error:', JSON.stringify(errorData.fullError, null, 2));
+              }
+              console.error('===================================');
+              
+              // Build a comprehensive error message
+              const errorMessage = errorData?.error || 
+                                  errorData?.message || 
+                                  errorData?.rawResponse ||
+                                  `Payment verification failed (${verifyResponse.status})`;
+              
+              // Include details in the error message if available
+              let fullErrorMessage = errorMessage;
+              if (errorData?.details?.fullError?.message) {
+                fullErrorMessage += `\nDatabase Error: ${errorData.details.fullError.message}`;
+              } else if (errorData?.message) {
+                fullErrorMessage += `\nDetails: ${errorData.message}`;
+              }
+              
+              throw new Error(fullErrorMessage);
             }
 
             const result = await verifyResponse.json();
             const createdOrderId = result.order?.id;
 
             if (!createdOrderId) {
-              throw new Error('Order creation failed after payment');
+              console.error('Order creation failed - no order ID returned:', result);
+              throw new Error('Order creation failed after payment. Please contact support with your payment ID.');
             }
 
             // Clear cart
@@ -647,10 +830,11 @@ function CheckoutContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="px-2 sm:px-4 md:px-6 lg:px-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Checkout Form */}
           <div>
             <form onSubmit={handleSubmit} className="space-y-8">
@@ -992,6 +1176,7 @@ function CheckoutContent() {
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>

@@ -3,7 +3,7 @@
 import { notFound } from 'next/navigation';
 import ProductCard from '@/components/ProductCard';
 import { createClient } from '@/lib/supabase/client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 
 interface Category {
   id: string;
@@ -48,30 +48,29 @@ interface Product {
 }
 
 interface SubcategoryPageProps {
-  params: {
+  params: Promise<{
     category: string;
     subcategory: string;
-  };
+  }>;
 }
 
 export default function SubcategoryPage({ params }: SubcategoryPageProps) {
+  // Unwrap params Promise (Next.js 15+)
+  const { category: categorySlug, subcategory: subcategorySlug } = use(params);
+  
   const [category, setCategory] = useState<Category | null>(null);
   const [subcategory, setSubcategory] = useState<Subcategory | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchSubcategoryAndProducts();
-  }, [params.category, params.subcategory]);
-
   const fetchSubcategoryAndProducts = async () => {
     try {
       setLoading(true);
       
       // Decode URL parameters to handle spaces and special characters
-      const decodedCategory = decodeURIComponent(params.category);
-      const decodedSubcategory = decodeURIComponent(params.subcategory);
+      const decodedCategory = decodeURIComponent(categorySlug);
+      const decodedSubcategory = decodeURIComponent(subcategorySlug);
       
       // Try optimized RPC function first, fallback to regular queries if it fails
       const { data: result, error } = await supabase.rpc('get_subcategory_products', {
@@ -117,8 +116,8 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   const fetchSubcategoryFallback = async () => {
     try {
       // Decode URL parameters
-      const decodedCategory = decodeURIComponent(params.category);
-      const decodedSubcategory = decodeURIComponent(params.subcategory);
+      const decodedCategory = decodeURIComponent(categorySlug);
+      const decodedSubcategory = decodeURIComponent(subcategorySlug);
       
       // Fetch category by slug (only active categories)
       const { data: categoryData, error: categoryError } = await supabase
@@ -131,9 +130,9 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       // Create fallback category if not found
       const fallbackCategory = categoryError || !categoryData 
         ? {
-            id: `fallback-${params.category}`,
-            name: params.category.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            slug: params.category,
+            id: `fallback-${categorySlug}`,
+            name: categorySlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            slug: categorySlug,
             description: '',
             image_url: null,
             parent_category_id: null
@@ -158,9 +157,9 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       // Create fallback subcategory if not found in database
       const fallbackSubcategory = subcategoryError || !subcategoryData 
         ? {
-            id: `fallback-${params.subcategory}`,
-            name: params.subcategory.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
-            slug: params.subcategory,
+            id: `fallback-${subcategorySlug}`,
+            name: subcategorySlug.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+            slug: subcategorySlug,
             description: '',
             image_url: null,
             parent_category_id: fallbackCategory.id
@@ -238,6 +237,10 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
     }
   };
 
+  useEffect(() => {
+    fetchSubcategoryAndProducts();
+  }, [categorySlug, subcategorySlug]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -258,7 +261,7 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Products Grid */}
-      <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-900">
             {products.length} Products

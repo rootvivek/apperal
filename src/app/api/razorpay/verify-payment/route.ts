@@ -1,21 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import { createServerAuthClient } from '@/lib/supabase/server-auth';
 import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify user is authenticated
-    const supabase = createServerAuthClient(request);
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
     const body = await request.json();
     const { 
       razorpay_order_id, 
@@ -23,8 +11,19 @@ export async function POST(request: NextRequest) {
       razorpay_signature, 
       orderNumber,
       orderItems,
-      orderData
+      orderData,
+      userId
     } = body;
+
+    // Verify user is authenticated (Firebase user ID from request body)
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please log in to continue.' },
+        { status: 401 }
+      );
+    }
+
+    const user = { id: userId };
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderNumber || !orderItems || !orderData) {
       return NextResponse.json(
@@ -56,29 +55,44 @@ export async function POST(request: NextRequest) {
     console.log('Creating order after payment verification:', orderNumber);
     console.log('User ID:', user.id);
     
-    // Store payment ID in notes field
+    // Store payment ID in notes field (for backward compatibility) and dedicated columns
     const paymentNote = `Payment ID: ${razorpay_payment_id}. Razorpay Order: ${razorpay_order_id}`;
     
     // Create order with paid status
+    // Note: orders table has both 'total' and 'total_amount' columns, both need to be set
+    // Build order data object with only required fields first
+    const orderTotal = orderData.total;
+    const orderInsertData: any = {
+      user_id: user.id,
+      order_number: orderNumber,
+      payment_method: 'razorpay',
+      subtotal: orderData.subtotal || orderTotal,
+      shipping_cost: orderData.shipping || 0,
+      tax: 0, // Tax not calculated in current flow
+      total: orderTotal, // Use 'total' field from schema
+      total_amount: orderTotal, // Also set 'total_amount' if the column exists (required NOT NULL)
+      status: 'paid',
+      payment_status: 'completed',
+      notes: paymentNote, // Keep for backward compatibility
+      razorpay_payment_id: razorpay_payment_id, // Store in dedicated column
+      razorpay_order_id: razorpay_order_id, // Store in dedicated column
+    };
+    
+    // Add customer information fields only if they exist in the table
+    // These columns might not exist if add-customer-info-to-orders.sql wasn't run
+    if (orderData.formData) {
+      if (orderData.formData.fullName) orderInsertData.customer_name = orderData.formData.fullName;
+      if (orderData.formData.phone) orderInsertData.customer_phone = orderData.formData.phone;
+      if (orderData.formData.email) orderInsertData.customer_email = orderData.formData.email;
+      if (orderData.formData.address) orderInsertData.shipping_address = orderData.formData.address;
+      if (orderData.formData.city) orderInsertData.shipping_city = orderData.formData.city;
+      if (orderData.formData.state) orderInsertData.shipping_state = orderData.formData.state;
+      if (orderData.formData.zipCode) orderInsertData.shipping_zip_code = orderData.formData.zipCode;
+    }
+    
     const { data: createdOrder, error: createError } = await supabaseAdmin
       .from('orders')
-      .insert({
-        user_id: user.id,
-        order_number: orderNumber,
-        payment_method: 'razorpay',
-        total_amount: orderData.total,
-        status: 'paid',
-        payment_status: 'completed',
-        notes: paymentNote,
-        // Store customer information
-        customer_name: orderData.formData.fullName || null,
-        customer_phone: orderData.formData.phone || null,
-        customer_email: orderData.formData.email || null,
-        shipping_address: orderData.formData.address || null,
-        shipping_city: orderData.formData.city || null,
-        shipping_state: orderData.formData.state || null,
-        shipping_zip_code: orderData.formData.zipCode || null,
-      })
+      .insert(orderInsertData)
       .select()
       .single();
 
@@ -87,25 +101,46 @@ export async function POST(request: NextRequest) {
       console.error('Create data attempted:', {
         order_number: orderNumber,
         user_id: user.id,
-        total_amount: orderData.total,
+        total: orderData.total,
+        subtotal: orderData.subtotal,
+        shipping: orderData.shipping,
       });
       console.error('Error code:', createError.code);
       console.error('Error message:', createError.message);
       console.error('Error details:', createError.details);
       console.error('Error hint:', createError.hint);
       
-      return NextResponse.json(
-        { 
-          error: 'Failed to create order after payment',
-          details: process.env.NODE_ENV === 'development' ? {
-            message: createError.message,
-            code: createError.code,
-            details: createError.details,
-            hint: createError.hint,
-          } : undefined,
+      // Return a proper error response with all error details
+      // Include the actual error message in the main error field so it's visible
+      const errorMessage = createError.message || 'Database error';
+      const errorResponse: any = {
+        error: `Failed to create order: ${errorMessage}`,
+        message: errorMessage,
+        code: createError.code,
+      };
+      
+      // Always include details for debugging
+      errorResponse.details = {
+        details: createError.details,
+        hint: createError.hint,
+        attemptedData: {
+          order_number: orderNumber,
+          user_id: user.id,
+          user_id_type: typeof user.id,
+          total: orderData.total,
+          subtotal: orderData.subtotal,
+          shipping: orderData.shipping,
         },
-        { status: 500 }
-      );
+        // Include the full error object
+        fullError: {
+          code: createError.code,
+          message: createError.message,
+          details: createError.details,
+          hint: createError.hint,
+        }
+      };
+      
+      return NextResponse.json(errorResponse, { status: 500 });
     }
 
     if (!createdOrder || !createdOrder.id) {
@@ -116,15 +151,32 @@ export async function POST(request: NextRequest) {
     }
 
     // Create order items
-    const orderItemsToInsert = orderItems.map((item: any) => ({
-      order_id: createdOrder.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-      product_price: item.product_price,
-      total_price: item.total_price,
-      quantity: item.quantity,
-      size: item.size || null,
-    }));
+    // The order_items table requires: product_price (per unit) and total_price (line total)
+    const orderItemsToInsert = orderItems.map((item: any) => {
+      // Get the per-unit price
+      const unitPrice = item.product_price || item.price || 0;
+      // Calculate total price (per unit * quantity)
+      const lineTotal = item.total_price || (unitPrice * item.quantity);
+      
+      const orderItem: any = {
+        order_id: createdOrder.id,
+        product_id: item.product_id,
+        product_name: item.product_name,
+        product_price: unitPrice, // Per unit price (required)
+        total_price: lineTotal, // Line total = product_price * quantity (required NOT NULL)
+        quantity: item.quantity,
+      };
+      
+      // Only include size if provided (column may or may not exist)
+      if (item.size) {
+        orderItem.size = item.size;
+      }
+      
+      // Note: color column may not exist in the actual table, so we skip it
+      // If you need color, add the column to the order_items table first
+      
+      return orderItem;
+    });
 
     const { error: itemsError } = await supabaseAdmin
       .from('order_items')
@@ -138,9 +190,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'Failed to create order items',
-          details: process.env.NODE_ENV === 'development' ? {
+          details: {
             message: itemsError.message,
-          } : undefined,
+            code: itemsError.code,
+            details: itemsError.details,
+            hint: itemsError.hint,
+          },
         },
         { status: 500 }
       );

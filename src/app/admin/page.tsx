@@ -42,6 +42,9 @@ interface Order {
   status: string;
   payment_method: string;
   created_at: string;
+  notes?: string;
+  razorpay_payment_id?: string;
+  razorpay_order_id?: string;
   first_item_image?: string;
   item_count?: number;
   user_number?: string;
@@ -188,21 +191,40 @@ function AdminDashboardContent() {
       // Fetch first item image for each order
       const ordersWithImages = await Promise.all(
         (data || []).map(async (order: Order) => {
-          const { data: itemsData } = await supabase
-            .from('order_items')
-            .select('product_image')
-            .eq('order_id', order.id)
-            .limit(1) as any;
+          let firstItemImage = null;
+          let itemCount = 0;
           
-          const { count } = await supabase
-            .from('order_items')
-            .select('*', { count: 'exact', head: true })
-            .eq('order_id', order.id) as any;
+          try {
+            const { data: itemsData, error: itemsError } = await supabase
+              .from('order_items')
+              .select('product_image')
+              .eq('order_id', order.id)
+              .limit(1);
+            
+            if (!itemsError && itemsData && itemsData.length > 0) {
+              firstItemImage = itemsData[0]?.product_image || null;
+            }
+          } catch (error) {
+            console.log('Note: Could not fetch product_image for order:', order.id);
+          }
+          
+          try {
+            const { count, error: countError } = await supabase
+              .from('order_items')
+              .select('*', { count: 'exact', head: true })
+              .eq('order_id', order.id);
+            
+            if (!countError) {
+              itemCount = count || 0;
+            }
+          } catch (error) {
+            console.log('Note: Could not count items for order:', order.id);
+          }
           
           return {
             ...order,
-            first_item_image: itemsData?.[0]?.product_image,
-            item_count: count || 0,
+            first_item_image: firstItemImage,
+            item_count: itemCount,
             user_number: userNumberMap[order.user_id] || null
           };
         })
@@ -262,16 +284,11 @@ function AdminDashboardContent() {
           .eq('id', order.user_id)
           .single() as any;
         
-        if (userProfile) {
-          setUserEmail(userProfile.email || 'N/A');
-          setUserName(userProfile.full_name || 'N/A');
-          setUserPhone(userProfile.phone || 'N/A');
-      } else {
-          // Fallback to order customer info if available
-          setUserEmail((order as any).customer_email || 'N/A');
-          setUserName((order as any).customer_name || 'N/A');
-          setUserPhone((order as any).customer_phone || 'N/A');
-        }
+        // Prioritize order customer info (from checkout form) over profile data
+        // This ensures we show what was actually entered during checkout
+        setUserEmail((order as any).customer_email || userProfile?.email || 'N/A');
+        setUserName((order as any).customer_name || userProfile?.full_name || 'N/A');
+        setUserPhone((order as any).customer_phone || userProfile?.phone || 'N/A');
         
         // Priority 1: Check if address is stored directly in the order
         if ((order as any).shipping_address) {
@@ -1123,6 +1140,22 @@ function AdminDashboardContent() {
                     <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
+                {selectedOrder.payment_method === 'razorpay' && (
+                  <>
+                    {selectedOrder.razorpay_payment_id && (
+                      <div>
+                        <p className="text-gray-600 text-sm">Razorpay Payment ID</p>
+                        <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_payment_id}</p>
+                      </div>
+                    )}
+                    {selectedOrder.razorpay_order_id && (
+                      <div>
+                        <p className="text-gray-600 text-sm">Razorpay Order ID</p>
+                        <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_order_id}</p>
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
 
               {/* Order Items */}

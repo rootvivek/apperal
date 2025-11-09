@@ -48,7 +48,7 @@ function CartContent() {
   if (cartItems.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>

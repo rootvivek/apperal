@@ -4,14 +4,18 @@
 const nextConfig = {
   output: 'standalone',
   images: {
-    domains: ['ugzyijiuhchxbuiooclv.supabase.co'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'ugzyijiuhchxbuiooclv.supabase.co',
+        port: '',
+        pathname: '/**',
+      },
+    ],
     unoptimized: true, // Disable image optimization for Netlify
   },
-  eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
-    ignoreDuringBuilds: true,
-  },
+  // ESLint configuration moved to eslint.config.js or .eslintrc.json
+  // If you need to ignore ESLint during builds, configure it in your ESLint config file
 }
 
 module.exports = nextConfig
