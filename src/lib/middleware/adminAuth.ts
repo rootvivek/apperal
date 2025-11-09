@@ -30,7 +30,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
     
     // If no user from header, try to get from cookies
     if (!userId) {
-      const supabaseAuth = createServerAuthClient(request);
+      const supabaseAuth = await createServerAuthClient(request);
       const { data: { user }, error: cookieError } = await supabaseAuth.auth.getUser();
       if (!cookieError && user) {
         userId = user.id;
