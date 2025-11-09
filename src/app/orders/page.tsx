@@ -13,6 +13,7 @@ interface Order {
   total_amount: number;
   status: string;
   payment_method: string;
+  payment_status?: string;
   created_at: string;
 }
 
@@ -60,7 +61,7 @@ function OrdersContent() {
       
       // Filter to ensure we only show truly paid orders
       // Orders must have status='paid' OR payment_status='completed'
-      const paidOrders = (data || []).filter(order => 
+      const paidOrders = (data || []).filter((order: Order) => 
         order.status === 'paid' || order.payment_status === 'completed'
       );
       
