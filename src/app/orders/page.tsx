@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
+import { getProductDetailType } from '@/utils/productDetailsMapping';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface Order {
@@ -38,6 +39,7 @@ function OrdersContent() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancellationReason, setCancellationReason] = useState('');
   const [isCancelling, setIsCancelling] = useState(false);
+  const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
 
   useEffect(() => {
     if (user) {
@@ -48,13 +50,21 @@ function OrdersContent() {
   const fetchOrders = async () => {
     try {
       setOrdersLoading(true);
+      // Only fetch orders that are paid/completed (not pending)
+      // Fetch all orders for user, then filter to only show paid ones
       const { data } = await supabase
         .from('orders')
         .select('*')
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
       
-      setOrders(data || []);
+      // Filter to ensure we only show truly paid orders
+      // Orders must have status='paid' OR payment_status='completed'
+      const paidOrders = (data || []).filter(order => 
+        order.status === 'paid' || order.payment_status === 'completed'
+      );
+      
+      setOrders(paidOrders);
     } catch (error) {
       console.error('Error fetching orders:', error);
     } finally {
@@ -72,21 +82,40 @@ function OrdersContent() {
         .select('*')
         .eq('order_id', order.id);
       
-      // Fetch product images for each order item
+      // Fetch product images and subcategory info for each order item
+      const subcategoryMap: {[key: string]: {name: string | null, slug: string | null, detail_type: string | null}} = {};
+      
       const itemsWithImages = await Promise.all(
         (itemsData || []).map(async (item: any) => {
           let productImage = item.product_image;
           
           // If no product_image in order_items, fetch from products table
-          if (!productImage && item.product_id) {
+          if (item.product_id) {
             const { data: productData } = await supabase
               .from('products')
-              .select('image_url')
+              .select('image_url, subcategory_id')
               .eq('id', item.product_id)
               .single();
             
             if (productData?.image_url) {
               productImage = productData.image_url;
+            }
+            
+            // Fetch subcategory info
+            if (productData?.subcategory_id) {
+              const { data: subcategory } = await supabase
+                .from('subcategories')
+                .select('name, slug, detail_type')
+                .eq('id', productData.subcategory_id)
+                .single();
+              
+              if (subcategory) {
+                subcategoryMap[item.product_id] = {
+                  name: subcategory.name,
+                  slug: subcategory.slug,
+                  detail_type: subcategory.detail_type
+                };
+              }
             }
           }
           
@@ -97,6 +126,7 @@ function OrdersContent() {
         })
       );
       
+      setProductSubcategories(subcategoryMap);
       setOrderItems(itemsWithImages);
     } catch (error) {
       console.error('Error fetching order details:', error);
@@ -341,7 +371,22 @@ function OrdersContent() {
                             <h4 className="font-medium text-gray-900">{item.product_name}</h4>
                             <p className="text-sm text-gray-600 mt-1">
                               ₹{item.product_price.toFixed(2)} × {item.quantity} item{item.quantity !== 1 ? 's' : ''}
-                              <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                              {(() => {
+                                const subcategoryInfo = productSubcategories[item.product_id];
+                                const detailType = subcategoryInfo 
+                                  ? getProductDetailType(
+                                      subcategoryInfo.name,
+                                      subcategoryInfo.slug,
+                                      subcategoryInfo.detail_type
+                                    )
+                                  : 'none';
+                                
+                                // Only show size for apparel products
+                                if (detailType === 'apparel' && item.size) {
+                                  return <span className="ml-2">| Size: {item.size}</span>;
+                                }
+                                return null;
+                              })()}
                             </p>
                           </div>
                           <div className="text-right">

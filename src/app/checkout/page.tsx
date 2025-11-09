@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { getProductDetailType } from '@/utils/productDetailsMapping';
 
 interface CheckoutFormData {
   email?: string;
@@ -34,6 +35,7 @@ function CheckoutContent() {
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
   const [isDirectPurchase, setIsDirectPurchase] = useState(false);
   const [loadingDirectProduct, setLoadingDirectProduct] = useState(false);
+  const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
     fullName: '',
@@ -72,7 +74,7 @@ function CheckoutContent() {
         try {
           const { data: product, error } = await supabase
             .from('products')
-            .select('id, name, price, image_url, stock_quantity')
+            .select('id, name, price, image_url, stock_quantity, subcategory_id')
             .eq('id', productId)
             .eq('is_active', true)
             .single();
@@ -82,6 +84,28 @@ function CheckoutContent() {
             alert('Product not found. Redirecting to home page.');
             window.location.href = '/';
             return;
+          }
+          
+          // Fetch subcategory info if subcategory_id exists
+          let subcategoryInfo = { name: null, slug: null, detail_type: null };
+          if (product.subcategory_id) {
+            const { data: subcategory } = await supabase
+              .from('subcategories')
+              .select('name, slug, detail_type')
+              .eq('id', product.subcategory_id)
+              .single();
+            
+            if (subcategory) {
+              subcategoryInfo = {
+                name: subcategory.name,
+                slug: subcategory.slug,
+                detail_type: subcategory.detail_type
+              };
+              setProductSubcategories(prev => ({
+                ...prev,
+                [product.id]: subcategoryInfo
+              }));
+            }
           }
           
           // Create cart item format for direct purchase
@@ -137,6 +161,49 @@ function CheckoutContent() {
       }
     };
   }, []);
+
+  // Fetch subcategory info for cart items
+  useEffect(() => {
+    const fetchSubcategoryInfo = async () => {
+      if (cartItems.length === 0) return;
+      
+      const subcategoryMap: {[key: string]: {name: string | null, slug: string | null, detail_type: string | null}} = {};
+      
+      for (const item of cartItems) {
+        try {
+          const { data: product } = await supabase
+            .from('products')
+            .select('subcategory_id')
+            .eq('id', item.product_id)
+            .single();
+          
+          if (product?.subcategory_id) {
+            const { data: subcategory } = await supabase
+              .from('subcategories')
+              .select('name, slug, detail_type')
+              .eq('id', product.subcategory_id)
+              .single();
+            
+            if (subcategory) {
+              subcategoryMap[item.product_id] = {
+                name: subcategory.name,
+                slug: subcategory.slug,
+                detail_type: subcategory.detail_type
+              };
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching subcategory for product:', item.product_id, error);
+        }
+      }
+      
+      setProductSubcategories(prev => ({ ...prev, ...subcategoryMap }));
+    };
+    
+    if (cartItems.length > 0 && !isDirectPurchase) {
+      fetchSubcategoryInfo();
+    }
+  }, [cartItems, isDirectPurchase, supabase]);
 
   const getSubtotal = () => {
     const items = isDirectPurchase ? directPurchaseItems : cartItems;
@@ -292,15 +359,51 @@ function CheckoutContent() {
       
       const orderNumber = await generateShortOrderNumber();
       
-      // Create order using the correct column names for your database
+      // Prepare order items data
+      const orderItemsData = items.map((item) => {
+        let sizeValue = null;
+        
+        // If it's a direct purchase, use the size from the item
+        if (isDirectPurchase && (item as any).size) {
+          sizeValue = (item as any).size;
+        } else if (!isDirectPurchase && (item as any).size) {
+          // For cart items, use the size from the cart item
+          sizeValue = (item as any).size;
+        }
+        
+        return {
+          product_id: item.product.id,
+          product_name: item.product.name,
+          product_price: item.product.price,
+          total_price: item.product.price * item.quantity,
+          quantity: item.quantity,
+          size: sizeValue
+        };
+      });
+      
+      // Handle payment based on payment method
+      if (formData.paymentMethod === 'razorpay') {
+        // For Razorpay: Don't create order yet - wait for payment verification
+        // Pass order data to Razorpay handler
+        await handleRazorpayPayment(orderNumber, orderItemsData, {
+          subtotal,
+          shipping,
+          total,
+          formData
+        });
+        return; // Don't clear cart or redirect yet - wait for payment completion
+      }
+      
+      // For COD: Create order immediately with 'paid' status
       const { data: order, error: orderError } = await supabase
         .from('orders')
         .insert({
           user_id: user?.id || null,
           order_number: orderNumber,
-          payment_method: formData.paymentMethod,
+          payment_method: 'cod',
           total_amount: total,
-          status: 'pending',
+          status: 'paid', // COD orders are immediately paid
+          payment_status: 'completed', // COD orders are completed
           // Store customer information for guest orders
           customer_name: formData.fullName || null,
           customer_phone: formData.phone || null,
@@ -329,58 +432,24 @@ function CheckoutContent() {
         return;
       }
       
-      // Create order items with required fields matching the schema
-      // For direct purchase, use the size from directPurchaseItems
-      // For cart items, use the size from cart items
-      const orderItems = items.map((item) => {
-        let sizeValue = null;
-        
-        // If it's a direct purchase, use the size from the item
-        if (isDirectPurchase && (item as any).size) {
-          sizeValue = (item as any).size;
-        } else if (!isDirectPurchase && (item as any).size) {
-          // For cart items, use the size from the cart item
-          sizeValue = (item as any).size;
-        }
-        
-        return {
-          order_id: createdOrder.id,
-          product_id: item.product.id,
-          product_name: item.product.name,
-          product_price: item.product.price,
-          total_price: item.product.price * item.quantity,
-          quantity: item.quantity,
-          size: sizeValue
-        };
-      });
+      // Create order items
+      const orderItems = orderItemsData.map((item) => ({
+        order_id: createdOrder.id,
+        ...item
+      }));
       
       const insertResult = await supabase
         .from('order_items')
         .insert(orderItems) as any;
       
-      console.log('Order items to insert:', orderItems);
-      console.log('Insert result:', insertResult);
-      
       if (insertResult && insertResult.error) {
         console.error('Error creating order items:', insertResult.error);
-        console.error('Order items data:', orderItems);
-        alert(`Failed to create order items. Error: ${insertResult.error.message}. Please contact support.`);
+        alert(`Failed to create order items. Please contact support.`);
         setIsProcessing(false);
         return;
       }
       
-      console.log('Order items created successfully!');
-      
-      // Handle payment based on payment method
-      if (formData.paymentMethod === 'razorpay') {
-        // Initiate Razorpay payment
-        await handleRazorpayPayment(createdOrder.id, orderNumber);
-        return; // Don't clear cart or redirect yet - wait for payment completion
-      }
-      
-      // For COD and card (manual), proceed with normal flow
       // Clear cart only if items were purchased from cart (not direct purchase)
-      // For direct purchases, don't clear cart since those items weren't in cart
       if (!isDirectPurchase) {
         await clearCart();
       }
@@ -421,7 +490,16 @@ function CheckoutContent() {
     }));
   };
 
-  const handleRazorpayPayment = async (orderId: string, orderNumber: string) => {
+  const handleRazorpayPayment = async (
+    orderNumber: string,
+    orderItemsData: any[],
+    orderData: {
+      subtotal: number;
+      shipping: number;
+      total: number;
+      formData: CheckoutFormData;
+    }
+  ) => {
     // Check if Razorpay script is loaded
     if (!razorpayLoaded) {
       console.log('Razorpay script not loaded yet, waiting...');
@@ -443,10 +521,9 @@ function CheckoutContent() {
     }
 
     try {
-      const total = getTotal();
-      console.log('Creating Razorpay order for amount:', total, 'Order ID:', orderId);
+      console.log('Creating Razorpay order for amount:', orderData.total, 'Order Number:', orderNumber);
       
-      // Create Razorpay order
+      // Create Razorpay order (no database order created yet)
       const response = await fetch('/api/razorpay/create-order', {
         method: 'POST',
         headers: {
@@ -454,9 +531,8 @@ function CheckoutContent() {
         },
         credentials: 'include', // Include cookies for authentication
         body: JSON.stringify({
-          amount: total,
+          amount: orderData.total,
           currency: 'INR',
-          orderId: orderId,
         }),
       });
 
@@ -486,7 +562,7 @@ function CheckoutContent() {
         handler: async function (response: any) {
           try {
             console.log('Payment successful, verifying...', response);
-            // Verify payment on server
+            // Verify payment on server and create order
             const verifyResponse = await fetch('/api/razorpay/verify-payment', {
               method: 'POST',
               headers: {
@@ -497,7 +573,14 @@ function CheckoutContent() {
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
-                orderId: orderId,
+                orderNumber: orderNumber,
+                orderItems: orderItemsData,
+                orderData: {
+                  subtotal: orderData.subtotal,
+                  shipping: orderData.shipping,
+                  total: orderData.total,
+                  formData: orderData.formData,
+                },
               }),
             });
 
@@ -506,13 +589,20 @@ function CheckoutContent() {
               throw new Error(error.error || 'Payment verification failed');
             }
 
+            const result = await verifyResponse.json();
+            const createdOrderId = result.order?.id;
+
+            if (!createdOrderId) {
+              throw new Error('Order creation failed after payment');
+            }
+
             // Clear cart
             if (!isDirectPurchase) {
               await clearCart();
             }
 
             // Redirect to success page
-            window.location.href = `/checkout/success?orderId=${orderId}&orderNumber=${orderNumber}`;
+            window.location.href = `/checkout/success?orderId=${createdOrderId}&orderNumber=${orderNumber}`;
           } catch (error: any) {
             console.error('Payment verification error:', error);
             setPaymentError(error.message || 'Payment verification failed. Please contact support.');
@@ -831,7 +921,23 @@ function CheckoutContent() {
                         <h3 className="text-sm font-medium text-gray-900">{item.product.name}</h3>
                         <p className="text-xs text-gray-600">
                           Qty: {item.quantity}
-                          <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                          {(() => {
+                            const productId = item.product.id || item.product_id;
+                            const subcategoryInfo = productSubcategories[productId];
+                            const detailType = subcategoryInfo 
+                              ? getProductDetailType(
+                                  subcategoryInfo.name,
+                                  subcategoryInfo.slug,
+                                  subcategoryInfo.detail_type
+                                )
+                              : 'none';
+                            
+                            // Only show size for apparel products
+                            if (detailType === 'apparel' && item.size) {
+                              return <span className="ml-2">| Size: {item.size}</span>;
+                            }
+                            return null;
+                          })()}
                         </p>
                       </div>
                       <span className="text-sm font-medium">

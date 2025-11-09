@@ -62,13 +62,13 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { amount, currency = 'INR', orderId } = body;
+    const { amount, currency = 'INR' } = body;
 
-    console.log('Creating Razorpay order:', { amount, currency, orderId, userId: user.id });
+    console.log('Creating Razorpay order:', { amount, currency, userId: user.id });
 
-    if (!amount || !orderId) {
+    if (!amount) {
       return NextResponse.json(
-        { error: 'Amount and orderId are required' },
+        { error: 'Amount is required' },
         { status: 400 }
       );
     }
@@ -92,14 +92,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create a shorter receipt ID (Razorpay receipt max 40 chars, alphanumeric only)
-    // Use first 8 chars of orderId + timestamp for uniqueness
-    const shortReceipt = `ord_${orderId.substring(0, 8)}${Date.now().toString().slice(-6)}`.substring(0, 40);
+    // Use timestamp for uniqueness
+    const shortReceipt = `ord_${Date.now().toString().slice(-10)}`.substring(0, 40);
 
     console.log('Creating Razorpay order with:', {
       amount: amountInPaise,
       currency,
       receipt: shortReceipt,
-      orderId,
     });
 
     // Create Razorpay order
@@ -108,7 +107,6 @@ export async function POST(request: NextRequest) {
       currency: currency,
       receipt: shortReceipt,
       notes: {
-        order_id: orderId,
         user_id: user.id,
       },
     });

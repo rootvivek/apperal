@@ -1,4 +1,4 @@
-# Cleanup OAuth and Email Authentication Data
+    # Cleanup OAuth and Email Authentication Data
 
 This guide explains how to remove all OAuth and email-based authentication data from your database while preserving phone-based authentication.
 

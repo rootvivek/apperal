@@ -4,6 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { getProductDetailType } from '@/utils/productDetailsMapping';
 
 interface OrderItem {
   id: string;
@@ -30,6 +31,7 @@ function CheckoutSuccessContent() {
   const [order, setOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
 
   useEffect(() => {
     const fetchOrderDetails = async () => {
@@ -66,16 +68,35 @@ function CheckoutSuccessContent() {
           console.error('Error fetching order items:', itemsError);
         }
         
-        // Fetch product images for each order item
+        // Fetch product images and subcategory info for each order item
         if (itemsData && itemsData.length > 0) {
+          const subcategoryMap: {[key: string]: {name: string | null, slug: string | null, detail_type: string | null}} = {};
+          
           const itemsWithImages = await Promise.all(
             itemsData.map(async (item: any) => {
               if (item.product_id) {
                 const { data: productData } = await supabase
                   .from('products')
-                  .select('image_url')
+                  .select('image_url, subcategory_id')
                   .eq('id', item.product_id)
                   .single();
+                
+                // Fetch subcategory info
+                if (productData?.subcategory_id) {
+                  const { data: subcategory } = await supabase
+                    .from('subcategories')
+                    .select('name, slug, detail_type')
+                    .eq('id', productData.subcategory_id)
+                    .single();
+                  
+                  if (subcategory) {
+                    subcategoryMap[item.product_id] = {
+                      name: subcategory.name,
+                      slug: subcategory.slug,
+                      detail_type: subcategory.detail_type
+                    };
+                  }
+                }
                 
                 return {
                   ...item,
@@ -86,6 +107,7 @@ function CheckoutSuccessContent() {
             })
           );
           
+          setProductSubcategories(subcategoryMap);
           setOrderItems(itemsWithImages);
         } else {
           setOrderItems([]);
@@ -216,7 +238,22 @@ function CheckoutSuccessContent() {
                           <h3 className="font-semibold text-gray-900 mb-1">{item.product_name}</h3>
                           <p className="text-sm text-gray-600">
                             Quantity: {item.quantity} × ₹{item.product_price.toFixed(2)}
-                            <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                            {(() => {
+                              const subcategoryInfo = productSubcategories[item.product_id];
+                              const detailType = subcategoryInfo 
+                                ? getProductDetailType(
+                                    subcategoryInfo.name,
+                                    subcategoryInfo.slug,
+                                    subcategoryInfo.detail_type
+                                  )
+                                : 'none';
+                              
+                              // Only show size for apparel products
+                              if (detailType === 'apparel' && item.size) {
+                                return <span className="ml-2">| Size: {item.size}</span>;
+                              }
+                              return null;
+                            })()}
                           </p>
                         </div>
                         <div className="text-right">

@@ -17,9 +17,16 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = body;
+    const { 
+      razorpay_order_id, 
+      razorpay_payment_id, 
+      razorpay_signature, 
+      orderNumber,
+      orderItems,
+      orderData
+    } = body;
 
-    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderId) {
+    if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !orderNumber || !orderItems || !orderData) {
       return NextResponse.json(
         { error: 'Missing required payment verification data' },
         { status: 400 }
@@ -43,72 +50,106 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update order in database
+    // Create order in database after successful payment verification
     const supabaseAdmin = createServerClient();
     
-    console.log('Updating order:', orderId, 'with payment:', razorpay_payment_id);
+    console.log('Creating order after payment verification:', orderNumber);
     console.log('User ID:', user.id);
     
-    // Update order status - don't include payment_id as it might not exist in schema
-    const updateData: any = {
-      status: 'paid',
-      payment_method: 'razorpay',
-      payment_status: 'completed',
-      updated_at: new Date().toISOString(),
-    };
-    
-    // Store payment ID in notes field if payment_id column doesn't exist
+    // Store payment ID in notes field
     const paymentNote = `Payment ID: ${razorpay_payment_id}. Razorpay Order: ${razorpay_order_id}`;
     
-    const { data: updatedOrder, error: updateError } = await supabaseAdmin
+    // Create order with paid status
+    const { data: createdOrder, error: createError } = await supabaseAdmin
       .from('orders')
-      .update(updateData)
-      .eq('id', orderId)
-      .eq('user_id', user.id)
+      .insert({
+        user_id: user.id,
+        order_number: orderNumber,
+        payment_method: 'razorpay',
+        total_amount: orderData.total,
+        status: 'paid',
+        payment_status: 'completed',
+        notes: paymentNote,
+        // Store customer information
+        customer_name: orderData.formData.fullName || null,
+        customer_phone: orderData.formData.phone || null,
+        customer_email: orderData.formData.email || null,
+        shipping_address: orderData.formData.address || null,
+        shipping_city: orderData.formData.city || null,
+        shipping_state: orderData.formData.state || null,
+        shipping_zip_code: orderData.formData.zipCode || null,
+      })
       .select()
       .single();
 
-    if (updateError) {
-      console.error('Error updating order:', updateError);
-      console.error('Update data attempted:', updateData);
-      console.error('Error code:', updateError.code);
-      console.error('Error message:', updateError.message);
-      console.error('Error details:', updateError.details);
-      console.error('Error hint:', updateError.hint);
+    if (createError) {
+      console.error('Error creating order:', createError);
+      console.error('Create data attempted:', {
+        order_number: orderNumber,
+        user_id: user.id,
+        total_amount: orderData.total,
+      });
+      console.error('Error code:', createError.code);
+      console.error('Error message:', createError.message);
+      console.error('Error details:', createError.details);
+      console.error('Error hint:', createError.hint);
       
       return NextResponse.json(
         { 
-          error: 'Failed to update order status',
+          error: 'Failed to create order after payment',
           details: process.env.NODE_ENV === 'development' ? {
-            message: updateError.message,
-            code: updateError.code,
-            details: updateError.details,
-            hint: updateError.hint,
+            message: createError.message,
+            code: createError.code,
+            details: createError.details,
+            hint: createError.hint,
           } : undefined,
         },
         { status: 500 }
       );
     }
 
-    // Store payment ID in notes field for reference
-    if (updatedOrder && razorpay_payment_id) {
-      try {
-        await supabaseAdmin
-          .from('orders')
-          .update({
-            notes: paymentNote,
-          })
-          .eq('id', orderId);
-      } catch (notesError) {
-        // Non-critical - just log it
-        console.warn('Could not update notes with payment ID:', notesError);
-      }
+    if (!createdOrder || !createdOrder.id) {
+      return NextResponse.json(
+        { error: 'Order creation failed' },
+        { status: 500 }
+      );
+    }
+
+    // Create order items
+    const orderItemsToInsert = orderItems.map((item: any) => ({
+      order_id: createdOrder.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_price: item.product_price,
+      total_price: item.total_price,
+      quantity: item.quantity,
+      size: item.size || null,
+    }));
+
+    const { error: itemsError } = await supabaseAdmin
+      .from('order_items')
+      .insert(orderItemsToInsert);
+
+    if (itemsError) {
+      console.error('Error creating order items:', itemsError);
+      // Try to delete the order if items creation fails
+      await supabaseAdmin.from('orders').delete().eq('id', createdOrder.id);
+      
+      return NextResponse.json(
+        { 
+          error: 'Failed to create order items',
+          details: process.env.NODE_ENV === 'development' ? {
+            message: itemsError.message,
+          } : undefined,
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
       success: true,
-      order: updatedOrder,
-      message: 'Payment verified successfully',
+      order: createdOrder,
+      message: 'Payment verified and order created successfully',
     });
   } catch (error: any) {
     console.error('Error verifying payment:', error);
