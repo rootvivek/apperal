@@ -4,7 +4,16 @@ import { z } from 'zod';
  * Common validation schemas
  */
 export const schemas = {
-  userId: z.string().uuid('Invalid user ID format'),
+  // Accept both UUID (Supabase) and Firebase user IDs (alphanumeric strings)
+  userId: z.string().min(1, 'User ID is required').refine(
+    (val) => {
+      // Accept UUID format (Supabase) or Firebase user ID format (alphanumeric, 20-28 chars)
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val);
+      const isFirebaseId = /^[a-zA-Z0-9]{20,28}$/.test(val);
+      return isUUID || isFirebaseId;
+    },
+    { message: 'Invalid user ID format' }
+  ),
   productId: z.string().uuid('Invalid product ID format'),
   email: z.string().email('Invalid email format'),
   phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format'),

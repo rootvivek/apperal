@@ -99,13 +99,13 @@ export async function POST(request: NextRequest) {
       const errorResponse: any = {
         error: `Failed to create order: ${errorMessage}`,
         message: errorMessage,
-        code: createError.code,
+            code: createError.code,
       };
       
       // Always include details for debugging
       errorResponse.details = {
-        details: createError.details,
-        hint: createError.hint,
+            details: createError.details,
+            hint: createError.hint,
         attemptedData: {
           order_number: orderNumber,
           user_id: user.id,
@@ -142,12 +142,12 @@ export async function POST(request: NextRequest) {
       const lineTotal = item.total_price || (unitPrice * item.quantity);
       
       const orderItem: any = {
-        order_id: createdOrder.id,
-        product_id: item.product_id,
-        product_name: item.product_name,
+      order_id: createdOrder.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
         product_price: unitPrice, // Per unit price (required)
         total_price: lineTotal, // Line total = product_price * quantity (required NOT NULL)
-        quantity: item.quantity,
+      quantity: item.quantity,
       };
       
       // Only include size if provided (column may or may not exist)

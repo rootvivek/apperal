@@ -10,6 +10,7 @@ import {
   ConfirmationResult
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
+import { createClient } from '@/lib/supabase/client';
 
 // Compatibility interface to match existing code expectations
 interface User {
@@ -64,6 +65,154 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   };
 
+  // Ensure user profile exists in Supabase
+  const ensureUserProfile = async (firebaseUser: FirebaseUser) => {
+    if (!firebaseUser) return;
+
+    try {
+      const supabase = createClient();
+      const userId = firebaseUser.uid;
+      const userPhone = firebaseUser.phoneNumber || null;
+      const displayName = firebaseUser.displayName || 'User';
+      
+      // Generate email - use Firebase email if available, otherwise create placeholder from phone
+      let userEmail = firebaseUser.email || '';
+      if (!userEmail && userPhone) {
+        // Create placeholder email from phone number (email column is NOT NULL)
+        const cleanPhone = userPhone.replace(/\D/g, ''); // Remove non-digits
+        userEmail = `phone_${cleanPhone}@apperal.local`;
+      } else if (!userEmail) {
+        // Fallback if no phone either
+        userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
+      }
+
+      // Check if profile exists
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        // PGRST116 is "no rows returned" which is expected for new users
+        console.error('Error checking user profile:', fetchError);
+        return;
+      }
+
+      // If profile doesn't exist, create it
+      if (!existingProfile) {
+        const insertQuery = supabase
+          .from('user_profiles')
+          .insert({
+            id: userId,
+            email: userEmail, // Use generated email (always has a value)
+            full_name: displayName,
+            phone: userPhone,
+          })
+          .select();
+        
+        const insertResult = await insertQuery;
+
+        // Check if there's an error
+        if (insertResult.error) {
+          const error = insertResult.error;
+          
+          // Access error properties directly
+          const errorCode = error?.code || 'NO_CODE';
+          const errorMessage = error?.message || 'NO_MESSAGE';
+          const errorDetails = error?.details || null;
+          const errorHint = error?.hint || null;
+          
+          console.log('=== User Profile Insert Error ===');
+          console.log('Error Code:', errorCode);
+          console.log('Error Message:', errorMessage);
+          console.log('Error Details:', errorDetails);
+          console.log('Error Hint:', errorHint);
+          console.log('User ID:', userId);
+          console.log('User Email:', userEmail);
+          console.log('User Phone:', userPhone);
+          console.log('Full Error Object:', error);
+          console.log('Insert Result:', insertResult);
+          console.log('================================');
+          
+          // If insert fails (e.g., duplicate key), try to update instead
+          if (errorCode === '23505') {
+            // Duplicate key - profile was created by another process, just update it
+            const { error: updateError } = await supabase
+              .from('user_profiles')
+              .update({
+                email: userEmail, // Use generated email
+                full_name: displayName,
+                phone: userPhone,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', userId);
+
+            if (updateError) {
+              console.error('Error updating user profile:', {
+                code: updateError.code,
+                message: updateError.message,
+                details: updateError.details,
+                hint: updateError.hint,
+                fullError: updateError
+              });
+            } else {
+              console.log('User profile updated successfully (duplicate key handled):', userId);
+            }
+          } else {
+            // If it's an RLS policy error, try to fetch the profile (might have been created by trigger)
+            if (errorCode === '42501' || errorMessage?.includes('policy') || errorMessage?.includes('RLS')) {
+              const { data: existingProfile } = await supabase
+                .from('user_profiles')
+                .select('id')
+                .eq('id', userId)
+                .maybeSingle();
+              
+              if (existingProfile) {
+                console.log('Profile exists but insert was blocked by RLS, continuing...');
+              } else {
+                console.warn('RLS blocked insert and profile does not exist. User may need to be created via API route.');
+              }
+            }
+          }
+        } else if (insertResult.data && insertResult.data.length > 0) {
+          console.log('User profile created successfully:', userId);
+        } else {
+          console.warn('Insert succeeded but no data returned. Profile may have been created:', userId);
+          // Verify profile was created
+          const { data: verifyProfile } = await supabase
+            .from('user_profiles')
+            .select('id')
+            .eq('id', userId)
+            .maybeSingle();
+          
+          if (verifyProfile) {
+            console.log('Profile verified to exist:', userId);
+          } else {
+            console.error('Profile insert appeared successful but profile does not exist:', userId);
+          }
+        }
+      } else {
+        // Profile exists, update it with latest Firebase data
+        const { error: updateError } = await supabase
+          .from('user_profiles')
+          .update({
+            email: userEmail, // Use generated email
+            full_name: displayName,
+            phone: userPhone,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', userId);
+
+        if (updateError) {
+          console.error('Error updating user profile:', updateError);
+        }
+      }
+    } catch (error) {
+      console.error('Error ensuring user profile:', error);
+    }
+  };
+
   // Initialize reCAPTCHA verifier
   useEffect(() => {
     if (typeof window !== 'undefined' && !recaptchaVerifier && auth) {
@@ -108,15 +257,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       const mappedUser = mapFirebaseUser(firebaseUser);
       setUser(mappedUser);
       
-      if (mappedUser) {
+      if (mappedUser && firebaseUser) {
         setSession({
           user: mappedUser,
           expires_at: undefined, // Firebase manages session expiration internally
         });
+        // Ensure user profile exists in Supabase
+        await ensureUserProfile(firebaseUser);
       } else {
         setSession(null);
       }
@@ -130,9 +281,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const sendOTP = async (phone: string) => {
     try {
       if (!auth) {
+        const missingVars = [
+          !process.env.NEXT_PUBLIC_FIREBASE_API_KEY && 'NEXT_PUBLIC_FIREBASE_API_KEY',
+          !process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN && 'NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN',
+          !process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID && 'NEXT_PUBLIC_FIREBASE_PROJECT_ID',
+          !process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET && 'NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET',
+          !process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID && 'NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID',
+          !process.env.NEXT_PUBLIC_FIREBASE_APP_ID && 'NEXT_PUBLIC_FIREBASE_APP_ID',
+        ].filter(Boolean);
+        
         return {
           data: null,
-          error: 'Firebase is not configured. Please check your environment variables.',
+          error: `Firebase is not configured. Missing environment variables: ${missingVars.join(', ')}. Please check your .env.local file or Netlify environment variables.`,
         };
       }
 
@@ -198,6 +358,90 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             user: mappedUser,
             expires_at: undefined,
           });
+          
+          // Immediately check and create user profile in Supabase
+          console.log('Checking user profile in Supabase...');
+          const supabase = createClient();
+          const userId = result.user.uid;
+          const userPhone = result.user.phoneNumber || phone || null;
+          const displayName = result.user.displayName || 'User';
+          
+          // Generate email - use Firebase email if available, otherwise create placeholder from phone
+          let userEmail = result.user.email || '';
+          if (!userEmail && userPhone) {
+            // Create placeholder email from phone number (email column is NOT NULL)
+            const cleanPhone = userPhone.replace(/\D/g, ''); // Remove non-digits
+            userEmail = `phone_${cleanPhone}@apperal.local`;
+          } else if (!userEmail) {
+            // Fallback if no phone either
+            userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
+          }
+
+          // Check if user exists in Supabase
+          const { data: existingProfile, error: fetchError } = await supabase
+            .from('user_profiles')
+            .select('id, email, full_name, phone')
+            .eq('id', userId)
+            .maybeSingle();
+
+          if (fetchError && fetchError.code !== 'PGRST116') {
+            console.error('Error checking user profile:', fetchError);
+          }
+
+          // If user doesn't exist, create it immediately
+          if (!existingProfile) {
+            console.log('User not found in Supabase, creating profile...');
+            const insertQuery = supabase
+              .from('user_profiles')
+              .insert({
+                id: userId,
+                email: userEmail, // Now always has a value
+                full_name: displayName,
+                phone: userPhone,
+              })
+              .select('id');
+            
+            const { data: newProfile, error: createError } = await insertQuery;
+
+            if (createError) {
+              // If duplicate key error, profile was created by another process
+              if (createError.code === '23505') {
+                console.log('Profile already exists (duplicate key), updating...');
+                await supabase
+                  .from('user_profiles')
+                  .update({
+                    email: userEmail, // Use generated email
+                    full_name: displayName,
+                    phone: userPhone,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', userId);
+                console.log('User profile updated successfully');
+              } else {
+                console.error('Error creating user profile:', {
+                  code: createError.code,
+                  message: createError.message,
+                  details: createError.details,
+                  hint: createError.hint
+                });
+                // Continue anyway - profile might be created by trigger or another process
+              }
+            } else if (newProfile && (Array.isArray(newProfile) ? newProfile.length > 0 : newProfile)) {
+              console.log('✅ User profile created successfully in Supabase:', userId);
+            }
+          } else {
+            console.log('✅ User profile already exists in Supabase:', userId);
+            // Update profile with latest Firebase data
+            await supabase
+              .from('user_profiles')
+              .update({
+                email: userEmail, // Use generated email
+                full_name: displayName,
+                phone: userPhone,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', userId);
+          }
         } else {
           setSession(null);
         }

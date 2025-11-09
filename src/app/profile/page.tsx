@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
+import { getAuth, updateProfile } from 'firebase/auth';
 
 interface UserProfile {
   id: string;
@@ -112,11 +113,11 @@ function ProfileContent() {
           // If insert fails (e.g., RLS policy or duplicate), try to fetch existing profile
           console.log('Profile insert failed, checking if profile exists:', insertResult.error.message);
           const { data: existingProfile } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-          
+              .from('user_profiles')
+              .select('*')
+              .eq('id', user.id)
+              .maybeSingle();
+            
           if (existingProfile) {
             setProfile(existingProfile);
             setEmail(existingProfile.email || '');
@@ -176,6 +177,20 @@ function ProfileContent() {
 
       if (updateError) {
         throw updateError;
+      }
+
+      // Also update Firebase displayName so it persists after refresh
+      try {
+        const auth = getAuth();
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          await updateProfile(currentUser, {
+            displayName: fullName.trim() || null
+          });
+        }
+      } catch (firebaseError) {
+        // Log but don't fail - Supabase update succeeded
+        console.warn('Failed to update Firebase displayName:', firebaseError);
       }
 
       // Update local state

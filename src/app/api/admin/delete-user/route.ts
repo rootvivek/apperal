@@ -102,15 +102,22 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
       .delete()
       .eq('id', userId);
 
-    // Delete auth user (requires admin privileges)
-    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    // Only try to delete from Supabase auth if it's a UUID (Supabase user)
+    // Firebase users are not in Supabase auth, so skip this step for Firebase IDs
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
+    if (isUUID) {
+      // Delete auth user (requires admin privileges) - only for Supabase users
+      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
-    if (authError) {
-      return NextResponse.json(
-        { error: `Failed to delete auth user: ${authError.message}` },
-        { status: 500 }
-      );
+      if (authError) {
+        return NextResponse.json(
+          { error: `Failed to delete auth user: ${authError.message}` },
+          { status: 500 }
+        );
+      }
     }
+    // For Firebase users, the auth deletion is handled by Firebase Admin SDK (if needed)
+    // For now, we just delete the Supabase profile and related data
 
     // Log the admin action (don't fail if logging fails)
     try {

@@ -191,66 +191,79 @@ function CheckoutContent() {
     return stateName;
   };
 
-  // Update form data when user is available and fetch default address
-  useEffect(() => {
-    const fetchUserData = async () => {
-      if (!user?.id) return;
+  // Fetch user data function
+  const fetchUserData = async () => {
+    if (!user?.id) return;
 
-      try {
-        // Fetch user profile for full name and phone
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('full_name, phone')
-          .eq('id', user.id)
-          .maybeSingle();
+    try {
+      // Fetch user profile for full name and phone
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('full_name, phone')
+        .eq('id', user.id)
+        .maybeSingle();
 
-        // Fetch default address, or most recent address if no default
-        const { data: defaultAddress } = await supabase
+      // Fetch default address, or most recent address if no default
+      const { data: defaultAddress } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_default', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // If no default address, try to get the most recent address
+      let address = defaultAddress;
+      if (!address) {
+        const { data: recentAddress } = await supabase
           .from('addresses')
           .select('*')
           .eq('user_id', user.id)
-          .eq('is_default', true)
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle();
-
-        // If no default address, try to get the most recent address
-        let address = defaultAddress;
-        if (!address) {
-          const { data: recentAddress } = await supabase
-            .from('addresses')
-            .select('*')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          address = recentAddress;
-        }
-
-        // Map state name to state code for the dropdown
-        const stateCode = getStateCode(address?.state);
-
-        // Update form with profile data only (don't use Firebase user data or previous form data)
-        // This ensures if user removes data from profile, it won't show in checkout
-        setFormData(prev => ({
-          ...prev,
-          email: user.email || '', // Only use Firebase email (can't be removed)
-          fullName: profile?.full_name || '', // Only from profile, empty if removed
-          phone: profile?.phone || '', // Only from profile, empty if removed
-          address: address?.address_line1 || '', // Only from address, empty if removed
-          apartment: address?.address_line2 || '', // Only from address, empty if removed
-          city: address?.city || '', // Only from address, empty if removed
-          state: stateCode || '', // Only from address, empty if removed
-          zipCode: address?.zip_code || '' // Only from address, empty if removed
-        }));
-      } catch (error) {
-        console.error('Error fetching user data for checkout:', error);
-        // Don't show error to user, just continue with empty form
+        address = recentAddress;
       }
+
+      // Map state name to state code for the dropdown
+      const stateCode = getStateCode(address?.state);
+
+      // Update form with profile data only (don't use Firebase user data or previous form data)
+      // This ensures if user removes data from profile, it won't show in checkout
+      setFormData(prev => ({
+        ...prev,
+        email: user.email || '', // Only use Firebase email (can't be removed)
+        fullName: profile?.full_name || '', // Only from profile, empty if removed
+        phone: profile?.phone || '', // Only from profile, empty if removed
+        address: address?.address_line1 || '', // Only from address, empty if removed
+        apartment: address?.address_line2 || '', // Only from address, empty if removed
+        city: address?.city || '', // Only from address, empty if removed
+        state: stateCode || '', // Only from address, empty if removed
+        zipCode: address?.zip_code || '' // Only from address, empty if removed
+      }));
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+    }
+  };
+
+  // Update form data when user is available and fetch default address
+  useEffect(() => {
+    fetchUserData();
+  }, [user?.id]);
+
+  // Listen for profile updates
+  useEffect(() => {
+    const handleProfileUpdate = () => {
+      // Re-fetch user data when profile is updated
+      fetchUserData();
     };
 
-    fetchUserData();
-  }, [user, supabase]);
+    window.addEventListener('profileUpdated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profileUpdated', handleProfileUpdate);
+    };
+  }, [user?.id]);
 
   // Load Razorpay script
   useEffect(() => {
@@ -635,7 +648,7 @@ function CheckoutContent() {
         setIsProcessing(false);
         return;
       }
-
+      
       // Create Razorpay order (no database order created yet)
       const response = await fetch('/api/razorpay/create-order', {
         method: 'POST',
@@ -808,7 +821,7 @@ function CheckoutContent() {
         <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden p-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Checkout Form */}
           <div>
             <form onSubmit={handleSubmit} className="space-y-8">
@@ -1147,10 +1160,10 @@ function CheckoutContent() {
                     </svg>
                     Secure Payment
                   </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
           </div>
         </div>
       </div>

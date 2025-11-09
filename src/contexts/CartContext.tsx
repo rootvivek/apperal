@@ -55,6 +55,70 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
+  // Helper function to ensure user profile exists before cart operations
+  const ensureUserProfileExists = async (userId: string, maxRetries = 10): Promise<boolean> => {
+    for (let i = 0; i < maxRetries; i++) {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('id', userId)
+        .maybeSingle();
+
+      if (profile) {
+        return true;
+      }
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error checking user profile:', error);
+      }
+
+      // If profile doesn't exist and we have user info, try to create it
+      if (!profile && i === 2 && user) {
+        try {
+          // Generate email - use user email if available, otherwise create placeholder from phone
+          let userEmail = user.email || '';
+          if (!userEmail && user.phone) {
+            // Create placeholder email from phone number (email column is NOT NULL)
+            const cleanPhone = user.phone.replace(/\D/g, ''); // Remove non-digits
+            userEmail = `phone_${cleanPhone}@apperal.local`;
+          } else if (!userEmail) {
+            // Fallback if no phone either
+            userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
+          }
+          
+          // Try to create profile with minimal data
+          const { error: createError } = await supabase
+            .from('user_profiles')
+            .insert({
+              id: userId,
+              email: userEmail, // Now always has a value
+              full_name: user.user_metadata?.full_name || 'User',
+              phone: user.phone || null,
+            });
+
+          if (!createError) {
+            console.log('User profile created from cart context:', userId);
+            return true;
+          } else if (createError.code === '23505') {
+            // Duplicate key - profile was created by another process
+            console.log('Profile already exists (duplicate key):', userId);
+            return true;
+          } else {
+            console.warn('Failed to create profile from cart context:', createError);
+          }
+        } catch (err) {
+          console.warn('Exception creating profile from cart context:', err);
+        }
+      }
+
+      // Wait before retrying (exponential backoff)
+      if (i < maxRetries - 1) {
+        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+      }
+    }
+    return false;
+  };
+
   const fetchCartItems = async () => {
     if (!user) {
       // For guest users, do nothing - state is already set on mount
@@ -64,6 +128,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     try {
       setLoading(true);
+      
+      // Ensure user profile exists before creating cart
+      const profileExists = await ensureUserProfileExists(user.id);
+      if (!profileExists) {
+        console.error('User profile does not exist, cannot create cart');
+        return;
+      }
       
       // Transfer guest cart items to user cart after login
       const guestCartStr = localStorage.getItem('guest-cart');
@@ -90,7 +161,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               .insert({ user_id: user.id })
               .select('id');
 
-            if (!createError && newCartData && newCartData.length > 0) {
+            if (createError) {
+              console.error('Error creating cart:', createError);
+              // If foreign key error, wait a bit and retry once
+              if (createError.code === '23503') {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                const retryResult = await supabase
+                  .from('carts')
+                  .insert({ user_id: user.id })
+                  .select('id');
+                if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
+                  cart = retryResult.data[0];
+                }
+              }
+            } else if (newCartData && newCartData.length > 0) {
               cart = newCartData[0];
             }
           }
@@ -132,7 +216,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
       
       // Get user's cart
-      const { data: cart, error: cartError } = await supabase
+      let { data: cart, error: cartError } = await supabase
         .from('carts')
         .select('id')
         .eq('user_id', user.id)
@@ -148,29 +232,46 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!cart) {
+        // Ensure user profile exists before creating cart
+        const profileExists = await ensureUserProfileExists(user.id);
+        if (!profileExists) {
+          console.error('User profile does not exist, cannot create cart');
+          return;
+        }
+
         // Create cart if it doesn't exist
         const { data: newCartData, error: createError } = await supabase
           .from('carts')
           .insert({ user_id: user.id })
           .select('id');
 
-        if (createError || !newCartData || newCartData.length === 0) {
-          if (createError) {
-            // Only log if it's not a "no rows" type error
-            if (createError.code !== 'PGRST116') {
-              console.log('Note: Error creating cart:', createError.message || createError);
-              if (createError.message?.includes('Could not find the table')) {
-                console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-              }
+        if (createError) {
+          console.error('Error creating cart:', createError);
+          // If foreign key error, wait a bit and retry once
+          if (createError.code === '23503') {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const retryResult = await supabase
+              .from('carts')
+              .insert({ user_id: user.id })
+              .select('id');
+            if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
+              cart = retryResult.data[0];
+            } else {
+              return;
             }
+          } else {
+            if (createError.message?.includes('Could not find the table')) {
+              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+            }
+            return;
           }
+        } else if (!newCartData || newCartData.length === 0) {
+          return;
+        } else {
+          cart = newCartData[0];
+          setCartItems([]);
           return;
         }
-
-        const newCart = newCartData[0];
-
-        setCartItems([]);
-        return;
       }
 
       // Fetch cart items with product details
@@ -326,21 +427,44 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // If no cart exists, create one
       if (!cart) {
+        // Ensure user profile exists before creating cart
+        const profileExists = await ensureUserProfileExists(user.id);
+        if (!profileExists) {
+          console.error('User profile does not exist, cannot create cart');
+          return;
+        }
+
         const { data: newCartData, error: createError } = await supabase
           .from('carts')
           .insert({ user_id: user.id })
           .select('id');
 
-        if (createError || !newCartData || newCartData.length === 0) {
+        if (createError) {
           console.error('Error creating cart:', createError);
-          if (createError?.message.includes('Could not find the table')) {
-            console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-            alert('❌ Cart table missing! Please contact admin to fix this issue.');
+          // If foreign key error, wait a bit and retry once
+          if (createError.code === '23503') {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            const retryResult = await supabase
+              .from('carts')
+              .insert({ user_id: user.id })
+              .select('id');
+            if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
+              cart = retryResult.data[0];
+            } else {
+              return;
+            }
+          } else {
+            if (createError.message?.includes('Could not find the table')) {
+              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+              alert('❌ Cart table missing! Please contact admin to fix this issue.');
+            }
+            return;
           }
+        } else if (!newCartData || newCartData.length === 0) {
           return;
+        } else {
+          cart = newCartData[0];
         }
-
-        cart = newCartData[0];
       }
 
 

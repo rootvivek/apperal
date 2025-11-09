@@ -5,6 +5,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
@@ -27,6 +28,7 @@ interface Order {
 
 export default function UsersPage() {
   const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,72 +44,43 @@ export default function UsersPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchUsers();
-  }, []);
+    // Wait for auth to finish loading before fetching users
+    if (!authLoading) {
+      fetchUsers();
+    }
+  }, [authLoading, user?.id]);
 
   const fetchUsers = async () => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('id, email, full_name, phone, created_at, user_number')
-        .order('created_at', { ascending: false });
-      
-      if (error) {
-        throw error;
-      }
-      
-      if (!data || data.length === 0) {
-        setUsers([]);
+      // Get Firebase user ID for API authentication
+      if (!user?.id) {
+        setError('No active session. Please log in again.');
         setLoading(false);
         return;
       }
       
-      // Admin phone number - must match AdminGuard
-      const ADMIN_PHONE = '8881765192';
-      
-      // Fetch order counts for each user and check admin status
-      const usersWithOrderCounts = await Promise.all(
-        (data || []).map(async (user: any) => {
-          try {
-            const { count } = await supabase
-              .from('orders')
-              .select('*', { count: 'exact', head: true })
-              .eq('user_id', user.id);
-            
-            // Check if user is admin based on phone number
-            const userPhone = user.phone || '';
-            const normalizedUserPhone = userPhone.replace(/\D/g, '');
-            const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-            const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
-                           normalizedUserPhone.endsWith(normalizedAdminPhone);
-            
-            return {
-              ...user,
-              total_orders: count || 0,
-              isAdmin
-            };
-          } catch (err) {
-            // Check admin status even if order count fails
-            const userPhone = user.phone || '';
-            const normalizedUserPhone = userPhone.replace(/\D/g, '');
-            const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-            const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
-                           normalizedUserPhone.endsWith(normalizedAdminPhone);
-            
-            return {
-              ...user,
-              total_orders: 0,
-              isAdmin
-            };
-          }
-        })
-      );
-      
-      setUsers(usersWithOrderCounts);
+      // Fetch users via API route (uses service role key, bypasses RLS)
+      const response = await fetch('/api/admin/users', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id, // Send Firebase user ID in header
+        },
+        body: JSON.stringify({ userId: user.id }), // Also send in body
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch users');
+      }
+
+      setUsers(result.users || []);
       setError(null);
     } catch (error: any) {
+      console.error('Error fetching users:', error);
       setUsers([]);
       setError(error?.message || 'Failed to fetch users. Please check your database permissions (RLS policies).');
     } finally {
@@ -176,22 +149,20 @@ export default function UsersPage() {
     setShowUserDetails(true);
   };
 
-  const handleDeleteUser = async (user: User) => {
-    const confirmMessage = `Are you sure you want to delete user "${user.full_name || user.email}"?\n\nThis will permanently delete:\n- User account (auth)\n- User profile\n- All addresses\n- All cart items\n- All wishlist items\n- All reviews\n- All orders (order history will be lost)\n\nThis action cannot be undone!`;
+  const handleDeleteUser = async (userToDelete: User) => {
+    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.email}"?\n\nThis will permanently delete:\n- User account (auth)\n- User profile\n- All addresses\n- All cart items\n- All wishlist items\n- All reviews\n- All orders (order history will be lost)\n\nThis action cannot be undone!`;
     
     if (!confirm(confirmMessage)) {
       return;
     }
 
     try {
-      setDeletingUserId(user.id);
+      setDeletingUserId(userToDelete.id);
       setError(null);
       setSuccess(false);
 
-      // Get session token for API authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
+      // Get Firebase user ID for API authentication
+      if (!user?.id) {
         throw new Error('No active session. Please log in again.');
       }
 
@@ -200,9 +171,9 @@ export default function UsersPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
+          'X-User-Id': user.id, // Send Firebase user ID in header
         },
-        body: JSON.stringify({ userId: user.id }),
+        body: JSON.stringify({ userId: userToDelete.id }),
       });
 
       const result = await response.json();
@@ -215,7 +186,7 @@ export default function UsersPage() {
       await fetchUsers();
       
       // Close user details modal if it's open for this user
-      if (selectedUser?.id === user.id) {
+      if (selectedUser?.id === userToDelete.id) {
         setShowUserDetails(false);
         setSelectedUser(null);
       }

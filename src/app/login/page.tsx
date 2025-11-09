@@ -52,6 +52,7 @@ function LoginPageContent() {
     setOtpLoading(true);
 
     try {
+      // Send OTP without checking if user exists - will create user automatically after verification
       const { data, error: otpError } = await sendOTP(formData.phone);
       
       if (otpError) {

@@ -196,9 +196,9 @@ function AdminDashboardContent() {
           
           try {
             const { data: itemsData, error: itemsError } = await supabase
-              .from('order_items')
-              .select('product_image')
-              .eq('order_id', order.id)
+            .from('order_items')
+            .select('product_image')
+            .eq('order_id', order.id)
               .limit(1);
             
             if (!itemsError && itemsData && itemsData.length > 0) {
@@ -210,8 +210,8 @@ function AdminDashboardContent() {
           
           try {
             const { count, error: countError } = await supabase
-              .from('order_items')
-              .select('*', { count: 'exact', head: true })
+            .from('order_items')
+            .select('*', { count: 'exact', head: true })
               .eq('order_id', order.id);
             
             if (!countError) {
