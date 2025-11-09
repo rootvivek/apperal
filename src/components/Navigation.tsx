@@ -444,19 +444,13 @@ export default function Navigation() {
                     </svg>
                   </Link>
                   
-                  {/* Desktop: Sign In and Sign Up buttons */}
-                  <div className="hidden sm:flex items-center space-x-1.5">
+                  {/* Desktop: Sign In button */}
+                  <div className="hidden sm:flex items-center">
                     <Link
                       href="/login"
-                      className="text-white hover:text-blue-200 px-2 sm:px-3 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal transition-colors"
-                    >
-                      Sign In
-                    </Link>
-                    <Link
-                      href="/signup"
                       className="bg-white text-[#4736FE] px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-blue-100 transition-colors"
                     >
-                      Sign Up
+                      Sign In
                     </Link>
                   </div>
                 </>

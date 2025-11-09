@@ -53,6 +53,8 @@ function CheckoutContent() {
   const [errors, setErrors] = useState<{[key: string]: string}>({});
   const [isProcessing, setIsProcessing] = useState(false);
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
+  const [showPaymentFailedModal, setShowPaymentFailedModal] = useState(false);
+  const [paymentError, setPaymentError] = useState<string>('');
 
   // Handle direct purchase from URL parameters
   useEffect(() => {
@@ -184,14 +186,14 @@ function CheckoutContent() {
       newErrors.fullName = 'Name is required';
     }
     
-    // Validate phone number
+    // Validate phone number - must be exactly 10 digits
     if (!formData.phone || formData.phone.trim() === '') {
       newErrors.phone = 'Phone number is required';
     } else {
-      // Basic phone validation (should contain digits)
-      const phoneRegex = /^[\d\s\-\+\(\)]+$/;
-      if (!phoneRegex.test(formData.phone.trim())) {
-        newErrors.phone = 'Please enter a valid phone number';
+      // Remove all non-digit characters for validation
+      const phoneDigits = formData.phone.replace(/\D/g, '');
+      if (phoneDigits.length !== 10) {
+        newErrors.phone = 'Phone number must be exactly 10 digits';
       }
     }
     
@@ -210,9 +212,15 @@ function CheckoutContent() {
       newErrors.state = 'State is required';
     }
     
-    // Validate zip code
+    // Validate zip code - must be exactly 6 digits
     if (!formData.zipCode || formData.zipCode.trim() === '') {
       newErrors.zipCode = 'Zip code is required';
+    } else {
+      // Remove all non-digit characters for validation
+      const zipDigits = formData.zipCode.replace(/\D/g, '');
+      if (zipDigits.length !== 6) {
+        newErrors.zipCode = 'Zip code must be exactly 6 digits';
+      }
     }
     
     setErrors(newErrors);
@@ -507,7 +515,8 @@ function CheckoutContent() {
             window.location.href = `/checkout/success?orderId=${orderId}&orderNumber=${orderNumber}`;
           } catch (error: any) {
             console.error('Payment verification error:', error);
-            alert(`Payment verification failed: ${error.message}. Please contact support.`);
+            setPaymentError(error.message || 'Payment verification failed. Please contact support.');
+            setShowPaymentFailedModal(true);
             setIsProcessing(false);
           }
         },
@@ -527,12 +536,21 @@ function CheckoutContent() {
         },
       };
 
+      // Add error handler for Razorpay payment failures
+      (options as any).onError = function(error: any) {
+        console.error('Razorpay payment error:', error);
+        setPaymentError(error.error?.description || error.error?.reason || 'Payment failed. Please try again.');
+        setShowPaymentFailedModal(true);
+        setIsProcessing(false);
+      };
+
       console.log('Opening Razorpay checkout...');
       const razorpay = new (window as any).Razorpay(options);
       razorpay.open();
     } catch (error: any) {
       console.error('Razorpay payment error:', error);
-      alert(`Payment failed: ${error.message}. Please try again.`);
+      setPaymentError(error.message || 'Payment failed. Please try again.');
+      setShowPaymentFailedModal(true);
       setIsProcessing(false);
     }
   };
@@ -684,11 +702,13 @@ function CheckoutContent() {
                       id="zipCode"
                       name="zipCode"
                       required
-                      value={formData.zipCode}
-                      onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
-                        errors.zipCode ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                    value={formData.zipCode}
+                    onChange={handleChange}
+                    maxLength={6}
+                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
+                      errors.zipCode ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="123456"
                     />
                     {errors.zipCode && (
                       <p className="mt-1 text-sm text-red-600">{errors.zipCode}</p>
@@ -707,10 +727,11 @@ function CheckoutContent() {
                     required
                     value={formData.phone}
                     onChange={handleChange}
+                    maxLength={10}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 ${
                       errors.phone ? 'border-red-500' : 'border-gray-300'
                     }`}
-                    placeholder="(555) 123-4567"
+                    placeholder="1234567890"
                   />
                   {errors.phone && (
                     <p className="mt-1 text-sm text-red-600">{errors.phone}</p>
@@ -868,6 +889,52 @@ function CheckoutContent() {
           </div>
         </div>
       </div>
+
+      {/* Payment Failed Modal */}
+      {showPaymentFailedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
+              Payment Failed
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              {paymentError || 'Your payment could not be processed. Please try again.'}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowPaymentFailedModal(false);
+                  setPaymentError('');
+                  setIsProcessing(false);
+                }}
+                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors font-medium"
+              >
+                Close
+              </button>
+              <button
+                onClick={() => {
+                  setShowPaymentFailedModal(false);
+                  setPaymentError('');
+                  setIsProcessing(false);
+                  // Scroll to payment section
+                  const paymentSection = document.querySelector('[name="paymentMethod"]');
+                  if (paymentSection) {
+                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }
+                }}
+                className="flex-1 px-4 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors font-medium"
+              >
+                Try Again
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

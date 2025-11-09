@@ -11,11 +11,7 @@ interface AuthContextType {
   signingOut: boolean;
   sendOTP: (phone: string) => Promise<any>;
   verifyOTP: (phone: string, token: string) => Promise<any>;
-  signInWithEmail: (email: string, password: string) => Promise<{ data: any; error: any }>;
-  signUpWithEmail: (email: string, password: string, fullName?: string, redirectTo?: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signInWithFacebook: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -285,8 +281,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       if (error) throw error;
       
-      // Create user profile after successful OTP verification
-      if (data?.user?.id) {
+      // Update user state immediately after successful OTP verification
+      // This ensures the navbar and other components update right away
+      if (data?.user && data?.session) {
+        setUser(data.user);
+        setSession(data.session);
         // User profile is automatically created by database trigger (handle_new_user)
         // The trigger uses SECURITY DEFINER to bypass RLS policies
         // No need to create profile client-side - it will be created automatically
@@ -380,127 +379,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithGoogle = async () => {
-    try {
-      localStorage.removeItem('manual-sign-out');
-      manualSignOutRef.current = false;
-      
-      // Get the current origin (works for both localhost and production)
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const redirectTo = `${origin}/auth/callback`;
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectTo,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'consent',
-          },
-        },
-      });
-      
-      if (error) {
-        console.error('Google sign in error:', error);
-        console.error('Redirect URL:', redirectTo);
-        console.error('Current origin:', origin);
-        alert(`Google sign in error: ${error.message || 'Google sign in is not enabled. Please check your Supabase and Google Cloud Console configuration.'}`);
-      } else if (data?.url) {
-        // Redirect will happen automatically via Supabase
-        // The redirect URL is already set in the options
-      }
-    } catch (error: any) {
-      console.error('Google sign in error:', error);
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      console.error('Failed redirect URL:', `${origin}/auth/callback`);
-      alert(`Google sign in error: ${error.message || 'Please check your configuration. Make sure:\n1. Google OAuth is enabled in Supabase\n2. Site URL is set in Supabase\n3. Redirect URI is added in Google Cloud Console'}`);
-    }
-  };
-
-  const signInWithFacebook = async () => {
-    try {
-      localStorage.removeItem('manual-sign-out');
-      manualSignOutRef.current = false;
-      
-      // Get the current origin (works for both localhost and production)
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const redirectTo = `${origin}/auth/callback`;
-      
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'facebook',
-        options: {
-          redirectTo: redirectTo,
-        },
-      });
-      
-      if (error) {
-        console.error('Facebook sign in error:', error);
-        console.error('Redirect URL:', redirectTo);
-        alert(`Facebook sign in error: ${error.message || 'Facebook sign in is not enabled. Please check your Supabase and Facebook App configuration.'}`);
-      }
-    } catch (error: any) {
-      console.error('Facebook sign in error:', error);
-      alert(`Facebook sign in error: ${error.message || 'Please check your configuration.'}`);
-    }
-  };
-
-  const signInWithEmail = async (email: string, password: string) => {
-    try {
-      localStorage.removeItem('manual-sign-out');
-      manualSignOutRef.current = false;
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password: password,
-      });
-      
-      if (error) throw error;
-      
-      return { data, error: null };
-    } catch (error: any) {
-      console.error('Email sign in error:', error);
-      return { data: null, error: error.message || 'Failed to sign in' };
-    }
-  };
-
-  const signUpWithEmail = async (email: string, password: string, fullName?: string, redirectTo?: string) => {
-    try {
-      localStorage.removeItem('manual-sign-out');
-      manualSignOutRef.current = false;
-      
-      // Store redirect URL for after verification
-      if (redirectTo) {
-        localStorage.setItem('signup-redirect', redirectTo);
-      }
-      
-      // Get the origin URL for email verification redirect
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      const verificationUrl = `${origin}/auth/verify-email`;
-      
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
-        password: password,
-        options: {
-          emailRedirectTo: verificationUrl,
-          data: {
-            full_name: fullName || '',
-          },
-        },
-      });
-      
-      if (error) throw error;
-      
-      // User profile is automatically created by database trigger (handle_new_user)
-      // The trigger uses SECURITY DEFINER to bypass RLS policies
-      // No need to create profile client-side - it will be created automatically
-      
-      return { data, error: null };
-    } catch (error: any) {
-      console.error('Email sign up error:', error);
-      return { data: null, error: error.message || 'Failed to sign up' };
-    }
-  };
-
   const value = {
     user,
     session,
@@ -508,11 +386,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signingOut,
     sendOTP,
     verifyOTP,
-    signInWithEmail,
-    signUpWithEmail,
     signOut,
-    signInWithGoogle,
-    signInWithFacebook,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
