@@ -193,10 +193,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.user) {
         const mappedUser = mapFirebaseUser(result.user);
         setUser(mappedUser);
-        setSession({
-          user: mappedUser,
-          expires_at: undefined,
-        });
+        if (mappedUser) {
+          setSession({
+            user: mappedUser,
+            expires_at: undefined,
+          });
+        } else {
+          setSession(null);
+        }
       }
 
       // Clear confirmation result
