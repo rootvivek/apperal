@@ -96,25 +96,39 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
       .eq('id', userId)
       .maybeSingle();
 
-    // Delete user profile
-    await supabaseAdmin
+    // Soft delete: Mark user as deleted instead of hard deleting
+    // This prevents auto-recreation when user refreshes their browser
+    const { error: softDeleteError } = await supabaseAdmin
       .from('user_profiles')
-      .delete()
+      .update({
+        deleted_at: new Date().toISOString(),
+        email: `deleted_${Date.now()}_${userId.substring(0, 8)}@deleted.local`, // Mark email as deleted
+        full_name: '[Deleted User]',
+        phone: null, // Remove phone to prevent recreation
+      })
       .eq('id', userId);
+
+    if (softDeleteError) {
+      // If soft delete fails, try hard delete as fallback
+      await supabaseAdmin
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId);
+    }
 
     // Only try to delete from Supabase auth if it's a UUID (Supabase user)
     // Firebase users are not in Supabase auth, so skip this step for Firebase IDs
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId);
     if (isUUID) {
       // Delete auth user (requires admin privileges) - only for Supabase users
-      const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
-      if (authError) {
-        return NextResponse.json(
-          { error: `Failed to delete auth user: ${authError.message}` },
-          { status: 500 }
-        );
-      }
+    if (authError) {
+      return NextResponse.json(
+        { error: `Failed to delete auth user: ${authError.message}` },
+        { status: 500 }
+      );
+    }
     }
     // For Firebase users, the auth deletion is handled by Firebase Admin SDK (if needed)
     // For now, we just delete the Supabase profile and related data

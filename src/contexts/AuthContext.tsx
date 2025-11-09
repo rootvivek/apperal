@@ -35,6 +35,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   signingOut: boolean;
+  showBannedModal: boolean;
+  setShowBannedModal: (show: boolean) => void;
   sendOTP: (phone: string) => Promise<any>;
   verifyOTP: (phone: string, token: string) => Promise<any>;
   signOut: () => Promise<void>;
@@ -49,6 +51,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [signingOut, setSigningOut] = useState(false);
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  const [showBannedModal, setShowBannedModal] = useState(false);
 
   // Map Firebase user to compatibility format
   const mapFirebaseUser = (firebaseUser: FirebaseUser | null): User | null => {
@@ -86,16 +89,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
       }
 
-      // Check if profile exists
+      // Check if profile exists and is not deleted
       const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
-        .select('id')
+        .select('id, deleted_at')
         .eq('id', userId)
         .maybeSingle();
 
       if (fetchError && fetchError.code !== 'PGRST116') {
         // PGRST116 is "no rows returned" which is expected for new users
-        console.error('Error checking user profile:', fetchError);
+        console.error('Error checking user profile:', {
+          code: fetchError.code,
+          message: fetchError.message,
+          details: fetchError.details,
+          hint: fetchError.hint,
+          fullError: fetchError
+        });
+        return;
+      }
+
+      // If profile was deleted, sign out the user and show banned modal
+      if (existingProfile && existingProfile.deleted_at) {
+        console.warn('User profile was deleted. Signing out user:', userId);
+        // Sign out the user since their account was deleted
+        try {
+          await signOut();
+        } catch (signOutError) {
+          console.error('Error signing out deleted user:', signOutError);
+        }
+        setUser(null);
+          setSession(null);
+        setShowBannedModal(true);
         return;
       }
 
@@ -174,7 +198,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 console.warn('RLS blocked insert and profile does not exist. User may need to be created via API route.');
               }
             }
-          }
+                }
         } else if (insertResult.data && insertResult.data.length > 0) {
           console.log('User profile created successfully:', userId);
         } else {
@@ -253,10 +277,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Listen for auth state changes
   useEffect(() => {
     if (!auth) {
-      setLoading(false);
-      return;
-    }
-
+        setLoading(false);
+        return;
+      }
+      
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       const mappedUser = mapFirebaseUser(firebaseUser);
       setUser(mappedUser);
@@ -305,12 +329,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // Format phone number (ensure it starts with +)
       const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
-
+      
       console.log('Sending OTP to phone:', formattedPhone);
-
+      
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
       setConfirmationResult(confirmation);
-
+      
       console.log('OTP sent successfully');
       return { data: { confirmation }, error: null };
     } catch (error: any) {
@@ -329,7 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else if (error.code === 'auth/internal-error') {
         errorMessage = 'An internal error occurred. This may be due to billing not being enabled. Please check Firebase Console settings.';
       }
-
+      
       return { data: null, error: errorMessage };
     }
   };
@@ -342,9 +366,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           error: 'No OTP confirmation found. Please request a new OTP.',
         };
       }
-
+      
       console.log('Verifying OTP for phone:', phone, 'token:', token);
-
+      
       const result = await confirmationResult.confirm(token);
       
       console.log('OTP verified successfully:', result);
@@ -377,15 +401,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
           }
 
-          // Check if user exists in Supabase
+          // Check if user exists in Supabase and is not deleted
           const { data: existingProfile, error: fetchError } = await supabase
             .from('user_profiles')
-            .select('id, email, full_name, phone')
+            .select('id, email, full_name, phone, deleted_at')
             .eq('id', userId)
             .maybeSingle();
-
+      
           if (fetchError && fetchError.code !== 'PGRST116') {
-            console.error('Error checking user profile:', fetchError);
+            console.error('Error checking user profile:', {
+              code: fetchError.code,
+              message: fetchError.message,
+              details: fetchError.details,
+              hint: fetchError.hint,
+              fullError: fetchError
+            });
+          }
+
+          // If profile was deleted, sign out the user and show banned modal
+          if (existingProfile && existingProfile.deleted_at) {
+            console.warn('User profile was deleted. Signing out user:', userId);
+            try {
+              await signOut();
+            } catch (signOutError) {
+              console.error('Error signing out deleted user:', signOutError);
+            }
+            setUser(null);
+            setSession(null);
+            setShowBannedModal(true);
+            return { data: null, error: 'Your account has been deleted.' };
           }
 
           // If user doesn't exist, create it immediately
@@ -504,6 +548,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     session,
     loading,
     signingOut,
+    showBannedModal,
+    setShowBannedModal,
     sendOTP,
     verifyOTP,
     signOut,
@@ -514,6 +560,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {/* Hidden container for reCAPTCHA */}
       <div id="recaptcha-container" style={{ display: 'none' }}></div>
       {children}
+      {/* Banned User Modal */}
+      {showBannedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 text-center mb-2">
+              Account Banned
+            </h3>
+            <p className="text-gray-600 text-center mb-6">
+              Your account has been deleted by an administrator. You are no longer able to access this platform.
+            </p>
+            <p className="text-sm text-gray-500 text-center mb-6">
+              If you believe this is an error, please contact support.
+            </p>
+            <button
+              onClick={() => {
+                setShowBannedModal(false);
+                window.location.href = '/';
+              }}
+              className="w-full px-4 py-2 bg-[#4736FE] text-white rounded-lg hover:bg-[#3a2dd4] transition-colors"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      )}
     </AuthContext.Provider>
   );
 }

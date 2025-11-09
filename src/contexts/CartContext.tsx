@@ -245,8 +245,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .insert({ user_id: user.id })
           .select('id');
 
-        if (createError) {
-          console.error('Error creating cart:', createError);
+          if (createError) {
+            console.error('Error creating cart:', createError);
           // If foreign key error, wait a bit and retry once
           if (createError.code === '23503') {
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -455,15 +455,15 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             }
           } else {
             if (createError.message?.includes('Could not find the table')) {
-              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-              alert('❌ Cart table missing! Please contact admin to fix this issue.');
-            }
-            return;
+            console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
+            alert('❌ Cart table missing! Please contact admin to fix this issue.');
           }
+          return;
+        }
         } else if (!newCartData || newCartData.length === 0) {
           return;
         } else {
-          cart = newCartData[0];
+        cart = newCartData[0];
         }
       }
 

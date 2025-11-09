@@ -46,7 +46,7 @@ export default function UsersPage() {
   useEffect(() => {
     // Wait for auth to finish loading before fetching users
     if (!authLoading) {
-      fetchUsers();
+    fetchUsers();
     }
   }, [authLoading, user?.id]);
 
@@ -75,8 +75,8 @@ export default function UsersPage() {
 
       if (!response.ok) {
         throw new Error(result.error || 'Failed to fetch users');
-      }
-
+          }
+      
       setUsers(result.users || []);
       setError(null);
     } catch (error: any) {
