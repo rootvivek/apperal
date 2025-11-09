@@ -15,7 +15,7 @@ export function generateCSRFToken(): string {
 /**
  * Get or create CSRF token for the current request
  */
-export function getCSRFToken(request?: NextRequest): string {
+export async function getCSRFToken(request?: NextRequest): Promise<string> {
   if (request) {
     // For API routes
     const cookieStore = request.cookies;
@@ -27,7 +27,7 @@ export function getCSRFToken(request?: NextRequest): string {
     return token;
   } else {
     // For server components
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     let token = cookieStore.get(CSRF_TOKEN_COOKIE)?.value;
     
     if (!token) {
