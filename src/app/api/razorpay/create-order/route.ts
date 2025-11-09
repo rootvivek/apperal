@@ -13,35 +13,20 @@ try {
       key_id: keyId,
       key_secret: keySecret,
     });
-  } else {
-    console.error('Razorpay keys not configured');
   }
 } catch (error) {
-  console.error('Error initializing Razorpay:', error);
+  // Error initializing Razorpay
 }
 
 export async function POST(request: NextRequest) {
   try {
     // Check if Razorpay is initialized
     if (!razorpay) {
-      const keyId = process.env.RAZORPAY_KEY_ID;
-      const keySecret = process.env.RAZORPAY_KEY_SECRET;
-      
-      console.error('Razorpay not initialized. Environment check:', {
-        hasKeyId: !!keyId,
-        hasKeySecret: !!keySecret,
-        keyIdLength: keyId?.length || 0,
-        keySecretLength: keySecret?.length || 0,
-        nodeEnv: process.env.NODE_ENV,
-      });
-      
       return NextResponse.json(
         { 
           error: 'Payment gateway not configured. Please contact support.',
           details: process.env.NODE_ENV === 'development' ? {
             message: 'Razorpay environment variables are missing. Please add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to your environment variables.',
-            hasKeyId: !!keyId,
-            hasKeySecret: !!keySecret,
           } : undefined,
         },
         { status: 500 }
@@ -53,7 +38,6 @@ export async function POST(request: NextRequest) {
 
     // Verify user is authenticated (Firebase user ID from request body)
     if (!userId) {
-      console.error('No user ID provided');
       return NextResponse.json(
         { error: 'Unauthorized. Please log in to continue.' },
         { status: 401 }
@@ -63,8 +47,6 @@ export async function POST(request: NextRequest) {
     // Verify user exists in user_profiles (optional check)
     // For now, we'll trust the client-side auth and just use the userId
     const user = { id: userId };
-
-    console.log('Creating Razorpay order:', { amount, currency, userId: user.id });
 
     if (!amount) {
       return NextResponse.json(
@@ -95,12 +77,6 @@ export async function POST(request: NextRequest) {
     // Use timestamp for uniqueness
     const shortReceipt = `ord_${Date.now().toString().slice(-10)}`.substring(0, 40);
 
-    console.log('Creating Razorpay order with:', {
-      amount: amountInPaise,
-      currency,
-      receipt: shortReceipt,
-    });
-
     // Create Razorpay order
     const razorpayOrder = await razorpay.orders.create({
       amount: amountInPaise,
@@ -111,12 +87,9 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log('Razorpay order created successfully:', razorpayOrder.id);
-
     const publicKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID;
     
     if (!publicKey) {
-      console.error('NEXT_PUBLIC_RAZORPAY_KEY_ID not configured');
       return NextResponse.json(
         { error: 'Payment gateway configuration error' },
         { status: 500 }
@@ -130,20 +103,6 @@ export async function POST(request: NextRequest) {
       key: publicKey,
     });
   } catch (error: any) {
-    console.error('Error creating Razorpay order:', error);
-    console.error('Error details:', {
-      message: error.message,
-      statusCode: error.statusCode,
-      error: error.error,
-      description: error.description,
-      field: error.field,
-      source: error.source,
-      step: error.step,
-      reason: error.reason,
-      metadata: error.metadata,
-      fullError: JSON.stringify(error, null, 2),
-    });
-    
     // Provide more specific error messages
     let errorMessage = 'Failed to create payment order';
     

@@ -52,9 +52,6 @@ export async function POST(request: NextRequest) {
     // Create order in database after successful payment verification
     const supabaseAdmin = createServerClient();
     
-    console.log('Creating order after payment verification:', orderNumber);
-    console.log('User ID:', user.id);
-    
     // Store payment ID in notes field (for backward compatibility) and dedicated columns
     const paymentNote = `Payment ID: ${razorpay_payment_id}. Razorpay Order: ${razorpay_order_id}`;
     
@@ -97,21 +94,7 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (createError) {
-      console.error('Error creating order:', createError);
-      console.error('Create data attempted:', {
-        order_number: orderNumber,
-        user_id: user.id,
-        total: orderData.total,
-        subtotal: orderData.subtotal,
-        shipping: orderData.shipping,
-      });
-      console.error('Error code:', createError.code);
-      console.error('Error message:', createError.message);
-      console.error('Error details:', createError.details);
-      console.error('Error hint:', createError.hint);
-      
       // Return a proper error response with all error details
-      // Include the actual error message in the main error field so it's visible
       const errorMessage = createError.message || 'Database error';
       const errorResponse: any = {
         error: `Failed to create order: ${errorMessage}`,
@@ -183,7 +166,6 @@ export async function POST(request: NextRequest) {
       .insert(orderItemsToInsert);
 
     if (itemsError) {
-      console.error('Error creating order items:', itemsError);
       // Try to delete the order if items creation fails
       await supabaseAdmin.from('orders').delete().eq('id', createdOrder.id);
       
@@ -207,7 +189,6 @@ export async function POST(request: NextRequest) {
       message: 'Payment verified and order created successfully',
     });
   } catch (error: any) {
-    console.error('Error verifying payment:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to verify payment' },
       { status: 500 }

@@ -38,9 +38,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           if (error) {
             // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
             // This is expected for users who don't have items in their wishlist yet
-            if (error.code !== 'PGRST116') {
-              console.log('Note: Error loading wishlist from database:', error.message || error);
-            }
             setWishlist([]);
           } else {
             const productIds = (wishlistRows || []).map((r: any) => r.product_id).filter(Boolean);
@@ -67,10 +64,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                 .in('id', productIds);
 
               if (productsError) {
-                // Only log actual errors, not empty results
-                if (productsError.code !== 'PGRST116') {
-                  console.log('Note: Error loading wishlist products:', productsError.message || productsError);
-                }
                 setWishlist([]);
               } else {
                 // Transform to Product type
@@ -101,13 +94,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                   updatedAt: new Date(dbProduct.updated_at)
                 })) as Product[];
                 setWishlist(products);
-                console.log('Loaded wishlist from database:', products);
               }
             }
           }
         } catch (error: any) {
           // Silently handle errors - wishlist might not exist yet for new users
-          console.log('Note: Error loading wishlist:', error?.message || error);
           setWishlist([]);
         }
       } else {
@@ -117,7 +108,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           if (savedWishlist) {
             const parsedWishlist = JSON.parse(savedWishlist);
             setWishlist(parsedWishlist);
-            console.log('Loaded guest wishlist from localStorage:', parsedWishlist);
           } else {
             setWishlist([]);
           }
@@ -157,7 +147,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }) as any);
 
       if (response.error) {
-        console.error('Error adding to wishlist:', response.error);
         return;
       }
 
@@ -168,10 +157,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         }
         return [...prev, product];
       });
-
-      console.log('Added to wishlist:', product.name);
     } catch (error) {
-      console.error('Error adding to wishlist:', error);
+      // Error adding to wishlist
     }
   };
 
@@ -197,15 +184,13 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         .eq('product_id', productId);
 
       if (response.error) {
-        console.error('Error removing from wishlist:', response.error);
         return;
       }
 
       // Update local state
       setWishlist(prev => prev.filter(item => item.id !== productId));
-      console.log('Removed from wishlist:', productId);
     } catch (error) {
-      console.error('Error removing from wishlist:', error);
+      // Error removing from wishlist
     }
   };
 

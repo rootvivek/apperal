@@ -611,7 +611,6 @@ function CheckoutContent() {
   ) => {
     // Check if Razorpay script is loaded
     if (!razorpayLoaded) {
-      console.log('Razorpay script not loaded yet, waiting...');
       // Wait a bit and check again
       await new Promise(resolve => setTimeout(resolve, 1000));
       if (!(window as any).Razorpay) {
@@ -623,15 +622,12 @@ function CheckoutContent() {
 
     // Double check Razorpay is available
     if (!(window as any).Razorpay) {
-      console.error('Razorpay object not found on window');
       alert('Payment gateway failed to load. Please refresh the page and try again.');
       setIsProcessing(false);
       return;
     }
 
     try {
-      console.log('Creating Razorpay order for amount:', orderData.total, 'Order Number:', orderNumber);
-      
       // Verify user is logged in
       if (!user || !user.id) {
         alert('Please log in to continue with payment.');
@@ -655,16 +651,13 @@ function CheckoutContent() {
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('Razorpay order creation failed:', error);
         throw new Error(error.error || 'Failed to create payment order');
       }
 
       const razorpayOrder = await response.json();
-      console.log('Razorpay order created:', razorpayOrder);
 
       // Check if key is available
       if (!razorpayOrder.key) {
-        console.error('Razorpay key not found in response');
         throw new Error('Payment gateway configuration error. Please contact support.');
       }
 
@@ -678,7 +671,6 @@ function CheckoutContent() {
         order_id: razorpayOrder.id,
         handler: async function (response: any) {
           try {
-            console.log('Payment successful, verifying...', response);
             // Verify payment on server and create order
             const verifyResponse = await fetch('/api/razorpay/verify-payment', {
               method: 'POST',
@@ -713,14 +705,12 @@ function CheckoutContent() {
                   errorData = await responseClone.json();
                 } else {
                   const text = await responseClone.text();
-                  console.error('Non-JSON response:', text);
                   errorData = { 
                     error: text || `Payment verification failed (${verifyResponse.status})`,
                     rawResponse: text
                   };
                 }
               } catch (parseError: any) {
-                console.error('Error parsing response:', parseError);
                 // Try to get the raw text
                 try {
                   const text = await verifyResponse.text();
@@ -739,20 +729,6 @@ function CheckoutContent() {
                   };
                 }
               }
-              
-              // Log full error details
-              console.error('=== Payment Verification Error ===');
-              console.error('Status:', verifyResponse.status, verifyResponse.statusText);
-              console.error('Content-Type:', contentType);
-              console.error('Full Error Object:', JSON.stringify(errorData, null, 2));
-              console.error('Error Keys:', Object.keys(errorData || {}));
-              if (errorData?.details) {
-                console.error('Error Details:', JSON.stringify(errorData.details, null, 2));
-              }
-              if (errorData?.fullError) {
-                console.error('Full Database Error:', JSON.stringify(errorData.fullError, null, 2));
-              }
-              console.error('===================================');
               
               // Build a comprehensive error message
               const errorMessage = errorData?.error || 
@@ -817,11 +793,9 @@ function CheckoutContent() {
         setIsProcessing(false);
       };
 
-      console.log('Opening Razorpay checkout...');
       const razorpay = new (window as any).Razorpay(options);
       razorpay.open();
     } catch (error: any) {
-      console.error('Razorpay payment error:', error);
       setPaymentError(error.message || 'Payment failed. Please try again.');
       setShowPaymentFailedModal(true);
       setIsProcessing(false);
