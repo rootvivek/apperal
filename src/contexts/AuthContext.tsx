@@ -67,7 +67,11 @@ export function useAuth() {
   return context;
 }
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+interface AuthProviderProps {
+  children: React.ReactNode;
+}
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
@@ -457,6 +461,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // In production, show a generic service unavailable message
           errorMessage = 'Phone authentication service is temporarily unavailable. Please try again later or contact support.';
         }
+      }
       return { data: null, error: errorMessage };
     }
   };
