@@ -49,7 +49,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setCartItems(parsed);
         }
       } catch (error) {
-        console.error('Error loading guest cart on mount:', error);
+        // Failed to load guest cart
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -69,7 +69,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (error && error.code !== 'PGRST116') {
-        console.error('Error checking user profile:', error);
+        return false; // Error checking profile
       }
 
       // If profile doesn't exist and we have user info, try to create it
@@ -94,10 +94,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               email: userEmail, // Now always has a value
               full_name: user.user_metadata?.full_name || 'User',
               phone: user.phone || null,
-            });
+            })
+            .select();
 
           if (!createError) {
-            console.log('User profile created from cart context:', userId);
+            // Profile created successfully
             return true;
           } else if (createError.code === '23505') {
             // Duplicate key - profile was created by another process

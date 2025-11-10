@@ -11,7 +11,7 @@ const deactivateSchema = z.object({
   action: z.enum(['deactivate','activate']).optional(),
 });
 
-async function deactivateHandler(request: NextRequest, { userId: adminUserId }: { userId: string }) {
+async function deactivateHandler(request: NextRequest, { userId: adminUserId }: { userId: string }): Promise<NextResponse> {
   try {
     const rl = rateLimit({ windowMs: 60000, maxRequests: 10 })(request);
     if (rl && !rl.allowed) {
@@ -44,53 +44,40 @@ async function deactivateHandler(request: NextRequest, { userId: adminUserId }: 
       .eq('id', targetUserId);
 
     if (error) {
-      console.error('Error updating user_profiles for deactivate/activate:', error);
       return NextResponse.json({ error: error.message || 'Failed to update user status' }, { status: 500 });
     }
 
-    // Optionally revoke sessions/tokens - attempt to revoke Supabase tokens if UUID
+    // Handle session revocation
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(targetUserId);
+    
+    // Revoke Supabase tokens for UUID users
     if (isUUID && !isActivate) {
       try {
-        // Try to revoke all refresh tokens for the user so they are forced to reauthenticate
-        // Note: supabase-js may not have a dedicated revoke endpoint; deleting user would remove sessions.
-        // Here we attempt to invalidate tokens via the Admin API if available (best-effort).
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore
-        if (supabaseAdmin.auth && supabaseAdmin.auth.admin && supabaseAdmin.auth.admin.invalidateUser) {
+        // @ts-ignore - Supabase admin methods
+        if (supabaseAdmin.auth?.admin?.invalidateUser) {
           // @ts-ignore
           await supabaseAdmin.auth.admin.invalidateUser(targetUserId);
         }
       } catch (err) {
-        // Not critical - continue
-        // Failed to invalidate sessions but not critical
+        // Non-critical error - continue
       }
     }
 
-    // If Firebase service account configured, try to revoke refresh tokens for Firebase users
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+    // Handle Firebase token revocation
+    if (!isUUID && !isActivate && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
       try {
-        // Dynamically import firebase-admin if available. This is optional and will be skipped if
-        // the package isn't installed. Use @ts-ignore to avoid type errors when types are not present.
-        // @ts-ignore
-        const firebaseAdmin = await import('firebase-admin');
-        // Initialize app if not already
-        if (!firebaseAdmin.apps.length) {
-          const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
-          firebaseAdmin.initializeApp({ credential: firebaseAdmin.credential.cert(serviceAccount) });
-        }
-
-        // If targetUserId is not UUID, assume it's a Firebase UID and revoke tokens
-        if (!isUUID) {
+        const { getFirebaseAdmin } = await import('@/lib/firebase/admin');
+        const admin = await getFirebaseAdmin();
+        
+        if (admin?.auth) {
           try {
-            await firebaseAdmin.auth().revokeRefreshTokens(targetUserId);
-            // Firebase tokens revoked successfully
+            await admin.auth().revokeRefreshTokens(targetUserId);
           } catch (fbErr) {
-            // Failed to revoke Firebase tokens
+            // Non-critical error - continue
           }
         }
       } catch (importErr) {
-        // Firebase admin not available
+        // Firebase admin not available - continue
       }
     }
 
@@ -110,7 +97,6 @@ async function deactivateHandler(request: NextRequest, { userId: adminUserId }: 
 
     return NextResponse.json({ success: true, message: isActivate ? 'User activated' : 'User deactivated' }, { status: 200 });
   } catch (error: any) {
-    console.error('Error in deactivateHandler:', error);
     return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
   }
 }

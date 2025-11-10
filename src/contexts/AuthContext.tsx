@@ -133,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setSession(null);
         setBannedReason('deleted');
-        setShowBannedModal(true);
+        setBannedModal(true);
         return;
       }
 
@@ -148,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
         setSession(null);
         setBannedReason('deactivated');
-        setShowBannedModal(true);
+        setBannedModal(true);
         return;
       }
 
