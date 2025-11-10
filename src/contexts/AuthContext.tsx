@@ -44,6 +44,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
 }
 
+// Create the context with a default value
 export const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
@@ -52,10 +53,19 @@ export const AuthContext = createContext<AuthContextType>({
   showBannedModal: false,
   setBannedModal: () => {},
   bannedReason: '',
-  sendOTP: async () => ({ data: null, error: 'Not implemented' }),
-  verifyOTP: async () => ({ data: null, error: 'Not implemented' }),
-  signOut: async () => {},
+  sendOTP: async () => Promise.resolve({ data: null, error: 'AuthContext not initialized' }),
+  verifyOTP: async () => Promise.resolve({ data: null, error: 'AuthContext not initialized' }),
+  signOut: async () => Promise.resolve()
 });
+
+// Hook for consuming the auth context
+export function useAuth() {
+  const context = useContext(AuthContext);
+  if (context === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -126,9 +136,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (existingProfile && existingProfile.deleted_at) {
         console.warn('User profile was deleted. Signing out user:', userId);
         try {
-          await signOut();
+          if (auth) await firebaseSignOut(auth);
         } catch (signOutError) {
-          console.error('Error signing out deleted user:', signOutError);
+          // Failed to sign out but continue with cleanup
         }
         setUser(null);
         setSession(null);
@@ -141,9 +151,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (existingProfile && 'is_active' in existingProfile && existingProfile.is_active === false) {
         console.warn('User profile is deactivated. Signing out user:', userId);
         try {
-          await signOut();
+          if (auth) await firebaseSignOut(auth);
         } catch (signOutError) {
-          console.error('Error signing out deactivated user:', signOutError);
+          // Failed to sign out but continue with cleanup
         }
         setUser(null);
         setSession(null);
@@ -433,15 +443,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error.code === 'auth/invalid-phone-number') {
         errorMessage = 'Invalid phone number format. Please use international format (e.g., +1234567890)';
       } else if (error.code === 'auth/too-many-requests') {
-        errorMessage = 'Too many requests. Please try again later.';
+        errorMessage = 'Too many attempts. Please wait a few minutes and try again.';
       } else if (error.code === 'auth/captcha-check-failed') {
-        errorMessage = 'reCAPTCHA verification failed. Please refresh the page and try again.';
-      } else if (error.code === 'auth/billing-not-enabled') {
-        errorMessage = 'Firebase billing is not enabled. Phone authentication requires a Blaze plan. Please enable billing in Firebase Console or use test phone numbers for development.';
-      } else if (error.code === 'auth/internal-error') {
-        errorMessage = 'An internal error occurred. This may be due to billing not being enabled. Please check Firebase Console settings.';
-      }
-      
+        errorMessage = 'Security verification failed. Please refresh the page and try again.';
+      } else if (error.code === 'auth/billing-not-enabled' || error.code === 'auth/internal-error') {
+        // In development, provide info about using test phone numbers
+        if (process.env.NODE_ENV === 'development') {
+          errorMessage = 'Phone authentication is not available in development. Please use test phone numbers:\n' +
+                        '• +1 650-555-1234 (US)\n' +
+                        '• +44 7700-900000 (UK)\n' +
+                        'Test verification code: 123456';
+        } else {
+          // In production, show a generic service unavailable message
+          errorMessage = 'Phone authentication service is temporarily unavailable. Please try again later or contact support.';
+        }
       return { data: null, error: errorMessage };
     }
   };
@@ -688,12 +703,4 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 }
