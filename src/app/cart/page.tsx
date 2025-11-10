@@ -26,7 +26,7 @@ function CartContent() {
 
   const getShipping = () => {
     const subtotal = getSubtotal();
-    return subtotal >= 50 ? 0 : 9.99;
+    return subtotal >= 50 ? 0 : 0;
   };
 
   const getTotal = () => {
