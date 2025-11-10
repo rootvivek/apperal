@@ -273,7 +273,7 @@ export default function Navigation() {
             {!showMobileSearch && (
               <button 
                 onClick={() => {
-                  console.log('Mobile search icon clicked');
+                  // Handle mobile search icon click
                   openMobileSearch();
                 }}
                 className="sm:hidden text-white hover:text-blue-200 p-2"

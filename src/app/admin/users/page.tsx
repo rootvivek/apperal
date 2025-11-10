@@ -16,6 +16,7 @@ interface User {
   user_number?: string;
   total_orders?: number;
   isAdmin?: boolean;
+  is_active?: boolean;
 }
 
 interface Order {
@@ -42,6 +43,7 @@ export default function UsersPage() {
   const [userWishlistItems, setUserWishlistItems] = useState<any[]>([]);
   const [userDetailsTab, setUserDetailsTab] = useState<'orders' | 'cart' | 'wishlist'>('orders');
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     // Wait for auth to finish loading before fetching users
@@ -314,6 +316,16 @@ export default function UsersPage() {
                   render: (value: string) => formatDate(value),
                 },
                 {
+                  key: 'is_active',
+                  label: 'Status',
+                  sortable: false,
+                  render: (value: boolean, row: User) => (
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${value === false ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                      {value === false ? 'Deactivated' : 'Active'}
+                    </span>
+                  ),
+                },
+                {
                   key: 'total_orders',
                   label: 'Total Orders',
                   sortable: true,
@@ -349,6 +361,41 @@ export default function UsersPage() {
                           title="Delete user and all their data"
                         >
                           {deletingUserId === row.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      )}
+                      {!row.isAdmin && (
+                        <button
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            // Toggle active/deactivated state
+                            if (!user?.id) return;
+                            const action = row.is_active === false ? 'activate' : 'deactivate';
+                            if (!confirm(`Are you sure you want to ${action} this user?`)) return;
+                            try {
+                              setTogglingUserId(row.id);
+                              const res = await fetch('/api/admin/deactivate-user', {
+                                method: 'POST',
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  'X-User-Id': user.id,
+                                },
+                                body: JSON.stringify({ userId: row.id, action }),
+                              });
+                              const result = await res.json();
+                              if (!res.ok) throw new Error(result.error || 'Failed');
+                              // Refresh users
+                              await fetchUsers();
+                            } catch (err) {
+                              console.error('Error toggling user status', err);
+                              alert((err as any)?.message || 'Failed to update user status');
+                            } finally {
+                              setTogglingUserId(null);
+                            }
+                          }}
+                          disabled={togglingUserId === row.id}
+                          className="px-3 py-1 text-sm bg-yellow-50 text-yellow-800 rounded hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {togglingUserId === row.id ? 'Processing...' : (row.is_active === false ? 'Activate' : 'Deactivate')}
                         </button>
                       )}
                       {row.isAdmin && (

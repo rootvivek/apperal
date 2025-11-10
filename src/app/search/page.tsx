@@ -62,7 +62,7 @@ function SearchPageContent() {
       let products: Product[] = [];
 
       if (searchError) {
-        console.log('RPC search failed, using fallback method...');
+        // RPC search failed, use fallback method
         
         // FALLBACK: Search using original query method
         const { data: searchData, error } = await supabase

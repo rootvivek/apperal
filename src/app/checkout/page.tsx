@@ -792,7 +792,7 @@ function CheckoutContent() {
         },
         modal: {
           ondismiss: function() {
-            console.log('Razorpay modal dismissed');
+            // Payment modal dismissed
             setIsProcessing(false);
           },
         },

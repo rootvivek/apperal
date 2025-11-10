@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 /**
  * Create Supabase client for server-side auth (reads from cookies)
  * Use this when you need to get the authenticated user from cookies
+ * IMPORTANT: Only use in server components or API routes
  */
 export async function createServerAuthClient(request?: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -28,23 +29,35 @@ export async function createServerAuthClient(request?: NextRequest) {
         },
       },
     });
-  } else {
-    // For server components
-    const cookieStore = await cookies();
-    
-    return createSupabaseServerClient(supabaseUrl, supabaseAnonKey, {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: any) {
-          cookieStore.set(name, value, options);
-        },
-        remove(name: string, options: any) {
-          cookieStore.delete(name);
-        },
-      },
-    });
   }
+  
+  // For server components
+  const cookieStore = await cookies();
+  
+  return createSupabaseServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      get(name: string) {
+        return cookieStore.get(name)?.value;
+      },
+      set(name: string, value: string, options: any) {
+        try {
+          cookieStore.set({
+            name,
+            value,
+            ...options
+          });
+        } catch (e) {
+          console.warn('Could not set cookie in server component');
+        }
+      },
+      remove(name: string, options: any) {
+        try {
+          cookieStore.delete(name);
+        } catch (e) {
+          console.warn('Could not delete cookie in server component');
+        }
+      },
+    },
+  });
 }
 

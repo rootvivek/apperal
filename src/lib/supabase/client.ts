@@ -7,14 +7,11 @@ export function createClient() {
 
   // If no environment variables, return a mock client
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn('Supabase environment variables not found. Using mock client.')
     return createMockClient()
   }
 
   // Check if the URL looks like a valid Supabase URL
   if (!supabaseUrl.includes('.supabase.co') || supabaseUrl.includes('your-project-id')) {
-    console.warn('Invalid Supabase URL detected. Using mock client.')
-    console.warn('Please update your .env.local file with your real Supabase project URL.')
     return createMockClient()
   }
 

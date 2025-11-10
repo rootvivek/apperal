@@ -96,7 +96,7 @@ function ProfileContent() {
       } else {
         // Profile doesn't exist, create one for Firebase user
         // Note: Firebase users don't trigger Supabase auth.users triggers, so we create manually
-        console.log('Creating user profile for Firebase user:', user.id);
+        // Create user profile for Firebase user
         const insertQuery = supabase
           .from('user_profiles')
           .insert({
@@ -111,7 +111,7 @@ function ProfileContent() {
 
         if (insertResult.error) {
           // If insert fails (e.g., RLS policy or duplicate), try to fetch existing profile
-          console.log('Profile insert failed, checking if profile exists:', insertResult.error.message);
+          // Profile insert failed, check if it exists
           const { data: existingProfile } = await supabase
               .from('user_profiles')
               .select('*')
@@ -137,7 +137,7 @@ function ProfileContent() {
             setEmail(user.email || '');
             setFullName(user.user_metadata?.full_name || '');
             setPhone(user.phone || '');
-            console.warn('Could not create profile in database, using in-memory profile');
+            // Fall back to in-memory profile
           }
         } else if (insertResult.data && insertResult.data.length > 0) {
           const newProfile = insertResult.data[0];
@@ -190,7 +190,7 @@ function ProfileContent() {
         }
       } catch (firebaseError) {
         // Log but don't fail - Supabase update succeeded
-        console.warn('Failed to update Firebase displayName:', firebaseError);
+        // Could not update Firebase display name
       }
 
       // Update local state
@@ -235,7 +235,7 @@ function ProfileContent() {
         // This is expected for new users who don't have addresses yet
         if (fetchError.code !== 'PGRST116') {
           // Only log actual errors, not empty results
-          console.log('Note: No addresses found or error fetching addresses:', fetchError.message || fetchError);
+          // No addresses found or error fetching
         }
         setAddresses([]);
         return;
@@ -244,7 +244,7 @@ function ProfileContent() {
       setAddresses(data || []);
     } catch (err: any) {
       // Silently handle errors - addresses might not exist yet for new users
-      console.log('No addresses found or error fetching addresses:', err.message || err);
+      // No addresses found or error fetching
       setAddresses([]);
     }
   };

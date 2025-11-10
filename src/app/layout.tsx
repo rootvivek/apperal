@@ -6,6 +6,7 @@ import { CartProvider } from '@/contexts/CartContext'
 import { WishlistProvider } from '@/contexts/WishlistContext'
 import ConditionalNavigation from '@/components/ConditionalNavigation'
 import Footer from '@/components/Footer'
+import { BannedModal } from '@/components/BannedModal'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -28,6 +29,7 @@ export default function RootLayout({
               <ConditionalNavigation />
               {children}
               <Footer />
+              <BannedModal />
             </WishlistProvider>
           </CartProvider>
         </AuthProvider>

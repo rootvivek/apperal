@@ -8,8 +8,7 @@ function WishlistContent() {
   const { wishlist } = useWishlist();
   
   // Debug: Log wishlist data
-  console.log('Wishlist data:', wishlist);
-  console.log('Wishlist length:', wishlist.length);
+  // Process wishlist data
 
   return (
     <div className="min-h-screen bg-gray-50">

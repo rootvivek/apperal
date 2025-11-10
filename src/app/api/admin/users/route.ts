@@ -9,7 +9,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     // Fetch all users from user_profiles (exclude deleted users)
     const { data: users, error: usersError } = await supabase
       .from('user_profiles')
-      .select('id, email, full_name, phone, created_at, user_number')
+      .select('id, email, full_name, phone, created_at, user_number, is_active')
       .is('deleted_at', null) // Only get non-deleted users
       .order('created_at', { ascending: false });
 

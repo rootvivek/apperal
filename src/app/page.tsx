@@ -87,7 +87,7 @@ export default function Home() {
         
         // Only log unexpected errors
         if (!isExpectedError) {
-          console.warn('RPC function error (falling back):', error.message);
+          // Fallback to direct query on RPC error
         }
         // Silently fallback - no console error for expected missing function
         await fetchDataFallback();

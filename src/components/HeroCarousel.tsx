@@ -38,7 +38,7 @@ export default function HeroCarousel() {
 
       if (error) throw error;
       
-      console.log('Hero products fetched:', data?.length || 0, 'products');
+      // Hero products fetched successfully
       console.log('Hero products data:', data);
       setProducts(data || []);
     } catch (err: any) {
