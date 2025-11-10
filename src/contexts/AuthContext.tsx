@@ -190,7 +190,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } else {
         // Profile doesn't exist, create it
-        const result = await supabase
+        const { data, error } = await supabase
           .from('user_profiles')
           .insert({
             id: userId,
@@ -198,11 +198,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
             full_name: displayName,
             phone: userPhone,
           })
-          .select()
-          .single();
+          .select();
 
-        if (result.error) {
-          console.error('Error creating user profile:', result.error);
+        if (error) {
+          console.error('Error creating user profile:', error);
+        } else if (data && data.length > 0) {
+          console.log('User profile created successfully:', userId);
         }
       }
     } catch (error) {
