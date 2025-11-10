@@ -1,8 +1,8 @@
 'use client';
 
-import { useCallback, useContext, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { AuthContext } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 
 type BannedMessages = {
   deleted: string;
@@ -13,7 +13,7 @@ type BannedMessages = {
 
 export function BannedModal() {
   const router = useRouter();
-  const { showBannedModal, setBannedModal, bannedReason } = useContext(AuthContext);
+  const { showBannedModal, setBannedModal, bannedReason } = useAuth();
 
   // Prevent modal from being closed by hitting escape key
   useEffect(() => {

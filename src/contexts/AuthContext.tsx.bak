@@ -56,7 +56,7 @@ interface AuthContextType {
 }
 
 // Create context
-export const AuthContext = createContext<AuthContextType>({
+const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
@@ -190,19 +190,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
       } else {
         // Profile doesn't exist, create it
-        const result = await supabase
+        const { error: insertError } = await supabase
           .from('user_profiles')
           .insert({
             id: userId,
             email: userEmail,
             full_name: displayName,
             phone: userPhone,
-          })
-          .select()
-          .single();
+          });
 
-        if (result.error) {
-          console.error('Error creating user profile:', result.error);
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
         }
       }
     } catch (error) {
