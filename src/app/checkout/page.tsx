@@ -32,37 +32,44 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   
-  // Initialize direct purchase state - will be set in useEffect to ensure client-side execution
+  // Helper function to check URL params immediately (client-side only)
+  const getUrlParams = () => {
+    if (typeof window === 'undefined') {
+      return { direct: null, productId: null, quantity: null, size: null };
+    }
+    const params = new URLSearchParams(window.location.search);
+    return {
+      direct: params.get('direct'),
+      productId: params.get('productId'),
+      quantity: params.get('quantity'),
+      size: params.get('size')
+    };
+  };
+
+  // Initialize direct purchase state immediately from URL (for production)
+  const initialUrlParams = getUrlParams();
+  const initialIsDirectPurchase = Boolean(
+    initialUrlParams.direct === 'true' && 
+    initialUrlParams.productId && 
+    initialUrlParams.quantity
+  );
+
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
-  const [isDirectPurchase, setIsDirectPurchase] = useState(false);
-  const [loadingDirectProduct, setLoadingDirectProduct] = useState(false);
+  const [isDirectPurchase, setIsDirectPurchase] = useState<boolean>(initialIsDirectPurchase);
+  const [loadingDirectProduct, setLoadingDirectProduct] = useState<boolean>(initialIsDirectPurchase);
   
   // Store URL params in state to ensure they're available
-  const [urlParams, setUrlParams] = useState<{
-    direct: string | null;
-    productId: string | null;
-    quantity: string | null;
-    size: string | null;
-  }>({
-    direct: null,
-    productId: null,
-    quantity: null,
-    size: null
-  });
+  const [urlParams, setUrlParams] = useState(initialUrlParams);
   
   // Initialize URL params and direct purchase state on client-side mount
   useEffect(() => {
     // Get params from URL (client-side only)
-    const params = new URLSearchParams(window.location.search);
-    const direct = params.get('direct');
-    const productId = params.get('productId');
-    const quantity = params.get('quantity');
-    const size = params.get('size');
+    const params = getUrlParams();
     
-    setUrlParams({ direct, productId, quantity, size });
+    setUrlParams(params);
     
     // Set direct purchase state if params are present
-    if (direct === 'true' && productId && quantity) {
+    if (params.direct === 'true' && params.productId && params.quantity) {
       setIsDirectPurchase(true);
       setLoadingDirectProduct(true);
     }
@@ -91,10 +98,16 @@ function CheckoutContent() {
   const [paymentError, setPaymentError] = useState<string>('');
   const hasFetchedDirectProduct = useRef(false);
 
-  // Handle direct purchase from URL parameters - fetch product when params are availablechec
+  // Handle direct purchase from URL parameters - fetch product when params are available
   useEffect(() => {
+    // Get current URL params (may have been updated)
+    const currentParams = getUrlParams();
+    const productId = currentParams.productId || urlParams.productId;
+    const quantity = currentParams.quantity || urlParams.quantity;
+    const size = currentParams.size || urlParams.size;
+    
     // Only run if we have direct purchase params and haven't loaded items yet
-    if (isDirectPurchase && urlParams.productId && urlParams.quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
+    if ((isDirectPurchase || initialIsDirectPurchase) && productId && quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
       hasFetchedDirectProduct.current = true;
       setLoadingDirectProduct(true);
       
@@ -104,7 +117,7 @@ function CheckoutContent() {
           const { data: product, error } = await supabase
             .from('products')
             .select('id, name, price, image_url, stock_quantity, subcategory_id')
-            .eq('id', urlParams.productId!)
+            .eq('id', productId!)
             .eq('is_active', true)
             .single();
           
@@ -145,8 +158,8 @@ function CheckoutContent() {
               image_url: product.image_url,
               stock_quantity: product.stock_quantity
             },
-            quantity: parseInt(urlParams.quantity!),
-            size: urlParams.size || null
+            quantity: parseInt(quantity!),
+            size: size || null
           }]);
         } catch (error) {
           console.error('Error in fetchDirectProduct:', error);
@@ -157,7 +170,7 @@ function CheckoutContent() {
       
       fetchDirectProduct();
     }
-  }, [isDirectPurchase, urlParams.productId, urlParams.quantity, directPurchaseItems.length, supabase]);
+  }, [isDirectPurchase, initialIsDirectPurchase, urlParams.productId, urlParams.quantity, directPurchaseItems.length, supabase]);
 
   // Helper function to map state name to state code
   const getStateCode = (stateName: string | null | undefined): string => {
@@ -378,27 +391,17 @@ function CheckoutContent() {
   };
   
   const isDirectPurchaseFromUrl = checkDirectPurchaseFromUrl();
-  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl;
+  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl || initialIsDirectPurchase;
 
-  // Redirect if cart is empty
-  if (cartLoading || loadingDirectProduct) {
+  // Show loading state while cart is loading OR while detecting/fetching direct purchase
+  if (cartLoading || (shouldShowDirectPurchase && loadingDirectProduct && directPurchaseItems.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading checkout...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading state while fetching direct purchase product
-  if (shouldShowDirectPurchase && loadingDirectProduct) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading product details...</p>
+          <p className="mt-4 text-gray-600">
+            {shouldShowDirectPurchase ? 'Loading product details...' : 'Loading checkout...'}
+          </p>
         </div>
       </div>
     );
@@ -408,7 +411,7 @@ function CheckoutContent() {
   // Only show "cart empty" if:
   // 1. Cart is empty AND
   // 2. Either not a direct purchase OR (direct purchase but items failed to load and not currently loading)
-  if (cartItems.length === 0 && !shouldShowDirectPurchase) {
+  if (cartItems.length === 0 && !shouldShowDirectPurchase && !initialIsDirectPurchase) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
