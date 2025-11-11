@@ -32,37 +32,49 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   
+  // Track if component has mounted (client-side only)
+  const [mounted, setMounted] = useState(false);
+  
   // Helper function to check URL params immediately (client-side only)
   const getUrlParams = () => {
     if (typeof window === 'undefined') {
       return { direct: null, productId: null, quantity: null, size: null };
     }
-    const params = new URLSearchParams(window.location.search);
-    return {
-      direct: params.get('direct'),
-      productId: params.get('productId'),
-      quantity: params.get('quantity'),
-      size: params.get('size')
-    };
+    try {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        direct: params.get('direct'),
+        productId: params.get('productId'),
+        quantity: params.get('quantity'),
+        size: params.get('size')
+      };
+    } catch (e) {
+      return { direct: null, productId: null, quantity: null, size: null };
+    }
   };
 
-  // Initialize direct purchase state immediately from URL (for production)
-  const initialUrlParams = getUrlParams();
-  const initialIsDirectPurchase = Boolean(
-    initialUrlParams.direct === 'true' && 
-    initialUrlParams.productId && 
-    initialUrlParams.quantity
-  );
-
+  // Initialize with safe defaults (will be updated on mount)
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
-  const [isDirectPurchase, setIsDirectPurchase] = useState<boolean>(initialIsDirectPurchase);
-  const [loadingDirectProduct, setLoadingDirectProduct] = useState<boolean>(initialIsDirectPurchase);
+  const [isDirectPurchase, setIsDirectPurchase] = useState<boolean>(false);
+  const [loadingDirectProduct, setLoadingDirectProduct] = useState<boolean>(false);
   
   // Store URL params in state to ensure they're available
-  const [urlParams, setUrlParams] = useState(initialUrlParams);
+  const [urlParams, setUrlParams] = useState<{
+    direct: string | null;
+    productId: string | null;
+    quantity: string | null;
+    size: string | null;
+  }>({
+    direct: null,
+    productId: null,
+    quantity: null,
+    size: null
+  });
   
-  // Initialize URL params and direct purchase state on client-side mount
+  // Mark component as mounted (client-side only) and initialize URL params
   useEffect(() => {
+    setMounted(true);
+    
     // Get params from URL (client-side only)
     const params = getUrlParams();
     
@@ -165,24 +177,27 @@ function CheckoutContent() {
   const [paymentError, setPaymentError] = useState<string>('');
   const hasFetchedDirectProduct = useRef(false);
 
-  // Handle direct purchase from URL parameters - fetch product when params are available
+  // Handle direct purchase from URL parameters - fetch product when params are available (backup)
   useEffect(() => {
+    // Only run after mount and if we haven't fetched yet
+    if (!mounted || hasFetchedDirectProduct.current) return;
+    
     // Get current URL params (may have been updated)
     const currentParams = getUrlParams();
     const productId = currentParams.productId || urlParams.productId;
     const quantity = currentParams.quantity || urlParams.quantity;
     const size = currentParams.size || urlParams.size;
     
-    // Check if this is a direct purchase - check both current and stored params
-    const isDirect = currentParams.direct === 'true' || urlParams.direct === 'true' || initialIsDirectPurchase;
+    // Check if this is a direct purchase
+    const isDirect = currentParams.direct === 'true' || urlParams.direct === 'true';
     
     // Only run if we have direct purchase params and haven't loaded items yet
-    if (isDirect && productId && quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
+    if (isDirect && productId && quantity && directPurchaseItems.length === 0) {
       hasFetchedDirectProduct.current = true;
       setLoadingDirectProduct(true);
       setIsDirectPurchase(true);
       
-      console.log('Fetching direct purchase product:', { productId, quantity, size });
+      console.log('Fetching direct purchase product (backup):', { productId, quantity, size });
       
       // Fetch product details directly from database
       const fetchDirectProduct = async () => {
@@ -246,7 +261,7 @@ function CheckoutContent() {
       
       fetchDirectProduct();
     }
-  }, [isDirectPurchase, initialIsDirectPurchase, urlParams.productId, urlParams.quantity, urlParams.direct, directPurchaseItems.length, supabase]);
+  }, [mounted, urlParams.productId, urlParams.quantity, urlParams.direct, directPurchaseItems.length, supabase]);
 
   // Helper function to map state name to state code
   const getStateCode = (stateName: string | null | undefined): string => {
@@ -458,26 +473,26 @@ function CheckoutContent() {
 
   // Check URL params directly to detect direct purchase (in case state hasn't updated yet)
   // This ensures we detect direct purchase even before useEffect runs
-  // IMPORTANT: Check on every render to catch production edge cases
+  // IMPORTANT: Only check after mount (client-side only) to avoid SSR issues
   const checkDirectPurchaseFromUrl = () => {
-    if (typeof window !== 'undefined') {
-      try {
-        const params = new URLSearchParams(window.location.search);
-        const direct = params.get('direct');
-        const productId = params.get('productId');
-        const quantity = params.get('quantity');
-        return direct === 'true' && !!productId && !!quantity;
-      } catch (e) {
-        // Fallback if URL parsing fails
-        return false;
-      }
+    if (!mounted || typeof window === 'undefined') {
+      return false;
     }
-    return false;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const direct = params.get('direct');
+      const productId = params.get('productId');
+      const quantity = params.get('quantity');
+      return direct === 'true' && !!productId && !!quantity;
+    } catch (e) {
+      // Fallback if URL parsing fails
+      return false;
+    }
   };
   
-  // Always check URL on render (for production reliability)
+  // Always check URL on render (for production reliability) - but only after mount
   const isDirectPurchaseFromUrl = checkDirectPurchaseFromUrl();
-  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl || initialIsDirectPurchase;
+  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl;
   
   // Determine if we're still waiting for direct purchase product to load
   // We're waiting if:
@@ -489,9 +504,10 @@ function CheckoutContent() {
                                      (loadingDirectProduct || !hasFetchedDirectProduct.current);
 
   // Show loading state while:
-  // 1. Cart is loading, OR
-  // 2. We detected direct purchase but haven't loaded the product yet
-  if (cartLoading || isWaitingForDirectProduct) {
+  // 1. Component hasn't mounted yet (SSR/hydration), OR
+  // 2. Cart is loading, OR
+  // 3. We detected direct purchase but haven't loaded the product yet
+  if (!mounted || cartLoading || isWaitingForDirectProduct) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -507,11 +523,12 @@ function CheckoutContent() {
   // Check if cart is empty and not a direct purchase
   // NEVER show "cart empty" if we've detected a direct purchase (even if product failed to load)
   // Only show "cart empty" if:
-  // 1. Cart is empty AND
-  // 2. We have NOT detected any direct purchase indicators (check URL one more time to be sure)
-  // 3. Cart loading is complete
+  // 1. Component is mounted (client-side), AND
+  // 2. Cart is empty, AND
+  // 3. We have NOT detected any direct purchase indicators (check URL one more time to be sure)
+  // 4. Cart loading is complete
   const finalDirectPurchaseCheck = checkDirectPurchaseFromUrl() || shouldShowDirectPurchase;
-  if (cartItems.length === 0 && !finalDirectPurchaseCheck && !cartLoading) {
+  if (mounted && cartItems.length === 0 && !finalDirectPurchaseCheck && !cartLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
