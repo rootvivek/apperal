@@ -313,17 +313,8 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Category Header */}
-      <div className="bg-white py-12">
-        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">{category.name}</h1>
-          </div>
-        </div>
-      </div>
-
       {/* Main Content */}
-        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-8">
         <div className="flex flex-col lg:flex-row gap-8">
           {/* Left Sidebar - Subcategories */}
           <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">

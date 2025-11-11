@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { Product } from '@/types/product';
 
@@ -35,7 +35,7 @@ interface ProductCardProps {
   variant?: 'default' | 'minimal' | 'image-only'; // New prop to control styling variant
 }
 
-export default function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
+function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const isWishlisted = isInWishlist(product.id);
   
@@ -49,8 +49,8 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isTouching, setIsTouching] = useState(false);
 
-  // Convert ProductCardProduct to Product type for wishlist
-  const convertToWishlistProduct = (productCardProduct: ProductCardProduct): Product => {
+  // Convert ProductCardProduct to Product type for wishlist - memoized
+  const convertToWishlistProduct = useCallback((productCardProduct: ProductCardProduct): Product => {
     const categoryName = typeof productCardProduct.category === 'string' 
       ? productCardProduct.category 
       : productCardProduct.category?.name || 'Unknown';
@@ -81,9 +81,9 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
       createdAt: new Date(productCardProduct.created_at),
       updatedAt: new Date(productCardProduct.updated_at)
     };
-  };
+  }, []);
 
-  const handleWishlistToggle = async (e: React.MouseEvent) => {
+  const handleWishlistToggle = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault(); // Prevent navigation to product page
     e.stopPropagation();
     
@@ -94,21 +94,20 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     } else {
       await addToWishlist(convertToWishlistProduct(product));
     }
-  };
+  }, [isWishlisted, loading, product, addToWishlist, removeFromWishlist, convertToWishlistProduct]);
 
-  // Calculate discount percentage automatically
-  const calculateDiscountPercentage = () => {
+  // Calculate discount percentage automatically - memoized
+  const discountPercentage = useMemo(() => {
     if (product.original_price && product.original_price > product.price) {
       return Math.round(((product.original_price - product.price) / product.original_price) * 100);
     }
     return 0;
-  };
+  }, [product.original_price, product.price]);
 
-  const discountPercentage = calculateDiscountPercentage();
   const hasDiscount = discountPercentage > 0;
 
-  // Get all available images for the product
-  const getAvailableImages = () => {
+  // Get all available images for the product - memoized
+  const availableImages = useMemo(() => {
     const images = [];
     
     // Add main image
@@ -128,13 +127,12 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     }
     
     return images;
-  };
+  }, [product.image_url, product.images]);
 
-  const availableImages = getAvailableImages();
   const hasMultipleImages = availableImages.length > 1;
 
-  // Start image sliding when hovering
-  const startImageSliding = () => {
+  // Start image sliding when hovering - memoized
+  const startImageSliding = useCallback(() => {
     if (!hasMultipleImages) return;
     
     setIsHovered(true);
@@ -145,20 +143,20 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
         return (prevIndex + 1) % availableImages.length;
       });
     }, 2000); // Change image every 2 seconds
-  };
+  }, [availableImages.length]);
 
-  // Stop image sliding when not hovering
-  const stopImageSliding = () => {
+  // Stop image sliding when not hovering - memoized
+  const stopImageSliding = useCallback(() => {
     setIsHovered(false);
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
     setCurrentImageIndex(0); // Reset to first image
-  };
+  }, []);
 
-  // Touch event handlers for mobile swipe
-  const handleTouchStart = (e: React.TouchEvent) => {
+  // Touch event handlers for mobile swipe - memoized
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
     if (!hasMultipleImages) return;
     
     setIsTouching(true);
@@ -170,14 +168,14 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
       clearInterval(intervalRef.current);
       intervalRef.current = null;
     }
-  };
+  }, [hasMultipleImages]);
 
-  const handleTouchMove = (e: React.TouchEvent) => {
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
     if (!hasMultipleImages) return;
     setTouchEnd(e.targetTouches[0].clientX);
-  };
+  }, [hasMultipleImages]);
 
-  const handleTouchEnd = () => {
+  const handleTouchEnd = useCallback(() => {
     if (!hasMultipleImages || !touchStart || !touchEnd) {
       setIsTouching(false);
       return;
@@ -198,7 +196,7 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     setIsTouching(false);
     setTouchStart(null);
     setTouchEnd(null);
-  };
+  }, [hasMultipleImages, touchStart, touchEnd, availableImages.length]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -209,8 +207,9 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     };
   }, []);
 
-  // Badge styling
-  const getBadgeStyle = (badge: string) => {
+  // Badge styling - memoized
+  const badgeStyle = useMemo(() => {
+    const badge = product.badge;
     switch (badge?.toUpperCase()) {
       case 'NEW':
         return 'bg-green-500 text-white';
@@ -225,31 +224,40 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
       default:
         return 'bg-gray-500 text-white';
     }
-  };
+  }, [product.badge]);
 
-  // Conditional styling based on variant
-  const cardClasses = variant === 'minimal' || variant === 'image-only'
-    ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
-    : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
-  
-  const imageClasses = variant === 'minimal' || variant === 'image-only'
-    ? "h-full w-full object-cover transition-transform duration-300"
-    : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
+  // Conditional styling based on variant - memoized
+  const { cardClasses, imageClasses, contentClasses, productUrl } = useMemo(() => {
+    const card = variant === 'minimal' || variant === 'image-only'
+      ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
+      : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
     
-  const contentClasses = variant === 'minimal'
-    ? "px-3 py-1"
-    : variant === 'image-only'
-    ? "hidden"
-    : "p-2";
+    const image = variant === 'minimal' || variant === 'image-only'
+      ? "h-full w-full object-cover transition-transform duration-300"
+      : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
+      
+    const content = variant === 'minimal'
+      ? "px-3 py-1"
+      : variant === 'image-only'
+      ? "hidden"
+      : "p-2";
 
-  // Use slug if available, otherwise use ID for backward compatibility
-  const productUrl = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
+    // Use slug if available, otherwise use ID for backward compatibility
+    const url = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
+
+    return {
+      cardClasses: card,
+      imageClasses: image,
+      contentClasses: content,
+      productUrl: url
+    };
+  }, [variant, product.slug, product.id]);
   
   return (
     <Link href={productUrl} className={`${cardClasses} relative z-0`}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
-        <div className={`absolute top-2 left-2 z-10 px-1 py-0.5 rounded text-[10px] sm:text-xs font-medium ${getBadgeStyle(product.badge)}`}>
+        <div className={`absolute top-2 left-2 z-10 px-1 py-0.5 rounded text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
           {product.badge}
         </div>
       )}
@@ -340,27 +348,6 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
           {product.name}
         </h3>
         
-        {/* Subcategories */}
-        {product.subcategories && product.subcategories.length > 0 && (
-          <div className="mb-1 sm:mb-2">
-            <div className="flex flex-wrap gap-1">
-              {product.subcategories.slice(0, 3).map((subcategory, index) => (
-                <span
-                  key={index}
-                  className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full"
-                >
-                  {subcategory}
-                </span>
-              ))}
-              {product.subcategories.length > 3 && (
-                <span className="inline-block px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded-full">
-                  +{product.subcategories.length - 3} more
-                </span>
-              )}
-            </div>
-          </div>
-        )}
-        
         <div className="flex items-center space-x-1">
           <span className="text-sm sm:text-base font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             ₹{product.price.toFixed(2)}
@@ -380,3 +367,16 @@ export default function ProductCard({ product, hideStockOverlay = false, variant
     </Link>
   );
 }
+
+// Memoize component to prevent unnecessary re-renders
+export default memo(ProductCard, (prevProps, nextProps) => {
+  // Custom comparison function for better performance
+  return (
+    prevProps.product.id === nextProps.product.id &&
+    prevProps.product.price === nextProps.product.price &&
+    prevProps.product.stock_quantity === nextProps.product.stock_quantity &&
+    prevProps.product.is_active === nextProps.product.is_active &&
+    prevProps.hideStockOverlay === nextProps.hideStockOverlay &&
+    prevProps.variant === nextProps.variant
+  );
+});

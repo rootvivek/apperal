@@ -17,6 +17,7 @@ interface User {
   total_orders?: number;
   isAdmin?: boolean;
   is_active?: boolean;
+  deleted_at?: string;
 }
 
 interface Order {
@@ -35,6 +36,7 @@ export default function UsersPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'active' | 'deleted'>('active');
   
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUserDetails, setShowUserDetails] = useState(false);
@@ -44,13 +46,14 @@ export default function UsersPage() {
   const [userDetailsTab, setUserDetailsTab] = useState<'orders' | 'cart' | 'wishlist'>('orders');
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
+  const [reactivatingUserId, setReactivatingUserId] = useState<string | null>(null);
 
   useEffect(() => {
     // Wait for auth to finish loading before fetching users
     if (!authLoading) {
-    fetchUsers();
+      fetchUsers();
     }
-  }, [authLoading, user?.id]);
+  }, [authLoading, user?.id, activeTab]);
 
   const fetchUsers = async () => {
     try {
@@ -64,7 +67,8 @@ export default function UsersPage() {
       }
       
       // Fetch users via API route (uses service role key, bypasses RLS)
-      const response = await fetch('/api/admin/users', {
+      const url = `/api/admin/users?deleted=${activeTab === 'deleted' ? 'true' : 'false'}`;
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,8 +80,10 @@ export default function UsersPage() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch users');
-          }
+        const errorMessage = result.error || result.details || 'Failed to fetch users';
+        console.error('API Error:', { status: response.status, error: result });
+        throw new Error(errorMessage);
+      }
       
       setUsers(result.users || []);
       setError(null);
@@ -152,7 +158,7 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userToDelete: User) => {
-    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.email}"?\n\nThis will permanently delete:\n- User account (auth)\n- User profile\n- All addresses\n- All cart items\n- All wishlist items\n- All reviews\n- All orders (order history will be lost)\n\nThis action cannot be undone!`;
+    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.email}"?\n\nThis will delete all user data and mark the profile as deleted.\n\nThis action cannot be undone!`;
     
     if (!confirm(confirmMessage)) {
       return;
@@ -168,7 +174,7 @@ export default function UsersPage() {
         throw new Error('No active session. Please log in again.');
       }
 
-      // Call API route to delete user completely (including auth user)
+      // Call API route to soft delete user (deletes data, keeps profile marked as deleted)
       const response = await fetch('/api/admin/delete-user', {
         method: 'POST',
         headers: {
@@ -200,6 +206,60 @@ export default function UsersPage() {
       setError(error?.message || 'Failed to delete user. Please try again.');
     } finally {
       setDeletingUserId(null);
+    }
+  };
+
+  const handleReactivateUser = async (userToReactivate: User) => {
+    const confirmMessage = `Are you sure you want to reactivate user "${userToReactivate.full_name || userToReactivate.email}"?\n\nThis will:\n- Restore the user account\n- Allow the user to log in again\n- The phone number will be associated with this reactivated account`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setReactivatingUserId(userToReactivate.id);
+      setError(null);
+      setSuccess(false);
+
+      // Get Firebase user ID for API authentication
+      if (!user?.id) {
+        throw new Error('No active session. Please log in again.');
+      }
+
+      // Call API route to reactivate user
+      const response = await fetch('/api/admin/reactivate-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ userId: userToReactivate.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to reactivate user');
+      }
+
+      // Refresh users list (will move from deleted to active tab)
+      await fetchUsers();
+      
+      // Close user details modal if it's open for this user
+      if (selectedUser?.id === userToReactivate.id) {
+        setShowUserDetails(false);
+        setSelectedUser(null);
+      }
+
+      // Switch to active tab to see the reactivated user
+      setActiveTab('active');
+      setSuccess(true);
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (error: any) {
+      console.error('Error reactivating user:', error);
+      setError(error?.message || 'Failed to reactivate user. Please try again.');
+    } finally {
+      setReactivatingUserId(null);
     }
   };
 
@@ -241,14 +301,56 @@ export default function UsersPage() {
             
             {success && (
               <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
-                User deleted successfully!
+                {activeTab === 'deleted' 
+                  ? 'User account reactivated successfully! User can now log in again.'
+                  : 'User deleted successfully!'}
               </div>
             )}
             
+            {/* Tabs for Active/Deleted Users */}
+            <div className="mb-6 border-b border-gray-200">
+              <nav className="flex space-x-8" aria-label="Tabs">
+                <button
+                  onClick={() => {
+                    setActiveTab('active');
+                    setSearch('');
+                  }}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'active'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Active Users
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveTab('deleted');
+                    setSearch('');
+                  }}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                    activeTab === 'deleted'
+                      ? 'border-red-500 text-red-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  Deleted Users
+                </button>
+              </nav>
+            </div>
+            
             <div className="flex items-center justify-between mb-4">
-              <div className="px-4 py-2 bg-blue-50 rounded-lg">
-                <p className="text-sm text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-blue-600">{users.length}</p>
+              <div className={`px-4 py-2 rounded-lg ${
+                activeTab === 'active' ? 'bg-blue-50' : 'bg-red-50'
+              }`}>
+                <p className="text-sm text-gray-600">
+                  {activeTab === 'active' ? 'Total Active Users' : 'Total Deleted Users'}
+                </p>
+                <p className={`text-2xl font-bold ${
+                  activeTab === 'active' ? 'text-blue-600' : 'text-red-600'
+                }`}>
+                  {users.length}
+                </p>
               </div>
               <input
                 type="text"
@@ -319,12 +421,27 @@ export default function UsersPage() {
                   key: 'is_active',
                   label: 'Status',
                   sortable: false,
-                  render: (value: boolean, row: User) => (
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${value === false ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
-                      {value === false ? 'Deactivated' : 'Active'}
-                    </span>
-                  ),
+                  render: (value: boolean, row: User) => {
+                    if (row.deleted_at) {
+                      return (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                          Deleted
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${value === false ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                        {value === false ? 'Deactivated' : 'Active'}
+                      </span>
+                    );
+                  },
                 },
+                ...(activeTab === 'deleted' ? [{
+                  key: 'deleted_at',
+                  label: 'Deleted On',
+                  sortable: true,
+                  render: (value: string) => value ? formatDate(value) : '—',
+                }] : []),
                 {
                   key: 'total_orders',
                   label: 'Total Orders',
@@ -350,7 +467,7 @@ export default function UsersPage() {
                       >
                         View
                       </button>
-                      {!row.isAdmin && (
+                      {!row.isAdmin && activeTab === 'active' && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
@@ -363,7 +480,20 @@ export default function UsersPage() {
                           {deletingUserId === row.id ? 'Deleting...' : 'Delete'}
                         </button>
                       )}
-                      {!row.isAdmin && (
+                      {!row.isAdmin && activeTab === 'deleted' && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleReactivateUser(row);
+                          }}
+                          disabled={reactivatingUserId === row.id}
+                          className="px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="Reactivate user account (allows user to log in again)"
+                        >
+                          {reactivatingUserId === row.id ? 'Reactivating...' : 'Reactivate'}
+                        </button>
+                      )}
+                      {!row.isAdmin && activeTab === 'active' && (
                         <button
                           onClick={async (e) => {
                             e.stopPropagation();
@@ -409,7 +539,7 @@ export default function UsersPage() {
               ]}
               data={filteredUsers}
               isLoading={loading}
-              emptyMessage="No users found"
+              emptyMessage={activeTab === 'deleted' ? 'No deleted users found' : 'No users found'}
               onRowClick={handleUserClick}
               rowKey="id"
             />

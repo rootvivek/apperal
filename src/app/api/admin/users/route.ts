@@ -6,12 +6,41 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
   try {
     const supabase = createServerClient(); // Uses service role key, bypasses RLS
     
-    // Fetch all users from user_profiles (exclude deleted users)
-    const { data: users, error: usersError } = await supabase
+    // Get query parameter to determine if we want deleted users
+    // For POST requests, query params are in the URL
+    const url = new URL(request.url);
+    const includeDeleted = url.searchParams.get('deleted') === 'true';
+    
+    // Build query based on whether we want deleted or active users
+    let query = supabase
       .from('user_profiles')
-      .select('id, email, full_name, phone, created_at, user_number, is_active')
-      .is('deleted_at', null) // Only get non-deleted users
-      .order('created_at', { ascending: false });
+      .select('id, email, full_name, phone, created_at, user_number, is_active, deleted_at');
+    
+    if (includeDeleted) {
+      // Get only deleted users (deleted_at is not null)
+      // PostgREST syntax: use .not() with 'is' operator
+      query = query.not('deleted_at', 'is', null);
+    } else {
+      // Get only active (non-deleted) users
+      query = query.is('deleted_at', null);
+    }
+    
+    // Apply ordering after filtering
+    query = query.order('created_at', { ascending: false });
+    
+    const { data: users, error: usersError } = await query;
+    
+    // Log for debugging
+    if (usersError) {
+      console.error('Supabase query error:', {
+        error: usersError,
+        includeDeleted,
+        message: usersError.message,
+        code: usersError.code,
+        details: usersError.details,
+        hint: usersError.hint
+      });
+    }
 
     if (usersError) {
       console.error('Error fetching users:', usersError);

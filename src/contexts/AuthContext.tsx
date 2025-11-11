@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState, useMemo } from 'react';
 import { 
   User as FirebaseUser,
   signInWithPhoneNumber,
@@ -189,7 +189,38 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           console.error('Error updating user profile:', updateError);
         }
       } else {
-        // Profile doesn't exist, create it
+        // Profile doesn't exist for this UID
+        // Check if there's a soft-deleted profile with the same phone number
+        // If so, hard delete it to allow the new user to create an account
+        if (userPhone) {
+          // Query for profiles with the same phone number
+          const { data: profilesWithPhone, error: deletedCheckError } = await supabase
+            .from('user_profiles')
+            .select('id, deleted_at')
+            .eq('phone', userPhone);
+
+          if (!deletedCheckError && profilesWithPhone) {
+            // Find any soft-deleted profile (deleted_at is not null)
+            const deletedProfile = profilesWithPhone.find(p => p.deleted_at !== null);
+
+            if (deletedProfile) {
+              // Found a soft-deleted profile with the same phone number
+              // Hard delete it to allow the new user to create an account
+              console.log('Found soft-deleted profile with same phone, hard deleting:', deletedProfile.id);
+              const { error: hardDeleteError } = await supabase
+                .from('user_profiles')
+                .delete()
+                .eq('id', deletedProfile.id);
+
+              if (hardDeleteError) {
+                console.warn('Failed to hard delete old soft-deleted profile:', hardDeleteError);
+                // Continue anyway - try to create the new profile
+              }
+            }
+          }
+        }
+
+        // Create new profile
         const { data, error } = await supabase
           .from('user_profiles')
           .insert({
@@ -201,7 +232,44 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           .select();
 
         if (error) {
-          console.error('Error creating user profile:', error);
+          // If error is due to unique constraint on phone, try to find and delete the conflicting profile
+          if (error.code === '23505' && userPhone) {
+            console.log('Phone number conflict detected, attempting to resolve...');
+            const { data: conflictingProfile } = await supabase
+              .from('user_profiles')
+              .select('id, deleted_at')
+              .eq('phone', userPhone)
+              .maybeSingle();
+
+            if (conflictingProfile) {
+              // Delete the conflicting profile (should be soft-deleted, but hard delete to be sure)
+              await supabase
+                .from('user_profiles')
+                .delete()
+                .eq('id', conflictingProfile.id);
+
+              // Retry creating the profile
+              const { data: retryData, error: retryError } = await supabase
+                .from('user_profiles')
+                .insert({
+                  id: userId,
+                  email: userEmail,
+                  full_name: displayName,
+                  phone: userPhone,
+                })
+                .select();
+
+              if (retryError) {
+                console.error('Error creating user profile after conflict resolution:', retryError);
+              } else if (retryData && retryData.length > 0) {
+                console.log('User profile created successfully after conflict resolution:', userId);
+              }
+            } else {
+              console.error('Error creating user profile:', error);
+            }
+          } else {
+            console.error('Error creating user profile:', error);
+          }
         } else if (data && data.length > 0) {
           console.log('User profile created successfully:', userId);
         }
@@ -211,47 +279,82 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Initialize reCAPTCHA verifier
-  useEffect(() => {
-    async function initializeRecaptcha() {
-      if (typeof window === 'undefined' || recaptchaVerifier || !auth) {
-        return;
+  // Helper function to initialize reCAPTCHA verifier
+  const initializeRecaptcha = useCallback(async (): Promise<RecaptchaVerifier | null> => {
+    if (typeof window === 'undefined' || !auth) {
+      console.error('Cannot initialize reCAPTCHA: window or auth not available');
+      return null;
+    }
+    
+    try {
+      // Wait for container to be available (with retry)
+      let container = document.getElementById('recaptcha-container');
+      let retries = 0;
+      while (!container && retries < 5) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        container = document.getElementById('recaptcha-container');
+        retries++;
       }
 
-      try {
-        // Clear any existing reCAPTCHA
-        const container = document.getElementById('recaptcha-container');
-        if (container) {
-          container.innerHTML = '';
+      if (!container) {
+        console.error('reCAPTCHA container not found after retries');
+        return null;
+      }
+
+      // Clear any existing reCAPTCHA
+      container.innerHTML = '';
+
+      // Clear existing verifier if any
+      if (recaptchaVerifier) {
+        try {
+          recaptchaVerifier.clear();
+        } catch (e) {
+          // Ignore cleanup errors
+          console.warn('Error clearing existing verifier:', e);
         }
-
-        // Create new verifier
-        const verifier = new RecaptchaVerifier(
-          auth,
-          'recaptcha-container',
-          {
-            size: 'invisible',
-            callback: () => {
-              console.log('reCAPTCHA verified');
-            },
-            'expired-callback': () => {
-              console.error('reCAPTCHA expired');
-              setRecaptchaVerifier(null);
-            },
-          }
-        );
-
-        // Render the reCAPTCHA to ensure it's ready
-        await verifier.render();
-        setRecaptchaVerifier(verifier);
-        console.log('reCAPTCHA initialized successfully');
-      } catch (error) {
-        console.error('Error initializing reCAPTCHA:', error);
         setRecaptchaVerifier(null);
       }
-    }
 
-    initializeRecaptcha();
+      console.log('Creating new RecaptchaVerifier...');
+      // Create new verifier
+      const verifier = new RecaptchaVerifier(
+        auth,
+        'recaptcha-container',
+        {
+          size: 'invisible',
+          callback: () => {
+            console.log('reCAPTCHA verified');
+          },
+          'expired-callback': () => {
+            console.error('reCAPTCHA expired');
+            setRecaptchaVerifier(null);
+          },
+        }
+      );
+
+      console.log('Rendering reCAPTCHA...');
+      // Render the reCAPTCHA to ensure it's ready
+      await verifier.render();
+      setRecaptchaVerifier(verifier);
+      console.log('reCAPTCHA initialized successfully');
+      return verifier;
+    } catch (error) {
+      console.error('Error initializing reCAPTCHA:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        fullError: error
+      });
+      setRecaptchaVerifier(null);
+      return null;
+    }
+  }, [auth, recaptchaVerifier]);
+
+  // Initialize reCAPTCHA verifier on mount
+  useEffect(() => {
+    if (!recaptchaVerifier && auth) {
+      initializeRecaptcha();
+    }
 
     return () => {
       if (recaptchaVerifier) {
@@ -263,14 +366,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setRecaptchaVerifier(null);
       }
     };
-  }, [auth, recaptchaVerifier]);
+  }, [auth, initializeRecaptcha]); // Include initializeRecaptcha in deps
 
   // Listen for auth state changes
   useEffect(() => {
     if (!auth) {
-      setLoading(false);
-      return;
-    }
+        setLoading(false);
+        return;
+      }
       
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       const mappedUser = mapFirebaseUser(firebaseUser);
@@ -421,31 +524,126 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const formattedPhone = phone.startsWith('+') ? phone : `+${phone}`;
       console.log('Sending OTP to:', formattedPhone);
+      
+      // Verify recaptchaVerifier is still valid before using it
+      let verifierToUse = recaptchaVerifier;
+      if (!verifierToUse) {
+        // Try to reinitialize if not available
+        console.log('reCAPTCHA verifier not available, attempting to reinitialize...');
+        const newVerifier = await initializeRecaptcha();
+        if (!newVerifier) {
+          return {
+            data: null,
+            error: 'Security verification not ready. Please refresh the page.',
+          };
+        }
+        verifierToUse = newVerifier;
+      }
 
-      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifier);
+      // Additional validation: ensure verifier is properly initialized
+      // Check if container exists and verifier is valid
+      const container = document.getElementById('recaptcha-container');
+      if (!container) {
+        console.error('reCAPTCHA container not found');
+        return {
+          data: null,
+          error: 'Security verification container not found. Please refresh the page.',
+        };
+      }
+
+      console.log('Using recaptcha verifier, sending OTP...');
+      console.log('Verifier details:', { 
+        hasVerifier: !!verifierToUse,
+        containerExists: !!container,
+        authExists: !!auth 
+      });
+      
+      const confirmation = await signInWithPhoneNumber(auth, formattedPhone, verifierToUse);
       setConfirmationResult(confirmation);
       
       return { data: { success: true }, error: null };
-    } catch (error) {
-      console.error('Error sending OTP:', error);
+    } catch (error: any) {
+      // Log comprehensive error information
+      console.error('Error sending OTP - Full Error Object:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error constructor:', error?.constructor?.name);
+      console.error('Error keys:', error ? Object.keys(error) : 'no keys');
       
-      if (error instanceof Error) {
-        const authError = error as { code?: string };
-        switch (authError.code) {
+      // Firebase errors can be Error instances or plain objects with code property
+      const errorCode = error?.code || (error?.message?.includes('auth/') ? error.message : '') || '';
+      const errorMessage = error?.message || error?.toString() || '';
+      
+      console.error('OTP Error Details:', { 
+        code: errorCode, 
+        message: errorMessage, 
+        fullError: error,
+        stack: error?.stack 
+      });
+      
+      // Check for quota/limit related errors first (can appear in different error codes)
+      const isQuotaError = 
+        errorCode === 'auth/quota-exceeded' ||
+        errorCode === 'auth/too-many-requests' ||
+        errorMessage?.toLowerCase().includes('quota') ||
+        errorMessage?.toLowerCase().includes('limit') ||
+        errorMessage?.toLowerCase().includes('exceeded') ||
+        errorMessage?.toLowerCase().includes('sms') && errorMessage?.toLowerCase().includes('limit');
+
+      if (isQuotaError) {
+        return { 
+          data: null, 
+          error: 'SMS OTP limit reached. The daily quota for sending verification codes has been exceeded. Please try again tomorrow or contact support if you need immediate access.' 
+        };
+      }
+
+      // Handle Firebase auth error codes
+      if (errorCode) {
+        switch (errorCode) {
           case 'auth/invalid-phone-number':
-            return { data: null, error: 'Invalid phone number format.' };
+            return { data: null, error: 'Invalid phone number format. Please check and try again.' };
           case 'auth/too-many-requests':
-            return { data: null, error: 'Too many attempts. Please wait.' };
+            return { data: null, error: 'Too many attempts. Please wait a few minutes before trying again.' };
           case 'auth/quota-exceeded':
-            return { data: null, error: 'Service temporarily unavailable.' };
+            return { 
+              data: null, 
+              error: 'SMS OTP quota exceeded. The daily limit for sending verification codes has been reached. Please try again tomorrow or contact support.' 
+            };
+          case 'auth/captcha-check-failed':
+            return { data: null, error: 'Security verification failed. Please refresh the page and try again.' };
+          case 'auth/invalid-app-credential':
+            // This error can also occur when SMS quota is exceeded
+            if (errorMessage?.toLowerCase().includes('quota') || errorMessage?.toLowerCase().includes('limit')) {
+              return { 
+                data: null, 
+                error: 'SMS OTP limit reached. The daily quota for sending verification codes has been exceeded. Please try again tomorrow.' 
+              };
+            }
+            return { 
+              data: null, 
+              error: 'Firebase configuration error. Please ensure your domain is authorized in Firebase Console (Authentication > Settings > Authorized domains).' 
+            };
+          case 'auth/app-not-authorized':
+            return { data: null, error: 'App not authorized. Please contact support.' };
           default:
-            return { data: null, error: 'Failed to send verification code.' };
+            // If error message contains useful info, include it
+            if (errorMessage && errorMessage.includes('captcha')) {
+              return { data: null, error: 'Security verification issue. Please refresh the page and try again.' };
+            }
+            // Check if it's a quota error in the message
+            if (errorMessage?.toLowerCase().includes('quota') || errorMessage?.toLowerCase().includes('limit')) {
+              return { 
+                data: null, 
+                error: 'SMS OTP limit reached. Please try again tomorrow or contact support.' 
+              };
+            }
+            return { data: null, error: `Failed to send verification code. ${errorMessage || 'Please try again.'}` };
         }
       }
       
-      return { data: null, error: 'Failed to send verification code.' };
+      // Fallback for unknown error types
+      return { data: null, error: 'Failed to send verification code. Please refresh the page and try again.' };
     }
-  }, [auth, recaptchaVerifier]);
+  }, [auth, recaptchaVerifier, initializeRecaptcha]);
 
   const handleOTPVerify = useCallback(async (phone: string, token: string): Promise<AuthResponse> => {
     try {
@@ -562,8 +760,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [auth]);
 
-  // Context value
-  const contextValue: AuthContextType = {
+  // Context value - memoized to prevent unnecessary re-renders
+  const contextValue: AuthContextType = useMemo(() => ({
     user,
     session,
     loading,
@@ -574,7 +772,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     sendOTP: handleOTPSend,
     verifyOTP: handleOTPVerify,
     signOut: handleSignOut,
-  };
+  }), [user, session, loading, signingOut, showBannedModal, bannedReason, handleOTPSend, handleOTPVerify, handleSignOut]);
 
   return (
     <AuthContext.Provider value={contextValue}>

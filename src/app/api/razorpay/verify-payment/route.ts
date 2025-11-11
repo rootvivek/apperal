@@ -183,6 +183,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update stock quantities after order items are created
+    try {
+      const stockUpdates = await Promise.all(
+        orderItems.map(async (item: any) => {
+          // Get current stock
+          const { data: product, error: fetchError } = await supabaseAdmin
+            .from('products')
+            .select('id, name, stock_quantity')
+            .eq('id', item.product_id)
+            .single();
+
+          if (fetchError || !product) {
+            console.error(`Error fetching product ${item.product_id}:`, fetchError);
+            return { productId: item.product_id, success: false };
+          }
+
+          const currentStock = product.stock_quantity || 0;
+          const newStock = Math.max(0, currentStock - item.quantity);
+
+          // Update stock
+          const { error: updateError } = await supabaseAdmin
+            .from('products')
+            .update({ 
+              stock_quantity: newStock,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', item.product_id);
+
+          if (updateError) {
+            console.error(`Error updating stock for product ${item.product_id}:`, updateError);
+            return { productId: item.product_id, success: false };
+          }
+
+          return { productId: item.product_id, success: true };
+        })
+      );
+
+      const failedUpdates = stockUpdates.filter(update => !update.success);
+      if (failedUpdates.length > 0) {
+        console.warn('Some stock updates failed:', failedUpdates);
+        // Don't fail the order if stock update fails - log it for admin review
+      }
+    } catch (stockError) {
+      console.error('Error updating stock:', stockError);
+      // Don't fail the order if stock update fails
+    }
+
     return NextResponse.json({
       success: true,
       order: createdOrder,

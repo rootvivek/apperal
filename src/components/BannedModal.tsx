@@ -43,8 +43,8 @@ export function BannedModal() {
   if (!showBannedModal) return null;
 
   const messages: BannedMessages = {
-    deleted: 'Your account has been deleted. Please contact administrator for assistance.',
-    deactivated: 'Your account has been deactivated. Please contact administrator to reactivate your account.',
+    deleted: 'Your account has been suspended.',
+    deactivated: 'Your account has been banned.',
     default: 'Your account is not accessible. Please contact administrator for assistance.'
   };
 

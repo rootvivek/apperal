@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { createClient } from '@/lib/supabase/client';
 
@@ -37,7 +37,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const supabase = createClient();
 
-  const cartCount = cartItems.reduce((total, item) => total + item.quantity, 0);
+  // Memoize cart count to prevent recalculation on every render
+  const cartCount = useMemo(() => 
+    cartItems.reduce((total, item) => total + item.quantity, 0),
+    [cartItems]
+  );
 
   // Load guest cart from localStorage ONLY on initial mount
   useEffect(() => {
@@ -696,19 +700,20 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     await fetchCartItems();
   };
 
+  // Memoize context value to prevent unnecessary re-renders
+  const contextValue = useMemo(() => ({
+    cartItems,
+    cartCount,
+    loading,
+    addToCart,
+    removeFromCart,
+    updateQuantity,
+    clearCart,
+    refreshCart,
+  }), [cartItems, cartCount, loading, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart]);
+
   return (
-    <CartContext.Provider
-      value={{
-        cartItems,
-        cartCount,
-        loading,
-        addToCart,
-        removeFromCart,
-        updateQuantity,
-        clearCart,
-        refreshCart,
-      }}
-    >
+    <CartContext.Provider value={contextValue}>
       {children}
     </CartContext.Provider>
   );

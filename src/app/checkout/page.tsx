@@ -571,6 +571,28 @@ function CheckoutContent() {
         return;
       }
       
+      // Update stock quantities
+      try {
+        const stockUpdateData = orderItemsData.map(item => ({
+          product_id: item.product_id,
+          quantity: item.quantity
+        }));
+        
+        const stockResponse = await fetch('/api/orders/update-stock', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(stockUpdateData)
+        });
+        
+        if (!stockResponse.ok) {
+          console.warn('Stock update failed, but order was created:', await stockResponse.json());
+          // Don't fail the order if stock update fails - log it for admin review
+        }
+      } catch (stockError) {
+        console.error('Error updating stock:', stockError);
+        // Don't fail the order if stock update fails
+      }
+      
       // Clear cart only if items were purchased from cart (not direct purchase)
       if (!isDirectPurchase) {
         await clearCart();

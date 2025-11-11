@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
@@ -57,14 +57,9 @@ export default function Home() {
   // Simple cache to prevent refetching on refresh
   const [dataFetched, setDataFetched] = useState(false);
 
-  useEffect(() => {
-    // Only fetch data if not already fetched (prevents refetch on refresh)
-    if (!dataFetched) {
-      fetchData();
-    }
-  }, [dataFetched]);
-
-  const fetchData = async () => {
+  // Memoize fetchData to prevent recreation on every render
+  const fetchData = useCallback(async () => {
+    if (dataFetched) return; // Prevent duplicate calls
     try {
       setLoading(true);
       
@@ -152,10 +147,17 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dataFetched, supabase]); // Include supabase and dataFetched
 
-  // FALLBACK: Original query method if optimized function fails
-  const fetchDataFallback = async () => {
+  useEffect(() => {
+    // Only fetch data if not already fetched (prevents refetch on refresh)
+    if (!dataFetched) {
+      fetchData();
+    }
+  }, [dataFetched, fetchData]);
+
+  // FALLBACK: Original query method if optimized function fails - memoized
+  const fetchDataFallback = useCallback(async () => {
     try {
       
       // Fetch all active products with their additional images
@@ -163,13 +165,7 @@ export default function Home() {
         .from('products')
         .select(`
           *,
-          product_images (
-            id,
-            image_url,
-            alt_text,
-            display_order
-          )
-        `)
+          product_images (\n            id,\n            image_url,\n            alt_text,\n            display_order\n          )\n        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .limit(8);
@@ -199,13 +195,7 @@ export default function Home() {
             .from('products')
             .select(`
               *,
-              product_images (
-                id,
-                image_url,
-                alt_text,
-                display_order
-              )
-            `)
+              product_images (\n                id,\n                image_url,\n                alt_text,\n                display_order\n              )\n            `)
             .eq('is_active', true)
             .eq('category_id', category.id)
             .order('created_at', { ascending: false })
@@ -249,7 +239,7 @@ export default function Home() {
       setCategorySections([]);
       setCategories([]);
     }
-  };
+  }, [supabase]); // Include supabase dependency
 
   if (loading) {
     return <HomePageSkeleton />;
@@ -272,7 +262,7 @@ export default function Home() {
             <h2 className="text-2xl font-semibold text-gray-900 mb-2 sm:mb-4">All Products</h2>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
               {allProducts.map((product) => (
                 <ProductCard key={product.id} product={product as any} />
               ))}
@@ -319,7 +309,7 @@ export default function Home() {
                 <h2 className="text-2xl font-semibold text-gray-900 mb-4">{section.category.name}</h2>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
                   {section.products.map((product) => (
                     <ProductCard key={product.id} product={product as any} />
                   ))}
