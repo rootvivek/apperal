@@ -33,9 +33,30 @@ function CheckoutContent() {
   const supabase = createClient();
   
   // Initialize direct purchase state from URL params immediately
-  const directParam = searchParams.get('direct');
-  const productIdParam = searchParams.get('productId');
-  const quantityParam = searchParams.get('quantity');
+  // Use window.location for client-side to ensure we get the params
+  const getUrlParams = () => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      return {
+        direct: params.get('direct'),
+        productId: params.get('productId'),
+        quantity: params.get('quantity'),
+        size: params.get('size')
+      };
+    }
+    // Fallback to searchParams for SSR
+    return {
+      direct: searchParams.get('direct'),
+      productId: searchParams.get('productId'),
+      quantity: searchParams.get('quantity'),
+      size: searchParams.get('size')
+    };
+  };
+
+  const urlParams = getUrlParams();
+  const directParam = urlParams.direct;
+  const productIdParam = urlParams.productId;
+  const quantityParam = urlParams.quantity;
   
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
   const [isDirectPurchase, setIsDirectPurchase] = useState(
@@ -1126,15 +1147,32 @@ function CheckoutContent() {
               
               {/* Real cart items */}
               <div className="space-y-4 mb-6">
-                {cartItems.length === 0 && directPurchaseItems.length === 0 ? (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">Your cart is empty</p>
-                    <Link href="/" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                      Continue Shopping
-                    </Link>
-                  </div>
-                ) : (
-                  (isDirectPurchase ? directPurchaseItems : cartItems).map((item, index) => (
+                {(() => {
+                  // Show items based on purchase type
+                  const itemsToShow = isDirectPurchase ? directPurchaseItems : cartItems;
+                  
+                  if (itemsToShow.length === 0) {
+                    // If direct purchase is loading, show loading state
+                    if (isDirectPurchase && loadingDirectProduct) {
+                      return (
+                        <div className="text-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <p className="text-gray-500">Loading product...</p>
+                        </div>
+                      );
+                    }
+                    // Otherwise show empty message
+                    return (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500">Your cart is empty</p>
+                        <Link href="/" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                          Continue Shopping
+                        </Link>
+                      </div>
+                    );
+                  }
+                  
+                  return itemsToShow.map((item, index) => (
                     <div key={item.id || `item-${index}`} className="flex items-center space-x-3">
                       <img
                         src={item.product.image_url || '/placeholder-product.jpg'}
@@ -1171,8 +1209,8 @@ function CheckoutContent() {
                         ₹{(item.product.price * item.quantity).toFixed(2)}
                       </span>
                     </div>
-                  ))
-                )}
+                  ));
+                })()}
               </div>
               
               <div className="space-y-3 border-t border-gray-200 pt-4">
