@@ -32,9 +32,18 @@ function CheckoutContent() {
   const searchParams = useSearchParams();
   const supabase = createClient();
   
+  // Initialize direct purchase state from URL params immediately
+  const directParam = searchParams.get('direct');
+  const productIdParam = searchParams.get('productId');
+  const quantityParam = searchParams.get('quantity');
+  
   const [directPurchaseItems, setDirectPurchaseItems] = useState<any[]>([]);
-  const [isDirectPurchase, setIsDirectPurchase] = useState(false);
-  const [loadingDirectProduct, setLoadingDirectProduct] = useState(false);
+  const [isDirectPurchase, setIsDirectPurchase] = useState(
+    directParam === 'true' && productIdParam && quantityParam ? true : false
+  );
+  const [loadingDirectProduct, setLoadingDirectProduct] = useState(
+    directParam === 'true' && productIdParam && quantityParam ? true : false
+  );
   const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
   const [formData, setFormData] = useState<CheckoutFormData>({
     email: '',
@@ -58,7 +67,7 @@ function CheckoutContent() {
   const [showPaymentFailedModal, setShowPaymentFailedModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string>('');
 
-  // Handle direct purchase from URL parameters
+  // Handle direct purchase from URL parameters - check immediately
   useEffect(() => {
     const direct = searchParams.get('direct');
     const productId = searchParams.get('productId');
@@ -66,6 +75,7 @@ function CheckoutContent() {
     const size = searchParams.get('size');
     
     if (direct === 'true' && productId && quantity) {
+      // Set direct purchase flag immediately to prevent "cart empty" message
       setIsDirectPurchase(true);
       setLoadingDirectProduct(true);
       
@@ -353,7 +363,20 @@ function CheckoutContent() {
     );
   }
 
-  if (cartItems.length === 0 && !isDirectPurchase) {
+  // Show loading state while fetching direct purchase product
+  if (isDirectPurchase && loadingDirectProduct) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading product details...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if cart is empty and not a direct purchase (or direct purchase items not loaded yet)
+  if (cartItems.length === 0 && (!isDirectPurchase || directPurchaseItems.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
