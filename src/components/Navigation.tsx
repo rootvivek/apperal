@@ -209,7 +209,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5" style={{ backgroundColor: '#4736FE' }}>
+      <nav className="shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5" style={{ backgroundColor: '#000000' }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center relative">
           {/* Logo */}
@@ -226,7 +226,7 @@ export default function Navigation() {
                 <div key={category.id} className="relative group">
                   <Link
                     href={`/products/${category.slug}`}
-                    className="text-white hover:text-blue-200 text-base font-normal transition-colors flex items-center"
+                    className="text-white hover:text-gray-300 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
@@ -276,7 +276,7 @@ export default function Navigation() {
                   // Handle mobile search icon click
                   openMobileSearch();
                 }}
-                className="sm:hidden text-white hover:text-blue-200 p-2"
+                className="sm:hidden text-white hover:text-gray-300 p-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -285,12 +285,12 @@ export default function Navigation() {
             )}
 
             {/* Wishlist Icon */}
-            <Link href="/wishlist" className={`text-white hover:text-blue-200 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/wishlist" className={`text-white hover:text-gray-300 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
-            <Link href="/cart" className={`text-white hover:text-blue-200 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/cart" className={`text-white hover:text-gray-300 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <CartIcon showCount={true} count={cartCount} />
             </Link>
             
@@ -310,7 +310,7 @@ export default function Navigation() {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-blue-200 transition-colors cursor-pointer"
+                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-gray-300 transition-colors cursor-pointer"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -335,7 +335,7 @@ export default function Navigation() {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="sm:hidden text-white hover:text-blue-200 p-2"
+                    className="sm:hidden text-white hover:text-gray-300 p-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -400,7 +400,7 @@ export default function Navigation() {
                   {/* Mobile: User Icon */}
                   <Link
                     href="/login"
-                    className="sm:hidden text-white hover:text-blue-200 p-2"
+                    className="sm:hidden text-white hover:text-gray-300 p-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -411,7 +411,7 @@ export default function Navigation() {
                   <div className="hidden sm:flex items-center">
                     <Link
                       href="/login"
-                      className="bg-white text-[#4736FE] px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-blue-100 transition-colors"
+                      className="bg-white text-black px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-gray-100 transition-colors"
                     >
                       Sign In
                     </Link>
