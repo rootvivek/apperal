@@ -201,7 +201,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
           if (!deletedCheckError && profilesWithPhone) {
             // Find any soft-deleted profile (deleted_at is not null)
-            const deletedProfile = profilesWithPhone.find(p => p.deleted_at !== null);
+            const deletedProfile = profilesWithPhone.find((p: { id: string; deleted_at: string | null }) => p.deleted_at !== null);
 
             if (deletedProfile) {
               // Found a soft-deleted profile with the same phone number

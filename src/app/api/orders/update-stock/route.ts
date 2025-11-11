@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     
     if (!validation.success) {
       return NextResponse.json(
-        { error: 'Invalid order items data', details: validation.error.errors },
+        { error: 'Invalid order items data', details: validation.error.issues },
         { status: 400 }
       );
     }
