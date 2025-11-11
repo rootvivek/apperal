@@ -106,10 +106,14 @@ function CheckoutContent() {
     const quantity = currentParams.quantity || urlParams.quantity;
     const size = currentParams.size || urlParams.size;
     
+    // Check if this is a direct purchase
+    const isDirect = currentParams.direct === 'true' || urlParams.direct === 'true';
+    
     // Only run if we have direct purchase params and haven't loaded items yet
-    if ((isDirectPurchase || initialIsDirectPurchase) && productId && quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
+    if (isDirect && productId && quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
       hasFetchedDirectProduct.current = true;
       setLoadingDirectProduct(true);
+      setIsDirectPurchase(true);
       
       // Fetch product details directly from database
       const fetchDirectProduct = async () => {
@@ -382,19 +386,40 @@ function CheckoutContent() {
 
   // Check URL params directly to detect direct purchase (in case state hasn't updated yet)
   // This ensures we detect direct purchase even before useEffect runs
+  // IMPORTANT: Check on every render to catch production edge cases
   const checkDirectPurchaseFromUrl = () => {
     if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      return params.get('direct') === 'true' && params.get('productId') && params.get('quantity');
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const direct = params.get('direct');
+        const productId = params.get('productId');
+        const quantity = params.get('quantity');
+        return direct === 'true' && !!productId && !!quantity;
+      } catch (e) {
+        // Fallback if URL parsing fails
+        return false;
+      }
     }
     return false;
   };
   
+  // Always check URL on render (for production reliability)
   const isDirectPurchaseFromUrl = checkDirectPurchaseFromUrl();
   const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl || initialIsDirectPurchase;
+  
+  // Determine if we're still waiting for direct purchase product to load
+  // We're waiting if:
+  // 1. We detected direct purchase, AND
+  // 2. We don't have items yet, AND
+  // 3. Either we're actively loading OR we haven't attempted to fetch yet (hasFetchedDirectProduct is false)
+  const isWaitingForDirectProduct = shouldShowDirectPurchase && 
+                                     directPurchaseItems.length === 0 && 
+                                     (loadingDirectProduct || !hasFetchedDirectProduct.current);
 
-  // Show loading state while cart is loading OR while detecting/fetching direct purchase
-  if (cartLoading || (shouldShowDirectPurchase && loadingDirectProduct && directPurchaseItems.length === 0)) {
+  // Show loading state while:
+  // 1. Cart is loading, OR
+  // 2. We detected direct purchase but haven't loaded the product yet
+  if (cartLoading || isWaitingForDirectProduct) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -408,10 +433,13 @@ function CheckoutContent() {
   }
 
   // Check if cart is empty and not a direct purchase
+  // NEVER show "cart empty" if we've detected a direct purchase (even if product failed to load)
   // Only show "cart empty" if:
   // 1. Cart is empty AND
-  // 2. Either not a direct purchase OR (direct purchase but items failed to load and not currently loading)
-  if (cartItems.length === 0 && !shouldShowDirectPurchase && !initialIsDirectPurchase) {
+  // 2. We have NOT detected any direct purchase indicators (check URL one more time to be sure)
+  // 3. Cart loading is complete
+  const finalDirectPurchaseCheck = checkDirectPurchaseFromUrl() || shouldShowDirectPurchase;
+  if (cartItems.length === 0 && !finalDirectPurchaseCheck && !cartLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -425,8 +453,8 @@ function CheckoutContent() {
     );
   }
 
-  // If direct purchase but items failed to load (and not currently loading)
-  if (shouldShowDirectPurchase && directPurchaseItems.length === 0 && !loadingDirectProduct) {
+  // If direct purchase was detected but items failed to load (after loading completed)
+  if (shouldShowDirectPurchase && directPurchaseItems.length === 0 && !isWaitingForDirectProduct) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
