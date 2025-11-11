@@ -72,6 +72,73 @@ function CheckoutContent() {
     if (params.direct === 'true' && params.productId && params.quantity) {
       setIsDirectPurchase(true);
       setLoadingDirectProduct(true);
+      
+      // Immediately trigger fetch if we have all required params
+      if (!hasFetchedDirectProduct.current) {
+        hasFetchedDirectProduct.current = true;
+        
+        // Fetch product immediately
+        const fetchDirectProduct = async () => {
+          try {
+            const { data: product, error } = await supabase
+              .from('products')
+              .select('id, name, price, image_url, stock_quantity, subcategory_id')
+              .eq('id', params.productId!)
+              .eq('is_active', true)
+              .single();
+            
+            if (error || !product) {
+              console.error('Error fetching product for direct purchase:', error);
+              setLoadingDirectProduct(false);
+              return;
+            }
+            
+            // Fetch subcategory info if subcategory_id exists
+            let subcategoryInfo = { name: null, slug: null, detail_type: null };
+            if (product.subcategory_id) {
+              const { data: subcategory } = await supabase
+                .from('subcategories')
+                .select('name, slug, detail_type')
+                .eq('id', product.subcategory_id)
+                .single();
+              
+              if (subcategory) {
+                subcategoryInfo = {
+                  name: subcategory.name,
+                  slug: subcategory.slug,
+                  detail_type: subcategory.detail_type
+                };
+                setProductSubcategories(prev => ({
+                  ...prev,
+                  [product.id]: subcategoryInfo
+                }));
+              }
+            }
+            
+            // Create cart item format for direct purchase
+            const directItem = {
+              product: {
+                id: product.id,
+                name: product.name,
+                price: product.price,
+                image_url: product.image_url,
+                stock_quantity: product.stock_quantity
+              },
+              quantity: parseInt(params.quantity!),
+              size: params.size || null
+            };
+            
+            console.log('Setting direct purchase items (mount):', directItem);
+            setDirectPurchaseItems([directItem]);
+            setLoadingDirectProduct(false);
+          } catch (error) {
+            console.error('Error in fetchDirectProduct (mount):', error);
+            setLoadingDirectProduct(false);
+          }
+        };
+        
+        fetchDirectProduct();
+      }
     }
   }, []); // Run only once on mount
   const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
@@ -106,14 +173,16 @@ function CheckoutContent() {
     const quantity = currentParams.quantity || urlParams.quantity;
     const size = currentParams.size || urlParams.size;
     
-    // Check if this is a direct purchase
-    const isDirect = currentParams.direct === 'true' || urlParams.direct === 'true';
+    // Check if this is a direct purchase - check both current and stored params
+    const isDirect = currentParams.direct === 'true' || urlParams.direct === 'true' || initialIsDirectPurchase;
     
     // Only run if we have direct purchase params and haven't loaded items yet
     if (isDirect && productId && quantity && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
       hasFetchedDirectProduct.current = true;
       setLoadingDirectProduct(true);
       setIsDirectPurchase(true);
+      
+      console.log('Fetching direct purchase product:', { productId, quantity, size });
       
       // Fetch product details directly from database
       const fetchDirectProduct = async () => {
@@ -154,7 +223,7 @@ function CheckoutContent() {
           }
           
           // Create cart item format for direct purchase
-          setDirectPurchaseItems([{
+          const directItem = {
             product: {
               id: product.id,
               name: product.name,
@@ -164,17 +233,20 @@ function CheckoutContent() {
             },
             quantity: parseInt(quantity!),
             size: size || null
-          }]);
+          };
+          
+          console.log('Setting direct purchase items:', directItem);
+          setDirectPurchaseItems([directItem]);
+          setLoadingDirectProduct(false);
         } catch (error) {
           console.error('Error in fetchDirectProduct:', error);
-        } finally {
           setLoadingDirectProduct(false);
         }
       };
       
       fetchDirectProduct();
     }
-  }, [isDirectPurchase, initialIsDirectPurchase, urlParams.productId, urlParams.quantity, directPurchaseItems.length, supabase]);
+  }, [isDirectPurchase, initialIsDirectPurchase, urlParams.productId, urlParams.quantity, urlParams.direct, directPurchaseItems.length, supabase]);
 
   // Helper function to map state name to state code
   const getStateCode = (stateName: string | null | undefined): string => {
@@ -1194,12 +1266,12 @@ function CheckoutContent() {
               {/* Real cart items */}
               <div className="space-y-4 mb-6">
                 {(() => {
-                  // Show items based on purchase type
-                  const itemsToShow = isDirectPurchase ? directPurchaseItems : cartItems;
+                  // Show items based on purchase type - use shouldShowDirectPurchase for reliability
+                  const itemsToShow = shouldShowDirectPurchase ? directPurchaseItems : cartItems;
                   
                   if (itemsToShow.length === 0) {
-                    // If direct purchase is loading, show loading state
-                    if (isDirectPurchase && loadingDirectProduct) {
+                    // If direct purchase is detected and loading, show loading state
+                    if (shouldShowDirectPurchase && (loadingDirectProduct || isWaitingForDirectProduct)) {
                       return (
                         <div className="text-center py-8">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
@@ -1207,13 +1279,22 @@ function CheckoutContent() {
                         </div>
                       );
                     }
-                    // Otherwise show empty message
+                    // Otherwise show empty message (only if not a direct purchase)
+                    if (!shouldShowDirectPurchase) {
+                      return (
+                        <div className="text-center py-8">
+                          <p className="text-gray-500">Your cart is empty</p>
+                          <Link href="/" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
+                            Continue Shopping
+                          </Link>
+                        </div>
+                      );
+                    }
+                    // If direct purchase but no items yet, show loading
                     return (
                       <div className="text-center py-8">
-                        <p className="text-gray-500">Your cart is empty</p>
-                        <Link href="/" className="text-blue-600 hover:text-blue-800 mt-2 inline-block">
-                          Continue Shopping
-                        </Link>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                        <p className="text-gray-500">Loading product...</p>
                       </div>
                     );
                   }
