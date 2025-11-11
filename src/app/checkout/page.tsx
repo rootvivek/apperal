@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -66,17 +66,13 @@ function CheckoutContent() {
   const [razorpayLoaded, setRazorpayLoaded] = useState(false);
   const [showPaymentFailedModal, setShowPaymentFailedModal] = useState(false);
   const [paymentError, setPaymentError] = useState<string>('');
+  const hasFetchedDirectProduct = useRef(false);
 
-  // Handle direct purchase from URL parameters - check immediately
+  // Handle direct purchase from URL parameters - fetch product on mount
   useEffect(() => {
-    const direct = searchParams.get('direct');
-    const productId = searchParams.get('productId');
-    const quantity = searchParams.get('quantity');
-    const size = searchParams.get('size');
-    
-    if (direct === 'true' && productId && quantity) {
-      // Set direct purchase flag immediately to prevent "cart empty" message
-      setIsDirectPurchase(true);
+    // Only run if we have direct purchase params and haven't loaded items yet
+    if (isDirectPurchase && directPurchaseItems.length === 0 && !hasFetchedDirectProduct.current) {
+      hasFetchedDirectProduct.current = true;
       setLoadingDirectProduct(true);
       
       // Fetch product details directly from database
@@ -85,14 +81,13 @@ function CheckoutContent() {
           const { data: product, error } = await supabase
             .from('products')
             .select('id, name, price, image_url, stock_quantity, subcategory_id')
-            .eq('id', productId)
+            .eq('id', productIdParam!)
             .eq('is_active', true)
             .single();
           
           if (error || !product) {
             console.error('Error fetching product for direct purchase:', error);
-            alert('Product not found. Redirecting to home page.');
-            window.location.href = '/';
+            setLoadingDirectProduct(false);
             return;
           }
           
@@ -127,13 +122,11 @@ function CheckoutContent() {
               image_url: product.image_url,
               stock_quantity: product.stock_quantity
             },
-            quantity: parseInt(quantity),
-            size: size || null
+            quantity: parseInt(quantityParam!),
+            size: searchParams.get('size') || null
           }]);
         } catch (error) {
           console.error('Error in fetchDirectProduct:', error);
-          alert('Error loading product. Redirecting to home page.');
-          window.location.href = '/';
         } finally {
           setLoadingDirectProduct(false);
         }
@@ -141,7 +134,7 @@ function CheckoutContent() {
       
       fetchDirectProduct();
     }
-  }, [searchParams, supabase]);
+  }, [isDirectPurchase, directPurchaseItems.length, productIdParam, quantityParam, supabase, searchParams]);
 
   // Helper function to map state name to state code
   const getStateCode = (stateName: string | null | undefined): string => {
@@ -375,13 +368,31 @@ function CheckoutContent() {
     );
   }
 
-  // Check if cart is empty and not a direct purchase (or direct purchase items not loaded yet)
-  if (cartItems.length === 0 && (!isDirectPurchase || directPurchaseItems.length === 0)) {
+  // Check if cart is empty and not a direct purchase
+  // Only show "cart empty" if:
+  // 1. Cart is empty AND
+  // 2. Either not a direct purchase OR (direct purchase but items failed to load and not currently loading)
+  if (cartItems.length === 0 && !isDirectPurchase) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
           <p className="text-gray-600 mb-6">Add some items to your cart before checkout</p>
+          <Link href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+            Continue Shopping
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // If direct purchase but items failed to load (and not currently loading)
+  if (isDirectPurchase && directPurchaseItems.length === 0 && !loadingDirectProduct) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product not found</h1>
+          <p className="text-gray-600 mb-6">The product you're trying to purchase is no longer available.</p>
           <Link href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
             Continue Shopping
           </Link>
