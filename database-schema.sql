@@ -65,10 +65,13 @@ CREATE TABLE IF NOT EXISTS product_mobile_details (
 CREATE TABLE IF NOT EXISTS product_apparel_details (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     product_id UUID NOT NULL UNIQUE REFERENCES products(id) ON DELETE CASCADE,
-    size VARCHAR(50) NOT NULL,
-    color VARCHAR(100) NOT NULL,
-    fabric VARCHAR(100) NOT NULL,
-    gender VARCHAR(50) NOT NULL,
+    brand VARCHAR(255),
+    material VARCHAR(255),
+    fit_type VARCHAR(255),
+    pattern VARCHAR(255),
+    size VARCHAR(255),
+    color VARCHAR(255),
+    sku VARCHAR(100),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

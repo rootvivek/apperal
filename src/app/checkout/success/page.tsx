@@ -162,13 +162,13 @@ function CheckoutSuccessContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-12">
-        <div className="bg-white rounded-lg shadow-sm p-8">
+      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8 pt-0 pb-4 sm:py-12">
+        <div className="bg-white rounded-lg shadow-sm p-4 sm:p-8">
           {/* Success Icon */}
-          <div className="text-center mb-8">
-            <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-green-100 mb-6">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="mx-auto flex items-center justify-center h-16 w-16 sm:h-20 sm:w-20 rounded-full bg-brand-100 mb-4 sm:mb-6">
               <svg
-                className="h-12 w-12 text-green-600"
+                className="h-10 w-10 sm:h-12 sm:w-12 text-brand"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -182,34 +182,34 @@ function CheckoutSuccessContent() {
               </svg>
             </div>
             
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
+            <h1 className="text-2xl sm:text-3xl font-semibold sm:font-bold text-gray-900 mb-3 sm:mb-4">
               Order Placed Successfully!
             </h1>
-            <p className="text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 px-2">
               Thank you for your order. We&apos;ve received your order and will begin processing it right away.
             </p>
           </div>
 
           {/* Order Details */}
           {order && (
-            <div className="bg-gray-50 rounded-lg p-6 mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Details</h2>
-              <div className="space-y-2">
-                <div className="flex justify-between">
+            <div className="bg-gray-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Details</h2>
+              <div className="space-y-2 sm:space-y-3">
+                <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600">Order Number:</span>
                   <span className="font-semibold text-gray-900">{order.order_number}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600">Date:</span>
                   <span className="text-gray-900">{formatDate(order.created_at)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600">Payment Method:</span>
                   <span className="text-gray-900">{getPaymentMethodLabel(order.payment_method)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center text-sm sm:text-base">
                   <span className="text-gray-600">Status:</span>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 capitalize">
+                  <span className="px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm font-medium bg-brand-100 text-brand capitalize">
                     {order.status}
                   </span>
                 </div>
@@ -219,26 +219,26 @@ function CheckoutSuccessContent() {
 
           {/* Order Items */}
           {orderItems.length > 0 && (
-            <div className="mb-8">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Items</h2>
+            <div className="mb-6 sm:mb-8">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Order Items</h2>
               <div className="space-y-3">
                 {orderItems.map((item) => (
-                  <div key={item.id} className="bg-gray-50 rounded-lg p-4">
-                    <div className="flex gap-4 items-start">
+                  <div key={item.id} className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                    <div className="flex gap-3 sm:gap-4 items-start">
                       {/* Product Image */}
                       <div className="flex-shrink-0">
                         {item.product_image ? (
                           <img
                             src={item.product_image}
                             alt={item.product_name}
-                            className="w-20 h-20 object-cover rounded-lg"
+                            className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg"
                             onError={(e) => {
                               e.currentTarget.src = '/placeholder-product.jpg';
                             }}
                           />
                         ) : (
-                          <div className="w-20 h-20 bg-gray-200 rounded-lg flex items-center justify-center">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-200 rounded-lg flex items-center justify-center">
+                            <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                           </div>
@@ -246,10 +246,10 @@ function CheckoutSuccessContent() {
                       </div>
                       
                       {/* Product Info */}
-                      <div className="flex-1 flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900 mb-1">{item.product_name}</h3>
-                          <p className="text-sm text-gray-600">
+                      <div className="flex-1 flex justify-between items-start min-w-0">
+                        <div className="flex-1 min-w-0 pr-2">
+                          <h3 className="font-semibold text-sm sm:text-base text-gray-900 mb-1 truncate">{item.product_name}</h3>
+                          <p className="text-xs sm:text-sm text-gray-600">
                             Quantity: {item.quantity} × ₹{item.product_price.toFixed(2)}
                             {(() => {
                               const subcategoryInfo = productSubcategories[item.product_id];
@@ -269,8 +269,8 @@ function CheckoutSuccessContent() {
                             })()}
                           </p>
                         </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900 text-lg">
+                        <div className="text-right flex-shrink-0">
+                          <p className="font-semibold text-gray-900 text-base sm:text-lg">
                             ₹{item.total_price.toFixed(2)}
                           </p>
                         </div>
@@ -284,10 +284,10 @@ function CheckoutSuccessContent() {
 
           {/* Total Amount */}
           {order && (
-            <div className="border-t border-gray-200 pt-6 mb-8">
+            <div className="border-t border-gray-200 pt-4 sm:pt-6 mb-6 sm:mb-8">
               <div className="flex justify-between items-center">
-                <span className="text-xl font-semibold text-gray-900">Total Amount</span>
-                <span className="text-2xl font-bold text-blue-600">
+                <span className="text-lg sm:text-xl font-semibold text-gray-900">Total Amount</span>
+                <span className="text-xl sm:text-2xl font-bold text-brand">
                   ₹{(order.total_amount || order.total || 0).toFixed(2)}
                 </span>
               </div>
@@ -295,31 +295,31 @@ function CheckoutSuccessContent() {
           )}
 
           {/* What's Next */}
-          <div className="bg-blue-50 rounded-lg p-6 mb-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          <div className="bg-brand-50 rounded-lg p-4 sm:p-6 mb-6 sm:mb-8">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
               What happens next?
             </h2>
-            <ul className="space-y-3">
+            <ul className="space-y-2 sm:space-y-3">
               <li className="flex items-start">
-                <span className="text-blue-600 mr-3">✓</span>
-                <span className="text-gray-700">You&apos;ll receive an order confirmation email shortly</span>
+                <span className="text-brand mr-3 flex-shrink-0">✓</span>
+                <span className="text-sm sm:text-base text-gray-700">You&apos;ll receive an order confirmation email shortly</span>
               </li>
               <li className="flex items-start">
-                <span className="text-blue-600 mr-3">✓</span>
-                <span className="text-gray-700">We&apos;ll send you tracking information once your order ships</span>
+                <span className="text-brand mr-3 flex-shrink-0">✓</span>
+                <span className="text-sm sm:text-base text-gray-700">We&apos;ll send you tracking information once your order ships</span>
               </li>
               <li className="flex items-start">
-                <span className="text-blue-600 mr-3">✓</span>
-                <span className="text-gray-700">Your order will be delivered within 3-5 business days</span>
+                <span className="text-brand mr-3 flex-shrink-0">✓</span>
+                <span className="text-sm sm:text-base text-gray-700">Your order will be delivered within 3-5 business days</span>
               </li>
             </ul>
           </div>
 
           {/* Action Buttons */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
             <Link
               href="/"
-              className="bg-blue-600 text-white px-6 py-3 rounded-md font-medium hover:bg-blue-700 transition-colors text-center"
+              className="bg-brand text-white px-6 py-3 rounded-md font-medium hover:bg-brand-600 transition-colors text-center"
             >
               Continue Shopping
             </Link>

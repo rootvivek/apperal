@@ -97,6 +97,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [imageContainerSize, setImageContainerSize] = useState({ width: 0, height: 0 });
   const [zoomPreviewPosition, setZoomPreviewPosition] = useState({ left: 0, top: 0 });
   const imageContainerRef = useRef<HTMLDivElement>(null);
+  const previousSlugRef = useRef<string>('');
 
   const fetchRelatedProducts = async (category: string, currentProductId: string) => {
     try {
@@ -145,6 +146,20 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   };
 
   useEffect(() => {
+    // Restore selected size from localStorage on mount/refresh (only in browser)
+    if (typeof window !== 'undefined') {
+      const savedSize = localStorage.getItem(`selectedSize_${slug}`);
+      if (savedSize) {
+        setSelectedSize(savedSize);
+      }
+      
+      // Only reset size selection when product slug actually changes (not on refresh)
+      if (previousSlugRef.current !== slug) {
+        setSelectedSize(savedSize || '');
+        previousSlugRef.current = slug;
+      }
+    }
+    
     const fetchProduct = async () => {
       try {
         setLoading(true);
@@ -272,9 +287,32 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           
           setProduct(productWithImages as ProductCardProduct);
           
-          // Set default size if apparel product has size
+          // Handle size selection: restore saved size or set default
           if (productWithImages.product_apparel_details?.size) {
-            setSelectedSize(productWithImages.product_apparel_details.size);
+            const availableSizes = productWithImages.product_apparel_details.size
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
+            
+            if (availableSizes.length > 0) {
+              const savedSize = typeof window !== 'undefined' ? localStorage.getItem(`selectedSize_${slug}`) : null;
+              const currentSize = selectedSize || savedSize;
+              
+              // Validate saved size is still available, otherwise use default
+              if (currentSize && availableSizes.includes(currentSize)) {
+                setSelectedSize(currentSize);
+                if (typeof window !== 'undefined' && !savedSize) {
+                  localStorage.setItem(`selectedSize_${slug}`, currentSize);
+                }
+              } else {
+                // Saved size is no longer available, use first available size
+                const defaultSize = availableSizes[0];
+                setSelectedSize(defaultSize);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem(`selectedSize_${slug}`, defaultSize);
+                }
+              }
+            }
           }
           
           // Fetch category and subcategory slugs
@@ -465,7 +503,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white pb-24 sm:pb-8">
       <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-4 lg:px-6 pt-1 pb-8">
         {/* Breadcrumb Navigation - Desktop only */}
         <nav className="hidden sm:flex mb-2" aria-label="Breadcrumb">
@@ -531,9 +569,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         <div className="bg-white mb-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 lg:gap-6 overflow-visible">
             {/* Product Images */}
-            <div className="w-full">
+            <div className="w-full overflow-visible">
             {/* Desktop: Thumbnails on Left, Main Image on Right */}
-            <div className="hidden md:flex gap-2 overflow-visible">
+            <div className="hidden md:flex gap-1 overflow-visible">
               {/* Thumbnail Gallery - Left (Desktop only) */}
               {product.images && product.images.length > 1 && (
                 <div className="flex flex-col gap-2 flex-shrink-0">
@@ -541,20 +579,27 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                     <button
                       key={image.id}
                       onClick={() => setSelectedImage(index)}
-                      className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded transition-all duration-200 shadow-sm border-2 ${
+                      className={`flex-shrink-0 w-20 h-20 rounded transition-all duration-200 shadow-sm flex items-center justify-center bg-white ${
                         selectedImage === index 
-                          ? 'ring-2 ring-brand ring-opacity-30 scale-105 border-brand' 
-                          : 'border-gray-200 hover:border-brand hover:shadow-md'
+                          ? 'scale-105 border border-brand/50' 
+                          : 'border-0 hover:shadow-md'
                       }`}
+                      style={{ boxSizing: 'border-box' }}
                     >
-                      <img
-                        src={image.image_url}
-                        alt={image.alt_text || `${product.name} ${index + 1}`}
-                        className="h-full w-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.src = '/placeholder-product.jpg';
-                        }}
-                      />
+                      <div className="w-full h-full overflow-hidden rounded">
+                        <img
+                          src={image.image_url}
+                          alt={image.alt_text || `${product.name} ${index + 1}`}
+                          className="h-full w-full object-contain"
+                          loading="lazy"
+                          decoding="async"
+                          width={80}
+                          height={80}
+                          onError={(e) => {
+                            e.currentTarget.src = '/placeholder-product.jpg';
+                          }}
+                        />
+                      </div>
                     </button>
                   ))}
                 </div>
@@ -594,17 +639,35 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 }
               }}
             >
-              {/* Fit Type Badge - Top Left Corner */}
-              {product.product_apparel_details?.fit_type && (
-                <div className="absolute top-2 left-2 z-30 pointer-events-none">
-                  <span className="px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg shadow-lg">
-                    {product.product_apparel_details.fit_type}
-                  </span>
-                </div>
-              )}
+              {/* Product Badge - Top Left Corner */}
+              {product.badge && (() => {
+                const badgeStyle = (() => {
+                  switch (product.badge?.toUpperCase()) {
+                    case 'NEW':
+                      return 'bg-green-500 text-white';
+                    case 'SALE':
+                      return 'bg-red-500 text-white';
+                    case 'HOT':
+                      return 'bg-brand-400 text-white';
+                    case 'FEATURED':
+                      return 'bg-brand-400 text-white';
+                    case 'LIMITED':
+                      return 'bg-purple-500 text-white';
+                    default:
+                      return 'bg-gray-500 text-white';
+                  }
+                })();
+                return (
+                  <div className="absolute top-0 left-0 z-30 pointer-events-none m-0">
+                    <span className={`px-3 py-2 text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
+                      {product.badge}
+                    </span>
+                  </div>
+                );
+              })()}
               
               {/* Wishlist and Share Icons */}
-              <div className="absolute top-4 right-4 z-30 flex flex-col gap-3">
+              <div className="absolute top-2 right-2 z-30 flex flex-col gap-3">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -659,6 +722,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   : product.image_url || '/placeholder-product.jpg'}
                 alt={product.name}
                 className="h-full w-full object-cover"
+                loading="eager"
+                decoding="async"
+                width={800}
+                height={800}
+                fetchPriority="high"
                 onError={(e) => {
                   e.currentTarget.src = '/placeholder-product.jpg';
                 }}
@@ -732,17 +800,35 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 ref={imageContainerRef}
                 className="aspect-square rounded bg-white cursor-default w-full max-w-full overflow-hidden"
               >
-                {/* Fit Type Badge - Top Left Corner */}
-                {product.product_apparel_details?.fit_type && (
-                  <div className="absolute top-2 left-2 z-20">
-                    <span className="px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg shadow-lg">
-                      {product.product_apparel_details.fit_type}
-                    </span>
-                  </div>
-                )}
+                {/* Product Badge - Top Left Corner */}
+                {product.badge && (() => {
+                  const badgeStyle = (() => {
+                    switch (product.badge?.toUpperCase()) {
+                      case 'NEW':
+                        return 'bg-green-500 text-white';
+                      case 'SALE':
+                        return 'bg-red-500 text-white';
+                      case 'HOT':
+                        return 'bg-brand-400 text-white';
+                      case 'FEATURED':
+                        return 'bg-brand-400 text-white';
+                      case 'LIMITED':
+                        return 'bg-purple-500 text-white';
+                      default:
+                        return 'bg-gray-500 text-white';
+                    }
+                  })();
+                  return (
+                    <div className="absolute top-0 left-0 z-20 m-0">
+                      <span className={`px-3 py-2 text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
+                        {product.badge}
+                      </span>
+                    </div>
+                  );
+                })()}
                 
                 {/* Wishlist and Share Icons */}
-                <div className="absolute top-4 right-4 z-20 flex flex-col gap-3">
+                <div className="absolute top-2 right-2 z-20 flex flex-col gap-3">
                   <button
                     onClick={handleWishlistToggle}
                     className="p-2.5 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
@@ -789,6 +875,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                     : product.image_url || '/placeholder-product.jpg'}
                   alt={product.name}
                   className="h-full w-full object-cover"
+                  loading="eager"
+                  decoding="async"
+                  width={800}
+                  height={800}
+                  fetchPriority="high"
                   onError={(e) => {
                     e.currentTarget.src = '/placeholder-product.jpg';
                   }}
@@ -798,25 +889,32 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="md:hidden flex gap-1 overflow-x-auto pb-2 mt-2 scrollbar-hide">
+              <div className="md:hidden flex gap-1 overflow-x-auto pb-2 pt-1 mt-1 scrollbar-hide items-center px-1">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded transition-all duration-200 shadow-sm border-2 ${
+                    className={`flex-shrink-0 w-20 h-20 rounded transition-all duration-200 shadow-sm flex items-center justify-center bg-white ${
                       selectedImage === index 
-                        ? 'ring-2 ring-brand ring-opacity-30 scale-105 border-brand' 
-                        : 'border-gray-200 hover:border-brand hover:shadow-md'
+                        ? 'scale-105 border border-brand/50' 
+                        : 'border-0 hover:shadow-md'
                     }`}
+                    style={{ boxSizing: 'border-box' }}
                   >
-                    <img
-                      src={image.image_url}
-                      alt={image.alt_text || `${product.name} ${index + 1}`}
-                      className="h-full w-full object-contain"
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder-product.jpg';
-                      }}
-                    />
+                    <div className="w-full h-full overflow-hidden rounded">
+                      <img
+                        src={image.image_url}
+                        alt={image.alt_text || `${product.name} ${index + 1}`}
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        width={80}
+                        height={80}
+                        onError={(e) => {
+                          e.currentTarget.src = '/placeholder-product.jpg';
+                        }}
+                      />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -930,34 +1028,50 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Size Selection and Actions */}
             <div className="space-y-5">
               {/* Size Selection - Only show for apparel products - Chip buttons */}
-              {product.product_apparel_details && (
-                <div>
-                  <label className="block text-base font-semibold text-gray-900 mb-3">
-                    Select Size <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex flex-wrap gap-2">
-                    {['Small', 'Medium', 'Large'].map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setSelectedSize(size)}
-                        className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
-                          selectedSize === size
-                            ? 'bg-brand text-white shadow-lg scale-105'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:border-brand hover:text-brand hover:shadow-md'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+              {product.product_apparel_details && (() => {
+                // Parse available sizes from comma-separated string
+                const availableSizes = product.product_apparel_details.size
+                  ? product.product_apparel_details.size.split(',').map((s: string) => s.trim()).filter(Boolean)
+                  : [];
+                
+                // Only show if there are available sizes
+                if (availableSizes.length === 0) return null;
+                
+                return (
+                  <div>
+                    <label className="block text-base font-semibold text-gray-900 mb-3">
+                      Select Size <span className="text-red-500">*</span>
+                    </label>
+                    <div className="flex flex-wrap gap-2">
+                      {availableSizes.map((size) => (
+                        <button
+                          key={size}
+                          type="button"
+                          onClick={() => {
+                            setSelectedSize(size);
+                            if (typeof window !== 'undefined') {
+                              localStorage.setItem(`selectedSize_${slug}`, size);
+                            }
+                          }}
+                          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                            selectedSize === size
+                              ? 'bg-brand text-white shadow-lg scale-105'
+                              : 'bg-white text-gray-700 border border-gray-300 hover:border-brand hover:text-brand hover:shadow-md'
+                          }`}
+                        >
+                          {size}
+                        </button>
+                      ))}
+                    </div>
+                    {!selectedSize && (
+                      <p className="mt-2 text-sm text-red-600 font-medium">Please select a size</p>
+                    )}
                   </div>
-                  {!selectedSize && (
-                    <p className="mt-2 text-sm text-red-600 font-medium">Please select a size</p>
-                  )}
-                </div>
-              )}
+                );
+              })()}
 
-              <div className="flex flex-col sm:flex-row gap-3">
+              {/* Desktop Buttons */}
+              <div className="hidden sm:flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
@@ -971,7 +1085,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleBuyNow}
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-                  className="flex-1 bg-orange-600 text-white py-4 px-6 rounded font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
+                  className="flex-1 bg-orange-500 text-white py-4 px-6 rounded font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
                 >
                   Buy Now
                 </button>
@@ -1059,6 +1173,29 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <p className="text-gray-500 text-lg">No related products found.</p>
             </div>
           )}
+        </div>
+      </div>
+
+      {/* Sticky Buttons - Mobile Only */}
+      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-50 sm:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
+        <div className="px-3 py-4 flex gap-2">
+          <button
+            onClick={handleAddToCart}
+            disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
+            className="flex-1 bg-yellow-500 text-white py-4 px-4 rounded-md font-semibold hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-sm"
+          >
+            <CartIcon className="w-4 h-4 flex-shrink-0" />
+            <span>
+              {isAddedToCart ? 'Added!' : 'Add to Cart'}
+            </span>
+          </button>
+          <button
+            onClick={handleBuyNow}
+            disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
+            className="flex-1 bg-orange-500 text-white py-4 px-4 rounded-md font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm"
+          >
+            Buy Now
+          </button>
         </div>
       </div>
     </div>

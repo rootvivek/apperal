@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { usePathname } from 'next/navigation';
 
 // Lazy load heavy components to improve initial load time
 const ConditionalNavigation = dynamic(() => import('@/components/ConditionalNavigation'), {
@@ -21,13 +22,16 @@ interface ClientLayoutProps {
 }
 
 export default function ClientLayout({ children }: ClientLayoutProps) {
+  const pathname = usePathname();
+  const isCheckoutPage = pathname === '/checkout';
+  const isProductDetailPage = pathname?.startsWith('/product/');
+
   return (
     <>
       <ConditionalNavigation />
       {children}
-      <Footer />
+      {!isCheckoutPage && !isProductDetailPage && <Footer />}
       <BannedModal />
     </>
   );
 }
-

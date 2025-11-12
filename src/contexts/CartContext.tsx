@@ -15,6 +15,12 @@ export interface CartItem {
     price: number;
     image_url: string;
     stock_quantity: number;
+    subcategory?: {
+      id: string;
+      name: string;
+      slug: string;
+      detail_type?: string | null;
+    } | null;
   };
 }
 
@@ -279,7 +285,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Fetch cart items with product details
+      // Fetch cart items with product details including subcategory
       const { data: items, error: itemsError } = await supabase
         .from('cart_items')
         .select(`
@@ -292,7 +298,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             name,
             price,
             image_url,
-            stock_quantity
+            stock_quantity,
+            subcategory_id,
+            subcategories (
+              id,
+              name,
+              slug,
+              detail_type
+            )
           )
         `)
         .eq('cart_id', cart.id);
@@ -323,6 +336,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             price: item.products.price,
             image_url: item.products.image_url,
             stock_quantity: item.products.stock_quantity,
+            subcategory: item.products.subcategories ? {
+              id: item.products.subcategories.id,
+              name: item.products.subcategories.name,
+              slug: item.products.subcategories.slug,
+              detail_type: item.products.subcategories.detail_type || null,
+            } : null,
           }
         };
       }) || [];
@@ -349,10 +368,23 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // Handle guest cart (localStorage) - save items but redirect to login
     if (!user) {
       try {
-        // Fetch product details first
+        // Fetch product details first including subcategory
         const { data: product, error: productError } = await supabase
           .from('products')
-          .select('id, name, price, image_url, stock_quantity')
+          .select(`
+            id,
+            name,
+            price,
+            image_url,
+            stock_quantity,
+            subcategory_id,
+            subcategories (
+              id,
+              name,
+              slug,
+              detail_type
+            )
+          `)
           .eq('id', productId)
           .single();
 
@@ -395,6 +427,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               price: product.price,
               image_url: product.image_url,
               stock_quantity: product.stock_quantity,
+              subcategory: product.subcategories ? {
+                id: product.subcategories.id,
+                name: product.subcategories.name,
+                slug: product.subcategories.slug,
+                detail_type: product.subcategories.detail_type || null,
+              } : null,
             }
           };
           updatedCart = [...existingCart, newItem];

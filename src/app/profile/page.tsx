@@ -21,10 +21,11 @@ interface Address {
   id: string;
   user_id: string;
   address_line1: string;
-  address_line2: string | null;
+  full_name: string | null;
   city: string;
   state: string;
   zip_code: string;
+  phone: string | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -51,7 +52,7 @@ function ProfileContent() {
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [addressForm, setAddressForm] = useState({
     address_line1: '',
-    address_line2: '',
+    full_name: '',
     city: '',
     state: '',
     zip_code: '',
@@ -265,7 +266,7 @@ function ProfileContent() {
           .from('addresses')
           .update({
             address_line1: addressForm.address_line1.trim(),
-            address_line2: addressForm.address_line2.trim() || null,
+            full_name: addressForm.full_name.trim() || null,
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
@@ -303,7 +304,7 @@ function ProfileContent() {
           .insert({
             user_id: user.id,
             address_line1: addressForm.address_line1.trim(),
-            address_line2: addressForm.address_line2.trim() || null,
+            full_name: addressForm.full_name.trim() || null,
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
@@ -322,7 +323,7 @@ function ProfileContent() {
       // Reset form
       setAddressForm({
         address_line1: '',
-        address_line2: '',
+        full_name: '',
         city: '',
         state: '',
         zip_code: '',
@@ -344,7 +345,7 @@ function ProfileContent() {
     setEditingAddress(address);
     setAddressForm({
       address_line1: address.address_line1,
-      address_line2: address.address_line2 || '',
+      full_name: address.full_name || '',
       city: address.city,
       state: address.state,
       zip_code: address.zip_code,
@@ -539,23 +540,28 @@ function ProfileContent() {
                 <h2 className="text-xl font-bold text-gray-900">Addresses</h2>
                 <p className="mt-1 text-sm text-gray-600">Manage your shipping and billing addresses</p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingAddress(null);
-                  setAddressForm({
-                    address_line1: '',
-                    address_line2: '',
-                    city: '',
-                    state: '',
-                    zip_code: '',
-                    is_default: false,
-                  });
-                  setShowAddressForm(!showAddressForm);
-                }}
-                className="px-4 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors text-sm"
-              >
-                {showAddressForm ? 'Cancel' : '+ Add Address'}
-              </button>
+              {addresses.length < 3 && (
+                <button
+                  onClick={() => {
+                    setEditingAddress(null);
+                    setAddressForm({
+                      address_line1: '',
+                      full_name: '',
+                      city: '',
+                      state: '',
+                      zip_code: '',
+                      is_default: false,
+                    });
+                    setShowAddressForm(!showAddressForm);
+                  }}
+                  className="px-4 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors text-sm whitespace-nowrap"
+                >
+                  {showAddressForm ? 'Cancel' : '+ Add Address'}
+                </button>
+              )}
+              {addresses.length >= 3 && (
+                <span className="text-sm text-gray-500">Maximum 3 addresses allowed</span>
+              )}
             </div>
 
             {/* Address Form */}
@@ -578,13 +584,13 @@ function ProfileContent() {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address Line 2
+                    Full Name
                   </label>
                   <input
                     type="text"
-                    value={addressForm.address_line2}
-                    onChange={(e) => setAddressForm({ ...addressForm, address_line2: e.target.value })}
-                    placeholder="Apartment, suite, etc. (optional)"
+                    value={addressForm.full_name}
+                    onChange={(e) => setAddressForm({ ...addressForm, full_name: e.target.value })}
+                    placeholder="Recipient's full name"
                     className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
                   />
                 </div>
@@ -657,7 +663,7 @@ function ProfileContent() {
                       setEditingAddress(null);
                       setAddressForm({
                         address_line1: '',
-                        address_line2: '',
+                        full_name: '',
                         city: '',
                         state: '',
                         zip_code: '',
@@ -689,47 +695,57 @@ function ProfileContent() {
                 {addresses.map((address) => (
                   <div
                     key={address.id}
-                    className={`border rounded-lg p-4 ${address.is_default ? 'border-[#4736FE] bg-blue-50' : 'border-gray-200'}`}
+                    className={`border rounded-lg p-3 transition-colors ${
+                      address.is_default ? 'border-orange-600 bg-orange-50' : 'border-gray-200'
+                    }`}
                   >
-                    <div className="flex justify-between items-start">
+                    {/* Action Buttons Row */}
+                    <div className="flex items-center justify-end gap-2 mb-2 pb-2 border-b border-gray-200">
+                      {!address.is_default && (
+                        <button
+                          onClick={() => handleSetDefaultAddress(address.id)}
+                          className="px-3 py-1 text-sm text-orange-600 hover:bg-orange-50 rounded transition-colors whitespace-nowrap"
+                          title="Set as default"
+                        >
+                          Set Default
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleEditAddress(address)}
+                        className="px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors whitespace-nowrap"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAddress(address.id)}
+                        className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors whitespace-nowrap"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    
+                    {/* Address Details Row */}
+                    <div className="flex items-start">
                       <div className="flex-1">
                         {address.is_default && (
-                          <span className="inline-block mb-2 px-2 py-1 text-xs font-semibold text-[#4736FE] bg-blue-100 rounded">
+                          <span className="inline-block mb-2 px-2 py-1 text-xs font-semibold text-orange-600 bg-orange-100 rounded">
                             Default
                           </span>
                         )}
-                        <p className="font-medium text-gray-900">Address</p>
-                        <p className="text-gray-700 mt-1">{address.address_line1}</p>
-                        {address.address_line2 && (
-                          <p className="text-gray-700">{address.address_line2}</p>
-                        )}
-                        <p className="text-gray-700">
+                        <p className="font-medium text-gray-900 mb-1">{address.full_name || 'Address'}</p>
+                        <p className="text-gray-700 text-sm">{address.address_line1}</p>
+                        <p className="text-gray-700 text-sm">
                           {address.city}, {address.state} {address.zip_code}
                         </p>
-                      </div>
-                      <div className="flex space-x-2 ml-4">
-                        {!address.is_default && (
-                          <button
-                            onClick={() => handleSetDefaultAddress(address.id)}
-                            className="px-3 py-1 text-sm text-[#4736FE] hover:bg-blue-50 rounded transition-colors"
-                            title="Set as default"
-                          >
-                            Set Default
-                          </button>
+                        {address.phone && (
+                          <p className="text-gray-700 text-sm mt-1">Phone: {address.phone}</p>
                         )}
-                        <button
-                          onClick={() => handleEditAddress(address)}
-                          className="px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteAddress(address.id)}
-                          className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors"
-                        >
-                          Delete
-                        </button>
                       </div>
+                      {address.is_default && (
+                        <svg className="w-5 h-5 text-orange-600 ml-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      )}
                     </div>
                   </div>
                 ))}

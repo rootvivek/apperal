@@ -257,8 +257,10 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
     <Link href={productUrl} className={`${cardClasses} relative z-0`}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
-        <div className={`absolute top-2 left-2 z-10 px-1 py-0.5 rounded text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
-          {product.badge}
+        <div className="absolute top-0 left-0 z-20 m-0">
+          <span className={`px-3 py-2 text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
+            {product.badge}
+          </span>
         </div>
       )}
 
@@ -276,26 +278,15 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
           src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
           alt={product.name}
           className={`${imageClasses} transition-all duration-500`}
+          loading="lazy"
+          decoding="async"
+          width={400}
+          height={480}
+          fetchPriority={currentImageIndex === 0 ? 'high' : 'low'}
           onError={(e) => {
             e.currentTarget.src = '/placeholder-product.jpg';
           }}
         />
-        
-        {/* Image indicators (dots) - only show if there are multiple images */}
-        {hasMultipleImages && variant !== 'image-only' && (
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex space-x-1">
-            {availableImages.map((_, index) => (
-              <div
-                key={index}
-                className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                  index === currentImageIndex 
-                    ? 'bg-white shadow-md' 
-                    : 'bg-white bg-opacity-50'
-                }`}
-              />
-            ))}
-          </div>
-        )}
         
         {/* Multiple images indicator - subtle hint - only show if no product badge */}
         {hasMultipleImages && variant !== 'image-only' && !product.badge && (
@@ -316,8 +307,8 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
 
       {/* Product Info */}
       <div className={contentClasses}>
-        <div className="flex items-start justify-between gap-2 mb-1 sm:mb-2">
-          <h3 className="font-medium text-gray-900 line-clamp-2 group-hover:text-brand transition-colors text-sm sm:text-base flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+        <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
+          <h3 className="font-medium text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-sm sm:text-base flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             {product.name}
           </h3>
           {variant !== 'image-only' && (
@@ -328,7 +319,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
               aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
             >
               <svg 
-                className={`w-4 h-4 transition-colors duration-200 ${
+                className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors duration-200 ${
                   isWishlisted 
                     ? 'text-red-500 fill-current' 
                     : 'text-gray-400 hover:text-red-500'

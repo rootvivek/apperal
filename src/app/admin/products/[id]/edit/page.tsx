@@ -80,6 +80,14 @@ export default function EditProductPage() {
   const [customSubcategory, setCustomSubcategory] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // Flag to prevent double submissions
+  
+  // Available sizes for apparel products
+  const availableSizes = ['Small', 'Medium', 'Large'];
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  
+  // Available fit types for apparel products
+  const availableFitTypes = ['Regular', 'Slim', 'Loose', 'Oversized', 'Fitted'];
+  const [selectedFitTypes, setSelectedFitTypes] = useState<string[]>([]);
 
   const [formData, setFormData] = useState<ProductFormData>({
     id: productId,
@@ -205,6 +213,18 @@ export default function EditProductPage() {
           ? product.product_apparel_details[0]
           : (product.product_apparel_details || {});
         
+        // Parse sizes from comma-separated string if exists
+        if (apparelDetails.size) {
+          const sizesArray = apparelDetails.size.split(',').map((s: string) => s.trim()).filter(Boolean);
+          setSelectedSizes(sizesArray);
+        }
+        
+        // Parse fit types from comma-separated string if exists
+        if (apparelDetails.fit_type) {
+          const fitTypesArray = apparelDetails.fit_type.split(',').map((f: string) => f.trim()).filter(Boolean);
+          setSelectedFitTypes(fitTypesArray);
+        }
+        
         const accessoriesDetails = Array.isArray(product.product_accessories_details) && product.product_accessories_details.length > 0
           ? product.product_accessories_details[0]
           : (product.product_accessories_details || {});
@@ -279,7 +299,7 @@ export default function EditProductPage() {
             fit_type: apparelDetails?.fit_type || '',
             pattern: apparelDetails?.pattern || '',
             color: apparelDetails?.color || '',
-            size: apparelDetails?.size || '',
+            size: '', // Size is now handled by selectedSizes state
             sku: apparelDetails?.sku || '',
           },
           accessoriesDetails: {
@@ -700,10 +720,10 @@ export default function EditProductPage() {
             brand: formData.apparelDetails?.brand || 'Not Specified',
             // Explicitly set to null if empty string - always include in update
             material: toNullIfEmpty(formData.apparelDetails?.material),
-            fit_type: toNullIfEmpty(formData.apparelDetails?.fit_type),
+            fit_type: selectedFitTypes.length > 0 ? selectedFitTypes.join(',') : null,
             pattern: toNullIfEmpty(formData.apparelDetails?.pattern),
             color: toNullIfEmpty(formData.apparelDetails?.color),
-            size: toNullIfEmpty(formData.apparelDetails?.size),
+            size: selectedSizes.length > 0 ? selectedSizes.join(',') : null,
             sku: toNullIfEmpty(formData.apparelDetails?.sku),
           };
           
@@ -953,6 +973,36 @@ export default function EditProductPage() {
         {/* Product Form */}
         <div className="bg-white shadow rounded-lg">
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
+            {/* Active Status and Hero Showcase - Top */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-b pb-4">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="is_active"
+                  id="is_active"
+                  checked={formData.is_active}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+                  Product is active and visible to customers
+                </label>
+              </div>
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="show_in_hero"
+                  id="show_in_hero"
+                  checked={formData.show_in_hero}
+                  onChange={handleChange}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-900">
+                  Show this product in hero section carousel
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
               {/* Product Name */}
               <div className="sm:col-span-2">
@@ -1163,86 +1213,6 @@ export default function EditProductPage() {
                 )}
               </div>
 
-              {/* Multiple Images Upload */}
-              <div className="sm:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Product Images
-                </label>
-                
-                {/* Current Main Image Preview */}
-                <div className="mb-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <p className="text-xs font-medium text-gray-600 mb-3">Main Product Image (First Image):</p>
-                  <div className="relative w-32 h-32 bg-white rounded-lg border-2 border-dashed border-gray-300 overflow-hidden">
-                    <img
-                      src={formData.images.length > 0 && formData.images[0].image_url ? formData.images[0].image_url : '/placeholder-product.jpg'}
-                      alt="Main product image"
-                      className="w-full h-full object-cover"
-                    />
-                    {formData.images.length === 0 && (
-                      <div className="absolute inset-0 flex items-center justify-center bg-gray-100 bg-opacity-50">
-                        <span className="text-xs text-gray-500 text-center px-2">No image selected</span>
-                      </div>
-                    )}
-                  </div>
-                  {formData.images.length > 0 && (
-                    <p className="text-xs text-gray-500 mt-2">✓ First image will be displayed as main</p>
-                  )}
-                </div>
-
-                {/* Only render MultiImageUpload when we have the actual product ID from database */}
-                {actualProductIdRef.current && (
-                  <MultiImageUpload
-                    onImagesChange={handleImagesChange}
-                    currentImages={formData.images}
-                    maxImages={5}
-                    className="w-full"
-                    productId={actualProductIdRef.current}
-                    userId={user?.id || null}
-                  />
-                )}
-                {!actualProductIdRef.current && (
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
-                    <p className="text-sm text-gray-500">Loading product information...</p>
-                  </div>
-                )}
-                <p className="mt-2 text-sm text-gray-500">
-                  Upload multiple images for your product. The first image will be used as the main product image.
-                </p>
-              </div>
-
-              {/* Active Status */}
-              <div className="sm:col-span-2">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="is_active"
-                    id="is_active"
-                    checked={formData.is_active}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
-                    Product is active and visible to customers
-                  </label>
-                </div>
-              </div>
-
-              {/* Hero Showcase */}
-              <div className="sm:col-span-2">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    name="show_in_hero"
-                    id="show_in_hero"
-                    checked={formData.show_in_hero}
-                    onChange={handleChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="show_in_hero" className="ml-2 block text-sm text-gray-900">
-                    Show this product in hero section carousel
-                  </label>
-                </div>
-              </div>
 
               {/* Product Details - Phone Cover - Based on category detail_type relationship */}
               {detailType === 'mobile' && (
@@ -1335,12 +1305,13 @@ export default function EditProductPage() {
                       Will save to: product_apparel_details
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Brand *</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                        placeholder="e.g., Nike, Adidas, Zara"
                         value={formData.apparelDetails.brand || ''}
                         onChange={(e) =>
                           setFormData((prev) => ({
@@ -1362,21 +1333,6 @@ export default function EditProductPage() {
                           setFormData((prev) => ({
                             ...prev,
                             apparelDetails: { ...prev.apparelDetails, material: e.target.value },
-                          }))
-                        }
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Fit Type</label>
-                      <input
-                        type="text"
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., Regular, Slim, Loose"
-                        value={formData.apparelDetails.fit_type || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            apparelDetails: { ...prev.apparelDetails, fit_type: e.target.value },
                           }))
                         }
                       />
@@ -1412,22 +1368,54 @@ export default function EditProductPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Size</label>
-                      <select
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        value={formData.apparelDetails.size || ''}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            apparelDetails: { ...prev.apparelDetails, size: e.target.value },
-                          }))
-                        }
-                      >
-                        <option value="">Select Size</option>
-                        <option value="Small">Small</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Available Fit Types</label>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        {availableFitTypes.map((fitType) => (
+                          <label key={fitType} className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedFitTypes.includes(fitType)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedFitTypes([...selectedFitTypes, fitType]);
+                                } else {
+                                  setSelectedFitTypes(selectedFitTypes.filter(f => f !== fitType));
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-xs text-gray-700">{fitType}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {selectedFitTypes.length === 0 && (
+                        <p className="mt-1 text-xs text-gray-500">Select at least one fit type</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Available Sizes</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {availableSizes.map((size) => (
+                          <label key={size} className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedSizes.includes(size)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSizes([...selectedSizes, size]);
+                                } else {
+                                  setSelectedSizes(selectedSizes.filter(s => s !== size));
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-xs text-gray-700">{size}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {selectedSizes.length === 0 && (
+                        <p className="mt-1 text-xs text-gray-500">Select at least one size</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">SKU</label>
@@ -1534,6 +1522,30 @@ export default function EditProductPage() {
                   </div>
                 </div>
               )}
+
+              {/* Multiple Images Upload - At the End */}
+              <div className="sm:col-span-2 border-t pt-6">
+                <label className="block text-sm font-medium text-gray-700 mb-4">
+                  Product Images
+                </label>
+                
+                {/* Only render MultiImageUpload when we have the actual product ID from database */}
+                {actualProductIdRef.current && (
+                  <MultiImageUpload
+                    onImagesChange={handleImagesChange}
+                    currentImages={formData.images}
+                    maxImages={5}
+                    className="w-full"
+                    productId={actualProductIdRef.current}
+                    userId={user?.id || null}
+                  />
+                )}
+                {!actualProductIdRef.current && (
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                    <p className="text-sm text-gray-500">Loading product information...</p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Form Actions */}

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -214,7 +215,14 @@ export default function Navigation() {
           <div className="flex justify-between items-center relative">
           {/* Logo */}
           <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
-            <span className="text-lg font-normal text-white mr-0">Apperal</span>
+            <Image 
+              src="/logo.svg" 
+              alt="Apperal Logo" 
+              width={120} 
+              height={40} 
+              className="h-8 sm:h-10 w-auto"
+              priority
+            />
           </Link>
 
           {/* Categories Navigation - Hidden on mobile, visible on larger screens */}

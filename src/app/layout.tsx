@@ -6,7 +6,12 @@ import { CartProvider } from '@/contexts/CartContext'
 import { WishlistProvider } from '@/contexts/WishlistContext'
 import ClientLayout from '@/components/ClientLayout'
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ 
+  subsets: ['latin'],
+  display: 'swap', // Add font-display: swap for better performance
+  preload: true,
+  variable: '--font-inter',
+})
 
 export const metadata: Metadata = {
   title: 'Apperal - Fashion & Apparel Store',
@@ -20,6 +25,17 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        {/* Resource hints for third-party domains - improves connection time */}
+        <link rel="preconnect" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
+        <link rel="dns-prefetch" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
+        <link rel="preconnect" href="https://checkout.razorpay.com" />
+        <link rel="dns-prefetch" href="https://checkout.razorpay.com" />
+        <link rel="preconnect" href="https://api.razorpay.com" />
+        <link rel="dns-prefetch" href="https://api.razorpay.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+      </head>
       <body className={inter.className}>
         <AuthProvider>
           <CartProvider>

@@ -27,18 +27,55 @@ export function BannedModal() {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [showBannedModal]);
 
-  // Prevent navigation while modal is open
+  // Prevent navigation while modal is open using Next.js router blocking
   useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+    if (!showBannedModal) return;
+
+    // Block Next.js navigation using the router
+    const handleRouteChange = (url: string) => {
+      // Prevent navigation if modal is open
       if (showBannedModal) {
-        e.preventDefault();
-        e.returnValue = '';
+        // Cancel navigation
+        throw new Error('Navigation blocked: Banned modal is open');
       }
     };
 
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [showBannedModal]);
+    // Use Next.js router to intercept navigation
+    // Note: Next.js App Router doesn't have built-in blocking, so we use a workaround
+    // by preventing default link behavior and programmatic navigation
+    
+    // Intercept clicks on links
+    const handleLinkClick = (e: MouseEvent) => {
+      if (showBannedModal) {
+        const target = e.target as HTMLElement;
+        const link = target.closest('a');
+        if (link && link.href && !link.href.startsWith('#')) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    };
+
+    // Intercept browser back/forward buttons using popstate
+    const handlePopState = (e: PopStateEvent) => {
+      if (showBannedModal) {
+        // Push current state back to prevent navigation
+        window.history.pushState(null, '', window.location.href);
+      }
+    };
+
+    // Push state to enable popstate interception
+    window.history.pushState(null, '', window.location.href);
+
+    // Add event listeners
+    document.addEventListener('click', handleLinkClick, true);
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      document.removeEventListener('click', handleLinkClick, true);
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [showBannedModal, router]);
 
   if (!showBannedModal) return null;
 

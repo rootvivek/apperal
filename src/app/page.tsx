@@ -318,12 +318,12 @@ export default function Home() {
               {/* Mobile: Horizontal scroll, 2 items visible */}
               <div className="sm:hidden">
                 <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
-                  <div className="flex gap-2" style={{ width: 'max-content' }}>
+                  <div className="flex gap-1" style={{ width: 'max-content' }}>
                     {allProducts.map((product) => (
                       <div
                         key={product.id}
                         className="flex-shrink-0"
-                        style={{ width: 'calc((100vw - 2rem) / 2 - 0.5rem)', maxWidth: '180px' }}
+                        style={{ width: 'calc((100vw - 2rem) / 1.95 - 0.25rem)', maxWidth: '190px' }}
                       >
                         <ProductCard product={product as any} />
                       </div>
@@ -372,7 +372,7 @@ export default function Home() {
                   {/* Mobile: Horizontal scroll, 2 items visible */}
                   <div className="sm:hidden">
                     <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
-                      <div className="flex gap-2" style={{ width: 'max-content' }}>
+                      <div className="flex gap-1" style={{ width: 'max-content' }}>
                         {section.products.map((product) => (
                           <div
                             key={product.id}

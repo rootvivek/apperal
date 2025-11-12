@@ -290,7 +290,7 @@ export default function MultiImageUpload({
               <img
                 src={image.image_url}
                 alt={image.alt_text || `Product image ${index + 1}`}
-                className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                className="w-full aspect-square object-cover rounded-lg border border-gray-200"
               />
               
               {/* Overlay with controls */}
@@ -403,31 +403,17 @@ export default function MultiImageUpload({
                 </div>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="mx-auto h-16 w-16 bg-gray-100 rounded-lg flex items-center justify-center">
+              <div className="space-y-2">
+                <div className="mx-auto aspect-square w-full max-w-48 bg-gray-100 rounded-lg flex items-center justify-center">
                   <svg className="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Add more images</p>
-                  <p className="text-xs text-gray-500">
-                    {currentImages.length}/{maxImages} images • PNG, JPG, GIF up to 5MB each
-                  </p>
                 </div>
               </div>
             )}
           </div>
         </div>
       )}
-
-      {/* Info */}
-      <div className="text-sm text-gray-500">
-        <p>• Drag and drop multiple images or click to select</p>
-        <p>• First image will be the main product image</p>
-        <p>• Use the arrows to reorder images</p>
-        <p>• Maximum {maxImages} images per product</p>
-      </div>
     </div>
   );
 }

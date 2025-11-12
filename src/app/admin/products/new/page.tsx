@@ -88,6 +88,14 @@ export default function NewProductPage() {
     accessoriesDetails: {},
   });
 
+  // Available sizes for apparel products
+  const availableSizes = ['Small', 'Medium', 'Large'];
+  const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
+  
+  // Available fit types for apparel products
+  const availableFitTypes = ['Regular', 'Slim', 'Loose', 'Oversized', 'Fitted'];
+  const [selectedFitTypes, setSelectedFitTypes] = useState<string[]>([]);
+
   // Determine detail type from PARENT CATEGORY (detail_type column set in category admin)
   // All subcategories inherit the detail_type from their parent category
   const selectedCategory = categories.find(c => c.name === formData.category);
@@ -458,10 +466,10 @@ export default function NewProductPage() {
             brand: formData.apparelDetails?.brand || 'Not Specified',
             // Explicitly set to null if empty string - always include in update
             material: toNullIfEmpty(formData.apparelDetails?.material),
-            fit_type: toNullIfEmpty(formData.apparelDetails?.fit_type),
+            fit_type: selectedFitTypes.length > 0 ? selectedFitTypes.join(',') : null,
             pattern: toNullIfEmpty(formData.apparelDetails?.pattern),
             color: toNullIfEmpty(formData.apparelDetails?.color),
-            size: toNullIfEmpty(formData.apparelDetails?.size),
+            size: selectedSizes.length > 0 ? selectedSizes.join(',') : null,
             sku: toNullIfEmpty(formData.apparelDetails?.sku),
           };
           
@@ -785,7 +793,7 @@ export default function NewProductPage() {
                       Will save to: product_apparel_details
                     </span>
                   </div>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Brand *</label>
                       <input
@@ -811,19 +819,6 @@ export default function NewProductPage() {
                         }))}
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                         placeholder="e.g., Cotton, Polyester, Silk"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700">Fit Type</label>
-                      <input
-                        type="text"
-                        value={formData.apparelDetails.fit_type || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          apparelDetails: { ...prev.apparelDetails, fit_type: e.target.value }
-                        }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                        placeholder="e.g., Regular, Slim, Loose"
                       />
                     </div>
                     <div>
@@ -853,20 +848,54 @@ export default function NewProductPage() {
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Size</label>
-                      <select
-                        value={formData.apparelDetails.size || ''}
-                        onChange={(e) => setFormData(prev => ({
-                          ...prev,
-                          apparelDetails: { ...prev.apparelDetails, size: e.target.value }
-                        }))}
-                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      >
-                        <option value="">Select Size</option>
-                        <option value="Small">Small</option>
-                        <option value="Medium">Medium</option>
-                        <option value="Large">Large</option>
-                      </select>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Available Fit Types</label>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        {availableFitTypes.map((fitType) => (
+                          <label key={fitType} className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedFitTypes.includes(fitType)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedFitTypes([...selectedFitTypes, fitType]);
+                                } else {
+                                  setSelectedFitTypes(selectedFitTypes.filter(f => f !== fitType));
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-xs text-gray-700">{fitType}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {selectedFitTypes.length === 0 && (
+                        <p className="mt-1 text-xs text-gray-500">Select at least one fit type</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Available Sizes</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {availableSizes.map((size) => (
+                          <label key={size} className="flex items-center space-x-1 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={selectedSizes.includes(size)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedSizes([...selectedSizes, size]);
+                                } else {
+                                  setSelectedSizes(selectedSizes.filter(s => s !== size));
+                                }
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                            />
+                            <span className="text-xs text-gray-700">{size}</span>
+                          </label>
+                        ))}
+                      </div>
+                      {selectedSizes.length === 0 && (
+                        <p className="mt-1 text-xs text-gray-500">Select at least one size</p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700">SKU</label>

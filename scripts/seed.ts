@@ -57,10 +57,13 @@ interface MobileDetails {
 interface ApparelDetails {
   id: string;
   product_id: string;
-  size: string;
-  color: string;
-  fabric: string;
-  gender: string;
+  brand?: string;
+  material?: string;
+  fit_type?: string;
+  pattern?: string;
+  size?: string;
+  color?: string;
+  sku?: string;
 }
 
 // Helper function to generate slug from name

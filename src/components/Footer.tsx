@@ -1,14 +1,21 @@
 import Link from 'next/link';
+import Image from 'next/image';
 
 export default function Footer() {
   return (
     <footer className="bg-gray-900 text-white">
       <div className="px-2 sm:px-4 md:px-6 lg:px-8">
         {/* Main Footer Content */}
-        <div className="py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <div className="py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {/* Company Info */}
           <div className="space-y-4">
-            <h3 className="text-xl font-bold text-white">Apperal</h3>
+            <Image 
+              src="/logo.svg" 
+              alt="Apperal Logo" 
+              width={120} 
+              height={40} 
+              className="h-8 w-auto"
+            />
             <p className="text-gray-300 text-sm leading-relaxed">
               Your one-stop destination for fashion, electronics, and lifestyle products. 
               Quality products at affordable prices with fast delivery across India.
@@ -41,78 +48,81 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* Quick Links */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Quick Links</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link href="/" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Home
-                </Link>
-              </li>
-              <li>
-                <Link href="/products" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  All Products
-                </Link>
-              </li>
-              <li>
-                <Link href="/products/mens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Men&apos;s Clothing
-                </Link>
-              </li>
-              <li>
-                <Link href="/products/womens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Women&apos;s Clothing
-                </Link>
-              </li>
-              <li>
-                <Link href="/products/accessories" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Accessories
-                </Link>
-              </li>
-              <li>
-                <Link href="/products/electronics" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Electronics
-                </Link>
-              </li>
-            </ul>
-          </div>
+          {/* Quick Links and Customer Service in one row */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+            {/* Quick Links */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Quick Links</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="/" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Home
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    All Products
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products/mens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Men&apos;s Clothing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products/womens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Women&apos;s Clothing
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products/accessories" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Accessories
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/products/electronics" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Electronics
+                  </Link>
+                </li>
+              </ul>
+            </div>
 
-          {/* Customer Service */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Customer Service</h3>
-            <ul className="space-y-2">
-              <li>
-                <Link href="/contact" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Contact Us
-                </Link>
-              </li>
-              <li>
-                <Link href="/shipping" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Shipping Info
-                </Link>
-              </li>
-              <li>
-                <Link href="/returns" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Returns & Exchanges
-                </Link>
-              </li>
-              <li>
-                <Link href="/size-guide" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Size Guide
-                </Link>
-              </li>
-              <li>
-                <Link href="/faq" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  FAQ
-                </Link>
-              </li>
-              <li>
-                <Link href="/track-order" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                  Track Your Order
-                </Link>
-              </li>
-            </ul>
+            {/* Customer Service */}
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-white">Customer Service</h3>
+              <ul className="space-y-2">
+                <li>
+                  <Link href="/contact" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Contact Us
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/shipping" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Shipping Info
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/returns" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Returns & Exchanges
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/size-guide" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Size Guide
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/faq" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    FAQ
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/track-order" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
+                    Track Your Order
+                  </Link>
+                </li>
+              </ul>
+            </div>
           </div>
 
           {/* Contact Info */}
@@ -148,7 +158,7 @@ export default function Footer() {
 
         {/* Bottom Bar */}
         <div className="border-t border-gray-800 py-6">
-          <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
+          <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
               <p className="text-gray-400 text-sm">
                 © 2024 Apperal. All rights reserved.
@@ -163,23 +173,6 @@ export default function Footer() {
                 <Link href="/cookies" className="text-gray-400 hover:text-emerald-400 transition-colors text-sm">
                   Cookie Policy
                 </Link>
-              </div>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-400 text-sm">We accept:</span>
-              <div className="flex space-x-2">
-                <div className="bg-white rounded px-2 py-1">
-                  <span className="text-xs font-semibold text-gray-800">VISA</span>
-                </div>
-                <div className="bg-white rounded px-2 py-1">
-                  <span className="text-xs font-semibold text-gray-800">MC</span>
-                </div>
-                <div className="bg-white rounded px-2 py-1">
-                  <span className="text-xs font-semibold text-gray-800">UPI</span>
-                </div>
-                <div className="bg-white rounded px-2 py-1">
-                  <span className="text-xs font-semibold text-gray-800">COD</span>
-                </div>
               </div>
             </div>
           </div>

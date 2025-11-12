@@ -14,21 +14,25 @@ export function middleware(request: NextRequest) {
   // Add caching headers for static assets
   const pathname = request.nextUrl.pathname;
   
-  // Cache static assets aggressively
-  if (pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot|css|js)$/i)) {
+  // Cache static assets aggressively (1 year for immutable assets)
+  if (pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot)$/i)) {
     response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
   }
-  // Cache images from Supabase storage
-  else if (pathname.includes('/storage/') || pathname.includes('/product-images/') || pathname.includes('/category-images/')) {
-    response.headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  // Cache CSS and JS files (1 year with revalidation)
+  else if (pathname.match(/\.(css|js)$/i)) {
+    response.headers.set('Cache-Control', 'public, max-age=31536000, stale-while-revalidate=86400');
   }
-  // Cache API routes that fetch public data (with shorter TTL)
-  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/orders')) {
-    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  // Cache images from Supabase storage (1 year with revalidation)
+  else if (pathname.includes('/storage/') || pathname.includes('/product-images/') || pathname.includes('/category-images/') || pathname.includes('/subcategory-images/')) {
+    response.headers.set('Cache-Control', 'public, max-age=31536000, stale-while-revalidate=604800');
   }
-  // Default cache for pages (ISR)
+  // Cache API routes that fetch public data (5 minutes with 1 hour revalidation)
+  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/orders') && !pathname.startsWith('/api/auth')) {
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  }
+  // Default cache for pages (5 minutes with 1 hour revalidation)
   else if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
-    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
   }
   
   // Content Security Policy (adjust based on your needs)
