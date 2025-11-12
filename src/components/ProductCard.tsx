@@ -278,11 +278,12 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
           src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
           alt={product.name}
           className={`${imageClasses} transition-all duration-500`}
-          loading="lazy"
+          loading={variant === 'image-only' ? 'eager' : currentImageIndex === 0 ? 'eager' : 'lazy'}
           decoding="async"
           width={400}
           height={480}
-          fetchPriority={currentImageIndex === 0 ? 'high' : 'low'}
+          fetchPriority={variant === 'image-only' || currentImageIndex === 0 ? 'high' : 'low'}
+          sizes={variant === 'image-only' ? '100vw' : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
           onError={(e) => {
             e.currentTarget.src = '/placeholder-product.jpg';
           }}

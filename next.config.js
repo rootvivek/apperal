@@ -12,6 +12,65 @@ const nextConfig = {
       exclude: ['error', 'warn'], // Keep error and warn logs
     } : false,
   },
+  // Optimize bundle size
+  experimental: {
+    optimizePackageImports: ['@supabase/supabase-js', 'firebase', 'razorpay'],
+  },
+  // Turbopack config (for development - Next.js 16 uses Turbopack by default)
+  turbopack: {
+    // Resolve Firebase modules to prevent HMR issues
+    resolveAlias: {
+      'firebase/auth': 'firebase/auth',
+      'firebase/app': 'firebase/app',
+    },
+  },
+  // Webpack optimizations (for production builds)
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      // Optimize client-side bundle
+      config.optimization = {
+        ...config.optimization,
+        moduleIds: 'deterministic',
+        splitChunks: {
+          chunks: 'all',
+          cacheGroups: {
+            default: false,
+            vendors: false,
+            // Vendor chunk for large libraries
+            vendor: {
+              name: 'vendor',
+              chunks: 'all',
+              test: /node_modules/,
+              priority: 20,
+            },
+            // Separate chunk for Supabase
+            supabase: {
+              name: 'supabase',
+              test: /[\\/]node_modules[\\/]@supabase[\\/]/,
+              chunks: 'all',
+              priority: 30,
+            },
+            // Separate chunk for Firebase
+            firebase: {
+              name: 'firebase',
+              test: /[\\/]node_modules[\\/]firebase[\\/]/,
+              chunks: 'all',
+              priority: 30,
+            },
+            // Common chunk for shared code
+            common: {
+              name: 'common',
+              minChunks: 2,
+              chunks: 'all',
+              priority: 10,
+              reuseExistingChunk: true,
+            },
+          },
+        },
+      };
+    }
+    return config;
+  },
   images: {
     remotePatterns: [
       {

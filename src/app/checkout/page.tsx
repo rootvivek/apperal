@@ -497,36 +497,58 @@ function CheckoutContent() {
     };
   }, [user?.id]);
 
-  // Load Razorpay script with defer for better performance
+  // Load Razorpay script with defer for better performance (only when needed)
   useEffect(() => {
-    // Check if script already exists
-    const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-    if (existingScript) {
-      setRazorpayLoaded(true);
-      return;
-    }
+    // Only load Razorpay script when user is about to pay (not on initial load)
+    // This reduces third-party code impact on page load
+    const loadRazorpayScript = () => {
+      // Check if script already exists
+      const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
+      if (existingScript) {
+        setRazorpayLoaded(true);
+        return;
+      }
 
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    script.defer = true;
-    script.crossOrigin = 'anonymous';
-    script.onload = () => {
-      setRazorpayLoaded(true);
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.async = true;
+      script.defer = true;
+      script.crossOrigin = 'anonymous';
+      script.onload = () => {
+        setRazorpayLoaded(true);
+      };
+      script.onerror = () => {
+        console.error('Failed to load Razorpay script');
+      };
+      document.head.appendChild(script);
     };
-    script.onerror = () => {
-      console.error('Failed to load Razorpay script');
-    };
-    document.head.appendChild(script);
 
-    return () => {
-      // Cleanup script on unmount
-      const scriptToRemove = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
-      if (scriptToRemove && scriptToRemove.parentNode) {
-        scriptToRemove.parentNode.removeChild(scriptToRemove);
+    // Load script when user interacts with payment section or selects non-COD payment
+    const handlePaymentInteraction = () => {
+      if (!razorpayLoaded && formData.paymentMethod !== 'cod') {
+        loadRazorpayScript();
       }
     };
-  }, []);
+
+    // Load script when payment method changes to non-COD
+    if (formData.paymentMethod !== 'cod' && !razorpayLoaded) {
+      loadRazorpayScript();
+    }
+
+    // Also load on user interaction with payment section
+    const paymentSection = document.getElementById('payment-method-section');
+    if (paymentSection) {
+      paymentSection.addEventListener('click', handlePaymentInteraction, { once: true });
+      paymentSection.addEventListener('focus', handlePaymentInteraction, { once: true });
+    }
+
+    return () => {
+      if (paymentSection) {
+        paymentSection.removeEventListener('click', handlePaymentInteraction);
+        paymentSection.removeEventListener('focus', handlePaymentInteraction);
+      }
+    };
+  }, [formData.paymentMethod, razorpayLoaded]);
 
   // Fetch subcategory info for cart items
   useEffect(() => {
@@ -1493,7 +1515,7 @@ function CheckoutContent() {
               </div>
 
               {/* Payment Information */}
-              <div className="bg-white rounded-lg shadow-sm p-0 sm:p-6">
+              <div id="payment-method-section" className="bg-white rounded-lg shadow-sm p-0 sm:p-6">
                 <div className="px-3 sm:px-0">
                   <h2 className="text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Payment Method</h2>
                 

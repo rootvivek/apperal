@@ -1,17 +1,15 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useState, useMemo } from 'react';
-import { 
+import { createContext, useCallback, useContext, useEffect, useState, useMemo, useRef } from 'react';
+// Use type-only imports for Firebase types to prevent Turbopack HMR issues
+import type { 
   User as FirebaseUser,
-  signInWithPhoneNumber,
   RecaptchaVerifier,
-  signOut as firebaseSignOut,
-  onAuthStateChanged,
   ConfirmationResult
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 import { createClient } from '@/lib/supabase/client';
-import { checkUserActiveStatus } from '@/lib/supabase/client-auth';
+// checkUserActiveStatus will be dynamically imported to prevent Turbopack HMR issues
 
 // Type definitions
 interface User {
@@ -105,7 +103,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   // Ensure user profile exists in Supabase
-  const ensureUserProfile = async (firebaseUser: FirebaseUser) => {
+  const ensureUserProfile = useCallback(async (firebaseUser: FirebaseUser) => {
     if (!firebaseUser) return;
 
     try {
@@ -148,29 +146,41 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       if (existingProfile) {
         if (existingProfile.deleted_at) {
           console.warn('User profile was deleted. Signing out user:', userId);
-          try {
-            if (auth) await firebaseSignOut(auth);
-          } catch (signOutError) {
-            // Failed to sign out but continue with cleanup
-          }
-          setUser(null);
-          setSession(null);
+          // Set banned state first, then sign out
+          // Firebase signOut will trigger onAuthStateChanged with null user,
+          // which will handle setUser(null) and setSession(null)
           setBannedReason('deleted');
           setBannedModal(true);
+          try {
+            if (auth) {
+              const { signOut: firebaseSignOut } = await import('firebase/auth');
+              await firebaseSignOut(auth);
+            }
+          } catch (signOutError) {
+            // Failed to sign out but continue with cleanup
+            setUser(null);
+            setSession(null);
+          }
           return;
         }
         
         if ('is_active' in existingProfile && existingProfile.is_active === false) {
           console.warn('User profile is deactivated. Signing out user:', userId);
-          try {
-            if (auth) await firebaseSignOut(auth);
-          } catch (signOutError) {
-            // Failed to sign out but continue with cleanup
-          }
-          setUser(null);
-          setSession(null);
+          // Set banned state first, then sign out
+          // Firebase signOut will trigger onAuthStateChanged with null user,
+          // which will handle setUser(null) and setSession(null)
           setBannedReason('deactivated');
           setBannedModal(true);
+          try {
+            if (auth) {
+              const { signOut: firebaseSignOut } = await import('firebase/auth');
+              await firebaseSignOut(auth);
+            }
+          } catch (signOutError) {
+            // Failed to sign out but continue with cleanup
+            setUser(null);
+            setSession(null);
+          }
           return;
         }
 
@@ -277,7 +287,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Error ensuring user profile:', error);
     }
-  };
+  }, [auth]);
 
   // Helper function to initialize reCAPTCHA verifier
   const initializeRecaptcha = useCallback(async (): Promise<RecaptchaVerifier | null> => {
@@ -316,8 +326,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       console.log('Creating new RecaptchaVerifier...');
+      // Dynamically import RecaptchaVerifier to prevent Turbopack HMR issues
+      const { RecaptchaVerifier: RecaptchaVerifierClass } = await import('firebase/auth');
       // Create new verifier
-      const verifier = new RecaptchaVerifier(
+      const verifier = new RecaptchaVerifierClass(
         auth,
         'recaptcha-container',
         {
@@ -368,6 +380,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     };
   }, [auth, initializeRecaptcha]); // Include initializeRecaptcha in deps
 
+  // Use refs to track state and prevent infinite loops
+  const lastUserIdRef = useRef<string | null>(null);
+  const isProcessingRef = useRef(false);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const mountedRef = useRef(true);
+  
   // Listen for auth state changes
   useEffect(() => {
     if (!auth) {
@@ -375,26 +393,98 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         return;
       }
       
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      const mappedUser = mapFirebaseUser(firebaseUser);
-      setUser(mappedUser);
-      
-      if (mappedUser && firebaseUser) {
-        setSession({
-          user: mappedUser,
-          expires_at: undefined, // Firebase manages session expiration internally
+    mountedRef.current = true;
+    
+    // Cleanup previous subscription
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    
+    // Reset processing flag but keep lastUserId to prevent duplicate processing
+    isProcessingRef.current = false;
+    
+    (async () => {
+      try {
+        const { onAuthStateChanged } = await import('firebase/auth');
+        if (!mountedRef.current) return;
+        
+        unsubscribeRef.current = onAuthStateChanged(auth, async (firebaseUser) => {
+          if (!mountedRef.current || isProcessingRef.current) return;
+          
+          // Prevent duplicate updates for the same user
+          const currentUserId = firebaseUser?.uid || null;
+          if (currentUserId === lastUserIdRef.current) {
+            return;
+          }
+          
+          isProcessingRef.current = true;
+          lastUserIdRef.current = currentUserId;
+          
+          try {
+            const mappedUser = mapFirebaseUser(firebaseUser);
+            
+            // If user is null (signed out), just update state and return
+            // Don't call ensureUserProfile for null users
+            if (!mappedUser || !firebaseUser) {
+              setUser((prevUser) => {
+                if (!prevUser) {
+                  return prevUser; // Already null, no change
+                }
+                return null;
+              });
+              setSession((prevSession) => {
+                if (!prevSession) {
+                  return prevSession; // Already null, no change
+                }
+                return null;
+              });
+              setLoading(false);
+              return;
+            }
+            
+            // Only update state if user actually changed
+            setUser((prevUser) => {
+              if (prevUser?.id === mappedUser?.id) {
+                return prevUser; // No change, return previous to prevent re-render
+              }
+              return mappedUser;
+            });
+            
+            setSession((prevSession) => {
+              if (prevSession?.user?.id === mappedUser.id) {
+                return prevSession; // No change, return previous to prevent re-render
+              }
+              return {
+                user: mappedUser,
+                expires_at: undefined, // Firebase manages session expiration internally
+              };
+            });
+            
+            // Ensure user profile exists in Supabase
+            // Call ensureUserProfile directly - it's stable due to useCallback
+            await ensureUserProfile(firebaseUser);
+            
+            setLoading(false);
+          } finally {
+            isProcessingRef.current = false;
+          }
         });
-        // Ensure user profile exists in Supabase
-        await ensureUserProfile(firebaseUser);
-      } else {
-        setSession(null);
+      } catch (error) {
+        console.error('Error loading Firebase auth:', error);
+        if (mountedRef.current) setLoading(false);
       }
-      
-      setLoading(false);
-    });
+    })();
 
-    return () => unsubscribe();
-  }, [auth, mapFirebaseUser]);
+    return () => {
+      mountedRef.current = false;
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth]); // Only depend on auth - mapFirebaseUser and ensureUserProfile are stable via useCallback
 
   // Subscribe to realtime updates on the user's profile to detect deactivation or deletion by admin.
   // Fallback: if realtime subscription fails, we keep a polling interval as backup.
@@ -407,6 +497,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setBannedModal(true);
       try {
         if (auth) {
+          const { signOut: firebaseSignOut } = await import('firebase/auth');
           await firebaseSignOut(auth);
         }
       } catch (e) {
@@ -558,6 +649,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         authExists: !!auth 
       });
       
+      const { signInWithPhoneNumber } = await import('firebase/auth');
       const confirmation = await signInWithPhoneNumber(auth, formattedPhone, verifierToUse);
       setConfirmationResult(confirmation);
       
@@ -662,6 +754,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         };
       }
 
+      // Dynamically import checkUserActiveStatus to prevent Turbopack HMR issues
+      const { checkUserActiveStatus } = await import('@/lib/supabase/client-auth');
       const { isActive, error: statusError } = await checkUserActiveStatus(result.user.uid);
       if (statusError) {
         return {
@@ -675,7 +769,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setBannedModal(true);
 
         try {
-          if (auth) await firebaseSignOut(auth);
+          if (auth) {
+            const { signOut: firebaseSignOut } = await import('firebase/auth');
+            await firebaseSignOut(auth);
+          }
         } catch (error) {
           console.warn('Error during cleanup:', error);
         }
@@ -736,6 +833,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSigningOut(true);
 
       if (auth) {
+        const { signOut: firebaseSignOut } = await import('firebase/auth');
         await firebaseSignOut(auth);
       }
       

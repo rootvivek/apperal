@@ -11,6 +11,7 @@ const inter = Inter({
   display: 'swap', // Add font-display: swap for better performance
   preload: true,
   variable: '--font-inter',
+  fallback: ['system-ui', 'arial'], // Fallback fonts for better text visibility
 })
 
 export const metadata: Metadata = {
