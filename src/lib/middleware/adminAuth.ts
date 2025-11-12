@@ -82,7 +82,6 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
     const supabaseAdmin = createServerClient();
     return await verifyUserIsAdmin(userId, supabaseAdmin);
   } catch (error: any) {
-    console.error('Error verifying admin:', error);
     return { isAdmin: false, error: error.message || 'Verification failed' };
   }
 }
@@ -110,7 +109,6 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
 
     return { isAdmin, userId };
   } catch (error: any) {
-    console.error('Error verifying user is admin:', error);
     return { isAdmin: false, error: error.message || 'Verification failed' };
   }
 }

@@ -108,7 +108,7 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
     }
 
     // Create a File-like object from the processed buffer
-    const processedFile = new File([processedBuffer], fileName, {
+    const processedFile = new File([new Uint8Array(processedBuffer)], fileName, {
       type: 'image/webp',
       lastModified: Date.now()
     });

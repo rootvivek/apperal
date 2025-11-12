@@ -27,11 +27,11 @@ async function deleteProductImageHandler(request: NextRequest, { userId: adminUs
     const supabaseAdmin = createServerClient();
 
     // Delete image from database
-    const { error: deleteError, count: deletedCount } = await supabaseAdmin
+    const { data: deletedData, error: deleteError } = await supabaseAdmin
       .from('product_images')
       .delete()
       .eq('id', imageId)
-      .select('*', { count: 'exact', head: true });
+      .select('id');
 
     if (deleteError) {
       return NextResponse.json(
@@ -40,7 +40,7 @@ async function deleteProductImageHandler(request: NextRequest, { userId: adminUs
       );
     }
 
-    if (deletedCount === 0) {
+    if (!deletedData || deletedData.length === 0) {
       return NextResponse.json(
         { error: 'Image not found or already deleted' },
         { status: 404 }

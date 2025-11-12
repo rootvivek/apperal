@@ -103,7 +103,7 @@ async function updateProductHandler(request: NextRequest, { userId: adminUserId 
           .from('product_images')
           .delete()
           .in('id', imagesToDelete)
-          .select('*', { count: 'exact', head: true });
+          .select('id');
 
         if (deleteImagesError) {
           return NextResponse.json(
