@@ -702,14 +702,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   // Memoize context value to prevent unnecessary re-renders
   const contextValue = useMemo(() => ({
-    cartItems,
-    cartCount,
-    loading,
-    addToCart,
-    removeFromCart,
-    updateQuantity,
-    clearCart,
-    refreshCart,
+        cartItems,
+        cartCount,
+        loading,
+        addToCart,
+        removeFromCart,
+        updateQuantity,
+        clearCart,
+        refreshCart,
   }), [cartItems, cartCount, loading, addToCart, removeFromCart, updateQuantity, clearCart, refreshCart]);
 
   return (

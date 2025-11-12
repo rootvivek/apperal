@@ -13,8 +13,12 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
   try {
     let userId: string | null = null;
     
-    // Try to get user ID from X-User-Id header (for Firebase auth)
-    const headerUserId = request.headers.get('x-user-id');
+    // Try to get user ID from headers (for Firebase auth)
+    // Check multiple header name variations
+    const headerUserId = request.headers.get('x-user-id') || 
+                        request.headers.get('X-User-Id') ||
+                        request.headers.get('x-admin-user-id') ||
+                        request.headers.get('X-Admin-User-Id');
     if (headerUserId) {
       userId = headerUserId;
     }
@@ -75,7 +79,16 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
     }
     
     if (!userId) {
-      return { isAdmin: false, error: 'Unauthorized - No valid session found' };
+      // Log available headers for debugging (in development only)
+      if (process.env.NODE_ENV === 'development') {
+        const allHeaders: Record<string, string> = {};
+        request.headers.forEach((value, key) => {
+          if (key.toLowerCase().includes('user') || key.toLowerCase().includes('admin') || key.toLowerCase().includes('auth')) {
+            allHeaders[key] = value;
+          }
+        });
+      }
+      return { isAdmin: false, error: 'Unauthorized - No valid session found. Please ensure you are logged in and the user ID is being sent in the request headers.' };
     }
 
     // Use service role client to verify admin status (has access to user_profiles)

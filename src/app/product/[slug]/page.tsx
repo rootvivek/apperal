@@ -436,7 +436,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading product...</p>
         </div>
       </div>
@@ -455,7 +455,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           </p>
           <Link
             href="/products"
-            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+            className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-brand hover:bg-brand-600"
           >
             Browse Products
           </Link>
@@ -466,7 +466,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pt-1 pb-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-4 lg:px-6 pt-1 pb-8">
         {/* Breadcrumb Navigation - Desktop only */}
         <nav className="hidden sm:flex mb-2" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
@@ -529,22 +529,22 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         </nav>
 
         <div className="bg-white mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 lg:gap-8 overflow-visible">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 lg:gap-6 overflow-visible">
             {/* Product Images */}
             <div className="w-full">
             {/* Desktop: Thumbnails on Left, Main Image on Right */}
-            <div className="hidden md:flex gap-4 overflow-visible">
+            <div className="hidden md:flex gap-2 overflow-visible">
               {/* Thumbnail Gallery - Left (Desktop only) */}
               {product.images && product.images.length > 1 && (
-                <div className="flex flex-col gap-3 flex-shrink-0">
+                <div className="flex flex-col gap-2 flex-shrink-0">
                   {product.images.map((image, index) => (
                     <button
                       key={image.id}
                       onClick={() => setSelectedImage(index)}
-                      className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl transition-all duration-200 shadow-sm border-2 ${
+                      className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded transition-all duration-200 shadow-sm border-2 ${
                         selectedImage === index 
-                          ? 'ring-2 ring-[#4736FE] ring-opacity-30 scale-105 border-[#4736FE]' 
-                          : 'border-gray-200 hover:border-[#4736FE] hover:shadow-md'
+                          ? 'ring-2 ring-brand ring-opacity-30 scale-105 border-brand' 
+                          : 'border-gray-200 hover:border-brand hover:shadow-md'
                       }`}
                     >
                       <img
@@ -565,7 +565,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Main Image */}
             <div 
               ref={imageContainerRef}
-              className="aspect-square rounded-lg bg-white cursor-default md:cursor-crosshair relative w-full max-w-full overflow-hidden"
+              className="aspect-square rounded bg-white cursor-default md:cursor-crosshair relative w-full max-w-full overflow-hidden"
               onMouseEnter={() => {
                 setShowZoomPreview(true);
                 if (imageContainerRef.current) {
@@ -597,7 +597,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Fit Type Badge - Top Left Corner */}
               {product.product_apparel_details?.fit_type && (
                 <div className="absolute top-2 left-2 z-30 pointer-events-none">
-                  <span className="px-3 py-1.5 bg-[#4736FE] text-white text-xs font-medium rounded-lg shadow-lg">
+                  <span className="px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg shadow-lg">
                     {product.product_apparel_details.fit_type}
                   </span>
                 </div>
@@ -641,8 +641,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   <svg 
                     className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
                       isSharing 
-                        ? 'text-blue-500' 
-                        : 'text-gray-600 hover:text-blue-500'
+                        ? 'text-brand' 
+                        : 'text-gray-600 hover:text-brand'
                     }`}
                     fill="none" 
                     stroke="currentColor" 
@@ -667,7 +667,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Magnifying Glass Overlay */}
               {showZoomPreview && (
                 <div 
-                  className="hidden md:block absolute w-20 h-20 border-2 border-blue-500 bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
+                  className="hidden md:block absolute w-20 h-20 border-2 border-brand bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
                   style={{
                     left: `${mousePosition.x}%`,
                     top: `${mousePosition.y}%`,
@@ -698,7 +698,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Zoomed Image Preview - Right Side */}
             {showZoomPreview && imageContainerSize.width > 0 && (
               <div 
-                className="hidden md:block fixed bg-white rounded-lg shadow-2xl z-50 overflow-hidden aspect-square"
+                className="hidden md:block fixed bg-white rounded shadow-2xl z-50 overflow-hidden aspect-square"
                 style={{
                   width: `${imageContainerSize.width}px`,
                   height: `${imageContainerSize.height}px`,
@@ -730,12 +730,12 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Main Image */}
               <div 
                 ref={imageContainerRef}
-                className="aspect-square rounded-lg bg-white cursor-default w-full max-w-full overflow-hidden"
+                className="aspect-square rounded bg-white cursor-default w-full max-w-full overflow-hidden"
               >
                 {/* Fit Type Badge - Top Left Corner */}
                 {product.product_apparel_details?.fit_type && (
                   <div className="absolute top-2 left-2 z-20">
-                    <span className="px-3 py-1.5 bg-[#4736FE] text-white text-xs font-medium rounded-lg shadow-lg">
+                    <span className="px-3 py-1.5 bg-brand text-white text-xs font-medium rounded-lg shadow-lg">
                       {product.product_apparel_details.fit_type}
                     </span>
                   </div>
@@ -798,15 +798,15 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="md:hidden flex gap-5 overflow-x-auto pb-2 -mx-1 px-1 mt-4">
+              <div className="md:hidden flex gap-1 overflow-x-auto pb-2 mt-2 scrollbar-hide">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
                     onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded-xl transition-all duration-200 shadow-sm border-2 ${
+                    className={`flex-shrink-0 w-20 h-20 overflow-hidden rounded transition-all duration-200 shadow-sm border-2 ${
                       selectedImage === index 
-                        ? 'ring-2 ring-[#4736FE] ring-opacity-30 scale-105 border-[#4736FE]' 
-                        : 'border-gray-200 hover:border-[#4736FE] hover:shadow-md'
+                        ? 'ring-2 ring-brand ring-opacity-30 scale-105 border-brand' 
+                        : 'border-gray-200 hover:border-brand hover:shadow-md'
                     }`}
                   >
                     <img
@@ -837,7 +837,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <h1 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 leading-tight">{product.name}</h1>
               <div className="mt-3 flex flex-wrap items-center gap-4">
                 <div className="flex items-baseline gap-3">
-                  <span className="text-lg sm:text-xl font-semibold text-[#4736FE]">₹{product.price.toFixed(2)}</span>
+                  <span className="text-lg sm:text-xl font-semibold text-brand">₹{product.price.toFixed(2)}</span>
                   {product.original_price && product.original_price > product.price && (
                     <>
                       <span className="text-sm text-gray-500 line-through">₹{product.original_price.toFixed(2)}</span>
@@ -943,8 +943,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                         onClick={() => setSelectedSize(size)}
                         className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
                           selectedSize === size
-                            ? 'bg-[#4736FE] text-white shadow-lg scale-105'
-                            : 'bg-white text-gray-700 border border-gray-300 hover:border-[#4736FE] hover:text-[#4736FE] hover:shadow-md'
+                            ? 'bg-brand text-white shadow-lg scale-105'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:border-brand hover:text-brand hover:shadow-md'
                         }`}
                       >
                         {size}
@@ -961,7 +961,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleAddToCart}
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-                  className="flex-1 bg-[#4736FE] text-white py-4 px-6 rounded-xl font-semibold hover:bg-[#3a2dd8] disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  className="flex-1 bg-yellow-500 text-white py-4 px-6 rounded font-semibold hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-3 shadow hover:shadow-sm transform hover:scale-[1.02]"
                 >
                   <CartIcon className="w-5 h-5 flex-shrink-0" />
                   <span className="text-base">
@@ -971,15 +971,15 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 <button
                   onClick={handleBuyNow}
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-                  className="flex-1 bg-gray-900 text-white py-4 px-6 rounded-xl font-semibold hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-[1.02]"
+                  className="flex-1 bg-orange-600 text-white py-4 px-6 rounded font-semibold hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
                 >
                   Buy Now
                 </button>
               </div>
 
               {product.stock_quantity === 0 && (
-                <div className="text-center p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-                  <p className="text-red-800 font-semibold">This product is currently out of stock</p>
+                <div className="text-center p-4 bg-red-50 border-2 border-red-200 rounded">
+                  <p className="text-gray-900 font-semibold">This product is currently out of stock</p>
                 </div>
               )}
             </div>
@@ -1039,7 +1039,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           
           {relatedLoading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4736FE]"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
               <span className="ml-4 text-gray-600 text-lg">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (

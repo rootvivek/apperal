@@ -7,6 +7,7 @@ import ImageUpload from '@/components/ImageUpload';
 import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Subcategory {
   id: string;
@@ -25,6 +26,7 @@ interface Category {
 }
 
 export default function SubcategoriesPage() {
+  const { user } = useAuth();
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
@@ -36,6 +38,7 @@ export default function SubcategoriesPage() {
   const [subcategorySearch, setSubcategorySearch] = useState('');
   const [editLoading, setEditLoading] = useState(false);
   const [tempSubcategoryId, setTempSubcategoryId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const supabase = createClient();
 
   const [formData, setFormData] = useState({
@@ -78,6 +81,8 @@ export default function SubcategoriesPage() {
       let query = supabase
         .from('subcategories')
         .select('*')
+        // Filter out inactive items (in case of soft delete via is_active)
+        .eq('is_active', true)
         .order('name', { ascending: true });
 
       // Filter by parent category if one is selected
@@ -197,27 +202,53 @@ export default function SubcategoriesPage() {
         parent_category_id: formData.parent_category_id,
       };
 
-      if (editingSubcategory) {
-        const { error: updateError } = await supabase
-          .from('subcategories')
-          .update(subcategoryData)
-          .eq('id', editingSubcategory.id);
+      if (!user?.id) {
+        setError('User not authenticated');
+        return;
+      }
 
-        if (updateError) throw updateError;
+      if (editingSubcategory) {
+        // Use API route for update (bypasses RLS)
+        const response = await fetch('/api/admin/update-subcategory', {
+          method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+          body: JSON.stringify({
+            subcategoryId: editingSubcategory.id,
+            ...subcategoryData
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to update subcategory');
+        }
         
         setSubcategories(subcategories.map(sub => 
           sub.id === editingSubcategory.id ? { ...sub, ...subcategoryData } : sub
         ));
         setEditingSubcategory(null);
       } else {
-        const { data, error: insertError } = await supabase
-          .from('subcategories')
-          .insert([subcategoryData])
-          .select();
+        // Use API route for create (bypasses RLS)
+        const response = await fetch('/api/admin/create-subcategory', {
+          method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+          body: JSON.stringify(subcategoryData),
+        });
 
-        if (insertError) throw insertError;
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to create subcategory');
+        }
         
-        setSubcategories([...subcategories, data[0]]);
+        setSubcategories([...subcategories, data.subcategory]);
       }
 
       resetForm();
@@ -239,29 +270,51 @@ export default function SubcategoriesPage() {
   };
 
   const handleDelete = async (subcategoryId: string) => {
-    if (!confirm('Are you sure you want to delete this subcategory?')) return;
+    if (!confirm('Are you sure you want to delete this subcategory? This will also delete all products under it and their images.')) return;
+
+    if (!user?.id) {
+      setError('User not authenticated');
+      return;
+    }
 
     try {
-      const subcategoryToDelete = subcategories.find(sub => sub.id === subcategoryId);
+      setDeleting(subcategoryId);
+      setError(null);
       
-      const { error: deleteError } = await supabase
-        .from('subcategories')
-        .delete()
-        .eq('id', subcategoryId);
+      const response = await fetch('/api/admin/delete-subcategory', {
+        method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+        body: JSON.stringify({ subcategoryId }),
+      });
 
-      if (deleteError) throw deleteError;
-      
-      if (subcategoryToDelete?.image_url) {
-        try {
-          await deleteImageFromSupabase(subcategoryToDelete.image_url, 'subcategory-images');
-        } catch (imgErr) {
-          console.warn('Could not delete subcategory image:', imgErr);
-        }
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete subcategory');
       }
+
+      // Show success message
+      alert('Subcategory deleted successfully');
       
+      // Remove from local state only after successful deletion
       setSubcategories(subcategories.filter(sub => sub.id !== subcategoryId));
+      
+      // Force refresh immediately and again after a delay to ensure consistency
+      await fetchSubcategories();
+      
+      // Double-check after a delay to catch any async issues
+      setTimeout(async () => {
+        await fetchSubcategories();
+      }, 1000);
     } catch (err: any) {
-      setError(err.message);
+      const errorMessage = err.message || 'Failed to delete subcategory';
+      setError(errorMessage);
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setDeleting(null);
     }
   };
 
@@ -464,11 +517,15 @@ export default function SubcategoriesPage() {
                 { key: 'created_at', label: 'Created', sortable: true, render: (value: string) => formatDate(value) },
                 { key: 'id', label: 'Actions', sortable: false, render: (value: string, row: Subcategory) => (
                   <div className="flex space-x-2">
-                    <button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-900 text-sm font-medium">
+                    <button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-900 text-sm font-medium" disabled={!!deleting}>
                       Edit
                     </button>
-                    <button onClick={() => handleDelete(value)} className="text-red-600 hover:text-red-900 text-sm font-medium">
-                      Delete
+                    <button 
+                      onClick={() => handleDelete(value)} 
+                      className="text-red-600 hover:text-red-900 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                      disabled={!!deleting}
+                    >
+                      {deleting === value ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 ), },

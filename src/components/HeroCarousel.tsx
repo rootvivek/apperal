@@ -34,7 +34,7 @@ export default function HeroCarousel() {
         .eq('is_active', true)
         .eq('show_in_hero', true)
         .order('created_at', { ascending: false })
-        .limit(8);
+        .limit(4);
 
       if (error) throw error;
       
@@ -55,7 +55,7 @@ export default function HeroCarousel() {
 
   if (loading) {
     return (
-      <div className="w-full h-[50vh] flex items-center justify-center bg-white">
+      <div className="w-full h-[50vh] md:h-[70vh] flex items-center justify-center bg-white mb-0 pb-0 sm:pb-0">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading featured products...</p>
@@ -66,7 +66,7 @@ export default function HeroCarousel() {
 
   if (products.length === 0) {
     return (
-      <div className="w-full h-[50vh] bg-white mb-0 flex items-center justify-center">
+      <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 sm:pb-4 flex items-center justify-center">
         <div className="text-center text-gray-500">
           <p>No featured products available</p>
         </div>
@@ -75,14 +75,14 @@ export default function HeroCarousel() {
   }
 
   return (
-    <div className="w-full h-[50vh] bg-white mb-0">
+    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 sm:pb-4 -mt-2 sm:mt-0">
       <div className="h-full w-full px-0 py-0">
         {/* Product Grid - Images Only */}
         <div className="h-full overflow-hidden relative">
-          <div className="flex animate-scroll h-full gap-2">
+          <div className="flex animate-scroll h-full" style={{ paddingLeft: '0.25rem' }}>
             {/* Show products once for now - can add infinite scroll later if needed */}
             {products.map((product, index) => (
-              <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full w-full md:w-1/2 lg:w-1/4">
+              <div key={`${product.id}-${index}`} className="flex-shrink-0 h-full w-full md:w-1/2 lg:w-1/4" style={{ marginRight: index < products.length - 1 ? '0.25rem' : '0', marginLeft: index === 0 ? '-0.25rem' : '0' }}>
                 <ProductCard 
                   product={{
                     ...product,

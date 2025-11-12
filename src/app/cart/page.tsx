@@ -62,7 +62,7 @@ function CartContent() {
             )}
             <Link
               href="/products"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
             >
               Start Shopping
             </Link>
@@ -156,7 +156,7 @@ function CartContent() {
               <div className="px-6 py-4 border-t border-gray-200">
                 <Link
                   href="/products"
-                  className="text-blue-600 hover:text-blue-800 font-medium"
+                  className="text-orange-600 hover:text-orange-800 font-medium"
                 >
                   ← Continue Shopping
                 </Link>
@@ -198,7 +198,7 @@ function CartContent() {
                   {!user && (
                     <Link
                       href="/login"
-                      className="w-full bg-yellow-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-yellow-700 transition-colors text-center block mb-2"
+                      className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-700 transition-colors text-center block mb-2"
                     >
                       Login to Checkout
                     </Link>
@@ -206,7 +206,7 @@ function CartContent() {
                   {user && (
                     <Link
                       href="/checkout"
-                      className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors text-center block"
+                      className="w-full bg-orange-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-orange-700 transition-colors text-center block"
                     >
                       Proceed to Checkout
                     </Link>

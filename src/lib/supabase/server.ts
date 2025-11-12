@@ -8,10 +8,20 @@ export function createServerClient() {
     throw new Error('Missing Supabase environment variables')
   }
 
+  // Create client with service role key - this should bypass ALL RLS policies
   return createClient(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
-      persistSession: false
+      persistSession: false,
+      // Ensure we're using service role, not anon key
+      detectSessionInUrl: false
+    },
+    // Explicitly set headers to ensure service role is used
+    global: {
+      headers: {
+        'apikey': supabaseServiceKey,
+        'Authorization': `Bearer ${supabaseServiceKey}`
+      }
     }
   })
 }

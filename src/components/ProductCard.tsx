@@ -216,9 +216,9 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
       case 'SALE':
         return 'bg-red-500 text-white';
       case 'HOT':
-        return 'bg-orange-500 text-white';
+        return 'bg-brand-400 text-white';
       case 'FEATURED':
-        return 'bg-blue-500 text-white';
+        return 'bg-brand-400 text-white';
       case 'LIMITED':
         return 'bg-purple-500 text-white';
       default:
@@ -229,15 +229,15 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
   // Conditional styling based on variant - memoized
   const { cardClasses, imageClasses, contentClasses, productUrl } = useMemo(() => {
     const card = variant === 'minimal' || variant === 'image-only'
-      ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-100 h-full"
-      : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-100";
+      ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-200 h-full"
+      : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-200";
     
     const image = variant === 'minimal' || variant === 'image-only'
       ? "h-full w-full object-cover transition-transform duration-300"
       : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
       
     const content = variant === 'minimal'
-      ? "px-3 py-1"
+      ? "px-2 py-1"
       : variant === 'image-only'
       ? "hidden"
       : "p-2";
@@ -263,37 +263,9 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
       )}
 
 
-      {/* Wishlist Button */}
-      {variant !== 'image-only' && (
-        <button
-          onClick={handleWishlistToggle}
-          disabled={loading}
-          className="absolute top-2 right-2 z-20 p-1.5 bg-white bg-opacity-90 rounded-full shadow-md hover:bg-opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-          aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
-        >
-          <svg 
-            className={`w-4 h-4 transition-colors duration-200 ${
-              isWishlisted 
-                ? 'text-red-500 fill-current' 
-                : 'text-gray-400 hover:text-red-500'
-            }`} 
-            fill={isWishlisted ? 'currentColor' : 'none'} 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
-            />
-          </svg>
-        </button>
-      )}
-
       {/* Product Image */}
       <div 
-        className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-square overflow-hidden relative"} group`}
+        className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[5/6] sm:aspect-[4/5] overflow-hidden relative"} group`}
         onMouseEnter={startImageSliding}
         onMouseLeave={stopImageSliding}
         onTouchStart={handleTouchStart}
@@ -327,7 +299,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
         
         {/* Multiple images indicator - subtle hint - only show if no product badge */}
         {hasMultipleImages && variant !== 'image-only' && !product.badge && (
-          <div className="absolute top-2 left-2 bg-blue-500 text-white text-xs px-1.5 py-0.5 rounded-full opacity-80">
+          <div className="absolute top-2 left-2 bg-brand-400 text-white text-xs px-1.5 py-0.5 rounded-full opacity-80">
             <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
             </svg>
@@ -344,9 +316,37 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
 
       {/* Product Info */}
       <div className={contentClasses}>
-        <h3 className="font-normal text-gray-900 mb-1 sm:mb-2 line-clamp-2 group-hover:text-blue-600 transition-colors text-xs sm:text-sm" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
-          {product.name}
-        </h3>
+        <div className="flex items-start justify-between gap-2 mb-1 sm:mb-2">
+          <h3 className="font-medium text-gray-900 line-clamp-2 group-hover:text-brand transition-colors text-sm sm:text-base flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+            {product.name}
+          </h3>
+          {variant !== 'image-only' && (
+            <button
+              onClick={handleWishlistToggle}
+              disabled={loading}
+              className="p-0 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+            >
+              <svg 
+                className={`w-4 h-4 transition-colors duration-200 ${
+                  isWishlisted 
+                    ? 'text-red-500 fill-current' 
+                    : 'text-gray-400 hover:text-red-500'
+                }`} 
+                fill={isWishlisted ? 'currentColor' : 'none'} 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" 
+                />
+              </svg>
+            </button>
+          )}
+        </div>
         
         <div className="flex items-center space-x-1">
           <span className="text-sm sm:text-base font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>

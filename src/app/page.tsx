@@ -131,9 +131,36 @@ export default function Home() {
       const activeCategorySections = transformedCategorySections.filter(
         (section: any) => section.category?.is_active !== false
       );
-      const activeCategories = activeCategorySections.map((s: any) => s.category).filter(
+      let activeCategories = activeCategorySections.map((s: any) => s.category).filter(
         (cat: any) => cat?.is_active !== false
       );
+
+      // If RPC result includes subcategories, attach them; otherwise fetch separately
+      if (result?.subcategories) {
+        const subcategories = result.subcategories || [];
+        activeCategories = activeCategories.map((category: any) => ({
+          ...category,
+          subcategories: subcategories.filter(
+            (subcat: any) => subcat.parent_category_id === category.id
+          )
+        }));
+      } else {
+        // Fetch subcategories if not in RPC result
+        const { data: subcategoriesData } = await supabase
+          .from('subcategories')
+          .select('*')
+          .eq('is_active', true)
+          .order('name', { ascending: true });
+        
+        if (subcategoriesData) {
+          activeCategories = activeCategories.map((category: any) => ({
+            ...category,
+            subcategories: subcategoriesData.filter(
+              (subcat: any) => subcat.parent_category_id === category.id
+            )
+          }));
+        }
+      }
       
       setAllProducts(transformedAllProducts);
       setCategorySections(activeCategorySections);
@@ -174,17 +201,36 @@ export default function Home() {
         console.error('All products error:', allProductsError);
       }
 
-      // Fetch categories (only active categories)
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('categories')
-        .select('*')
-        .is('parent_category_id', null)
-        .eq('is_active', true)
-        .order('name', { ascending: true });
+      // Fetch categories and subcategories in parallel
+      const [categoriesResult, subcategoriesResult] = await Promise.all([
+        supabase
+          .from('categories')
+          .select('*')
+          .is('parent_category_id', null)
+          .eq('is_active', true)
+          .order('name', { ascending: true }),
+        supabase
+          .from('subcategories')
+          .select('*')
+          .eq('is_active', true)
+          .order('name', { ascending: true })
+      ]);
 
-      if (categoriesError) {
-        console.error('Categories error:', categoriesError);
+      if (categoriesResult.error) {
+        console.error('Categories error:', categoriesResult.error);
       }
+
+      if (subcategoriesResult.error) {
+        console.error('Subcategories error:', subcategoriesResult.error);
+      }
+
+      // Attach subcategories to their parent categories
+      const categoriesData = (categoriesResult.data || []).map((category: any) => ({
+        ...category,
+        subcategories: (subcategoriesResult.data || []).filter(
+          (subcat: any) => subcat.parent_category_id === category.id
+        )
+      }));
 
       // Fetch products for each category
       const categorySectionsData: CategoryWithProducts[] = [];
@@ -247,26 +293,52 @@ export default function Home() {
 
   return (
     <main className="min-h-screen bg-white">
-      {/* Categories Section - Show after navbar */}
-      <section className="pt-2 pb-2 sm:pt-3 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto">
-        <CategoryGrid categories={categories} />
-      </section>
-
       {/* Hero Carousel */}
       <HeroCarousel />
+
+      {/* Categories Section - Show after carousel */}
+      <section className="pt-8 pb-0 sm:pt-8 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto">
+        <CategoryGrid categories={categories} />
+      </section>
 
       {/* All Products Section */}
       <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white">
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
-          <div className="text-center mb-2 sm:mb-4">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2 sm:mb-4">All Products</h2>
+          <div className="flex items-center justify-between mb-2 sm:mb-4">
+            <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">All Products</h2>
+            <Link
+              href="/products"
+              className="text-sm text-brand hover:text-brand-600 font-medium"
+            >
+              Show More →
+            </Link>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-              {allProducts.map((product) => (
-                <ProductCard key={product.id} product={product as any} />
-              ))}
-            </div>
+            <>
+              {/* Mobile: Horizontal scroll, 2 items visible */}
+              <div className="sm:hidden">
+                <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
+                  <div className="flex gap-2" style={{ width: 'max-content' }}>
+                    {allProducts.map((product) => (
+                      <div
+                        key={product.id}
+                        className="flex-shrink-0"
+                        style={{ width: 'calc((100vw - 2rem) / 2 - 0.5rem)', maxWidth: '180px' }}
+                      >
+                        <ProductCard product={product as any} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Desktop: Grid layout */}
+              <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                {allProducts.map((product) => (
+                  <ProductCard key={product.id} product={product as any} />
+                ))}
+              </div>
+            </>
           ) : (
             <div className="text-center py-12">
               <div className="text-gray-400 text-6xl mb-4">🛍️</div>
@@ -276,44 +348,51 @@ export default function Home() {
               </p>
             </div>
           )}
-          <div className="text-center mt-8">
-            <Link
-              href="/products"
-              className="bg-blue-600 text-white px-8 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors"
-            >
-              View All Products
-            </Link>
-          </div>
         </div>
       </section>
 
       {/* Dynamic Category Sections */}
       {categorySections.map((section, index) => {
         const bgColor = 'bg-white';
-        const buttonColors = [
-          'bg-green-600 hover:bg-green-700',
-          'bg-purple-600 hover:bg-purple-700',
-          'bg-orange-600 hover:bg-orange-700',
-          'bg-red-600 hover:bg-red-700',
-          'bg-indigo-600 hover:bg-indigo-700',
-          'bg-pink-600 hover:bg-pink-700',
-          'bg-teal-600 hover:bg-teal-700',
-          'bg-yellow-600 hover:bg-yellow-700'
-        ];
-        const buttonColor = buttonColors[index % buttonColors.length];
         
         return (
-          <section key={section.category.id} className={`py-16 ${bgColor}`}>
+          <section key={section.category.id} className={`pt-8 pb-16 sm:pt-8 sm:pb-4 ${bgColor}`}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
-              <div className="text-center mb-12">
-                <h2 className="text-2xl font-semibold text-gray-900 mb-4">{section.category.name}</h2>
+              <div className="flex items-center justify-between mb-12">
+                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
+                <Link
+                  href={`/products/${section.category.slug}`}
+                  className="text-sm text-brand hover:text-brand-600 font-medium"
+                >
+                  Show More →
+                </Link>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                  {section.products.map((product) => (
-                    <ProductCard key={product.id} product={product as any} />
-                  ))}
-                </div>
+                <>
+                  {/* Mobile: Horizontal scroll, 2 items visible */}
+                  <div className="sm:hidden">
+                    <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
+                      <div className="flex gap-2" style={{ width: 'max-content' }}>
+                        {section.products.map((product) => (
+                          <div
+                            key={product.id}
+                            className="flex-shrink-0"
+                            style={{ width: 'calc((100vw - 2rem) / 2 - 0.5rem)', maxWidth: '180px' }}
+                          >
+                            <ProductCard product={product as any} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Desktop: Grid layout */}
+                  <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                    {section.products.map((product) => (
+                      <ProductCard key={product.id} product={product as any} />
+                    ))}
+                  </div>
+                </>
               ) : (
                 <div className="text-center py-12">
                   <div className="text-gray-400 text-6xl mb-4">📦</div>
@@ -323,14 +402,6 @@ export default function Home() {
                   </p>
                 </div>
               )}
-              <div className="text-center mt-8">
-                <Link
-                  href={`/products/${section.category.slug}`}
-                  className={`${buttonColor} text-white px-8 py-3 rounded-lg font-semibold transition-colors`}
-                >
-                  Shop {section.category.name}
-                </Link>
-              </div>
             </div>
           </section>
         );

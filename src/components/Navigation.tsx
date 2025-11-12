@@ -209,7 +209,7 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5" style={{ backgroundColor: '#000000' }}>
+      <nav className="bg-brand-500 shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5">
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center relative">
           {/* Logo */}
@@ -226,7 +226,7 @@ export default function Navigation() {
                 <div key={category.id} className="relative group">
                   <Link
                     href={`/products/${category.slug}`}
-                    className="text-white hover:text-gray-300 text-base font-normal transition-colors flex items-center"
+                    className="text-white hover:text-brand-400 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
@@ -244,7 +244,7 @@ export default function Navigation() {
                           <Link
                             key={subcategory.id}
                             href={`/products/${category.slug}/${subcategory.slug}`}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors"
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors"
                           >
                             {subcategory.name}
                           </Link>
@@ -276,7 +276,7 @@ export default function Navigation() {
                   // Handle mobile search icon click
                   openMobileSearch();
                 }}
-                className="sm:hidden text-white hover:text-gray-300 p-2"
+                className="sm:hidden text-white hover:text-brand-400 p-2"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -285,12 +285,12 @@ export default function Navigation() {
             )}
 
             {/* Wishlist Icon */}
-            <Link href="/wishlist" className={`text-white hover:text-gray-300 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/wishlist" className={`text-white hover:text-brand-400 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <WishlistIcon showCount={true} count={wishlistCount} />
             </Link>
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
-            <Link href="/cart" className={`text-white hover:text-gray-300 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/cart" className={`text-white hover:text-brand-400 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <CartIcon showCount={true} count={cartCount} />
             </Link>
             
@@ -310,7 +310,7 @@ export default function Navigation() {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-gray-300 transition-colors cursor-pointer"
+                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-brand-400 transition-colors cursor-pointer"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -335,7 +335,7 @@ export default function Navigation() {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="sm:hidden text-white hover:text-gray-300 p-2"
+                    className="sm:hidden text-white hover:text-brand-400 p-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -352,7 +352,7 @@ export default function Navigation() {
                         <Link
                           href="/profile"
                           onClick={() => setShowUserDropdown(false)}
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -364,7 +364,7 @@ export default function Navigation() {
                         <Link
                           href="/orders"
                           onClick={() => setShowUserDropdown(false)}
-                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-blue-600 transition-colors cursor-pointer"
+                          className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-2">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -400,7 +400,7 @@ export default function Navigation() {
                   {/* Mobile: User Icon */}
                   <Link
                     href="/login"
-                    className="sm:hidden text-white hover:text-gray-300 p-2"
+                    className="sm:hidden text-white hover:text-brand-400 p-2"
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -411,7 +411,7 @@ export default function Navigation() {
                   <div className="hidden sm:flex items-center">
                     <Link
                       href="/login"
-                      className="bg-white text-black px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-gray-100 transition-colors"
+                      className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
                     >
                       Sign In
                     </Link>
@@ -424,52 +424,6 @@ export default function Navigation() {
         </div>
       </nav>
 
-      {/* Mobile Subcategories Section - Only visible on mobile and home page */}
-      {!showMobileSearch && pathname === '/' && (
-        <div className="sm:hidden bg-white border-t border-gray-100 pt-1 pb-2">
-          <div className="flex justify-center items-center">
-            {categoriesLoading ? (
-              <div className="flex flex-wrap justify-center gap-3" style={{ width: 'fit-content' }}>
-                {[...Array(10)].map((_, index) => (
-                    <div key={index} className="flex flex-col items-center text-center">
-                      <div className="w-20 h-20 bg-gray-200 animate-pulse rounded-[2px] mb-1.5"></div>
-                      <div className="h-3 w-16 bg-gray-200 animate-pulse rounded"></div>
-                    </div>
-                ))}
-              </div>
-            ) : getAllCategories().length > 0 ? (
-              <div className="flex flex-wrap justify-center gap-3" style={{ width: 'fit-content' }}>
-                  {getAllCategories().slice(0, 20).map((category) => {
-                    return (
-                      <Link
-                        key={category.id}
-                        href={`/products/${category.slug}`}
-                        className="flex flex-col items-center text-center group"
-                      >
-                        <div className="w-20 h-20 overflow-hidden mb-1.5 rounded-[2px] shadow-sm">
-                          <img
-                            src={category.image_url || '/images/categories/placeholder.svg'}
-                            alt={category.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              const target = e.target as HTMLImageElement;
-                              target.src = '/images/categories/placeholder.svg';
-                            }}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-700 group-hover:text-blue-600 transition-colors line-clamp-2 text-center max-w-[80px]">
-                          {category.name}
-                        </span>
-                      </Link>
-                    );
-                  })}
-              </div>
-            ) : (
-              <div className="text-gray-500 text-xs text-center">No categories available</div>
-            )}
-          </div>
-        </div>
-      )}
     </>
   );
 }

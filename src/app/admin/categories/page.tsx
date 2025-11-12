@@ -305,27 +305,32 @@ export default function CategoriesPage() {
         // Subcategories inherit detail_type from parent category - don't set it here
       }
 
+      if (!user?.id) {
+        setError('User not authenticated');
+        setEditLoading(false);
+        return;
+      }
+
       if (editingCategory) {
         if (editingCategory.parent_category_id) {
-          // Update subcategory in subcategories table
-          // Try with detail_type first, fallback without it if column doesn't exist
-          let updateData = { ...categoryData };
-          let { error: updateError } = await supabase
-            .from('subcategories')
-            .update(updateData)
-          .eq('id', editingCategory.id);
+          // Update subcategory using API route (bypasses RLS)
+          const response = await fetch('/api/admin/update-subcategory', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+            body: JSON.stringify({
+              subcategoryId: editingCategory.id,
+              ...categoryData
+            }),
+          });
 
-          // If error about detail_type column, retry without it
-          if (updateError && updateError.message?.includes('detail_type')) {
-            const { detail_type, ...dataWithoutDetailType } = updateData;
-            const { error: retryError } = await supabase
-              .from('subcategories')
-              .update(dataWithoutDetailType)
-              .eq('id', editingCategory.id);
-            updateError = retryError;
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to update subcategory');
           }
-
-        if (updateError) throw updateError;
         
           // Update subcategories cache
           if (subcategoriesList[editingCategory.parent_category_id]) {
@@ -337,25 +342,24 @@ export default function CategoriesPage() {
           }));
           }
         } else {
-          // Update parent category in categories table
-          // Try with detail_type first, fallback without it if column doesn't exist
-          let updateData = { ...categoryData };
-          let { error: updateError } = await supabase
-            .from('categories')
-            .update(updateData)
-            .eq('id', editingCategory.id);
+          // Update parent category using API route (bypasses RLS)
+          const response = await fetch('/api/admin/update-category', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+            body: JSON.stringify({
+              categoryId: editingCategory.id,
+              ...categoryData
+            }),
+          });
 
-          // If error about detail_type column, retry without it
-          if (updateError && updateError.message?.includes('detail_type')) {
-            const { detail_type, ...dataWithoutDetailType } = updateData;
-            const { error: retryError } = await supabase
-              .from('categories')
-              .update(dataWithoutDetailType)
-              .eq('id', editingCategory.id);
-            updateError = retryError;
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to update category');
           }
-
-          if (updateError) throw updateError;
 
           // Update main categories list
           setCategories(categories.map(cat => 
@@ -369,29 +373,27 @@ export default function CategoriesPage() {
         }
 
         if (isCreatingSubcategory && parentCategoryId) {
-          // Try insert with detail_type first
-          let insertData = { ...categoryData };
-          let { data, error: insertError } = await supabase
-            .from('subcategories')
-            .insert([insertData])
-          .select();
+          // Create subcategory using API route (bypasses RLS)
+          const response = await fetch('/api/admin/create-subcategory', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+            body: JSON.stringify({
+              ...categoryData,
+              parent_category_id: parentCategoryId
+            }),
+          });
 
-          // If error about detail_type column, retry without it
-          if (insertError && insertError.message?.includes('detail_type')) {
-            const { detail_type, ...dataWithoutDetailType } = insertData;
-            const result = await supabase
-              .from('subcategories')
-              .insert([dataWithoutDetailType])
-              .select();
-            data = result.data;
-            insertError = result.error;
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create subcategory');
           }
 
-        if (insertError) throw insertError;
-          if (!data || !data[0]) throw new Error('Failed to create subcategory');
-
           const newSubcategory: Category = {
-            ...data[0],
+            ...data.subcategory,
             parent_category_id: parentCategoryId
           };
           setSubcategoriesList(prev => ({
@@ -399,29 +401,23 @@ export default function CategoriesPage() {
             [parentCategoryId]: [...(prev[parentCategoryId] || []), newSubcategory]
           }));
         } else {
-          // Insert parent category (with detail_type)
-          // Try with detail_type first, fallback without it if column doesn't exist
-          let insertData = { ...categoryData };
-          let { data, error: insertError } = await supabase
-            .from('categories')
-            .insert([insertData])
-            .select();
+          // Create parent category using API route (bypasses RLS)
+          const response = await fetch('/api/admin/create-category', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-user-id': user.id,
+            },
+            body: JSON.stringify(categoryData),
+          });
 
-          // If error about detail_type column, retry without it
-          if (insertError && insertError.message?.includes('detail_type')) {
-            const { detail_type, ...dataWithoutDetailType } = insertData;
-            const result = await supabase
-              .from('categories')
-              .insert([dataWithoutDetailType])
-              .select();
-            data = result.data;
-            insertError = result.error;
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.error || 'Failed to create category');
           }
 
-          if (insertError) throw insertError;
-          if (!data || !data[0]) throw new Error('Failed to create category');
-
-          setCategories([...categories, data[0]]);
+          setCategories([...categories, data.category]);
         }
       }
 
@@ -451,174 +447,115 @@ export default function CategoriesPage() {
   const handleDelete = async (categoryId: string) => {
     if (!confirm('Are you sure you want to delete this category? This will also delete all subcategories and products under it.')) return;
 
+    if (!user?.id) {
+      setError('User not authenticated');
+      return;
+    }
+
     try {
-      let categoryToDelete = categories.find(cat => cat.id === categoryId);
-      let isSubcategoryToDelete = false;
+      setError(null);
       
-      if (!categoryToDelete) {
-        const { data: subcat, error: subcatFetchError } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('id', categoryId)
-          .single();
-        if (subcatFetchError) throw new Error('Category not found: ' + subcatFetchError.message);
-        categoryToDelete = subcat as any as Category;
-        isSubcategoryToDelete = true;
+      // Use API route for deletion (bypasses RLS)
+      const response = await fetch('/api/admin/delete-category', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ categoryId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete category');
       }
+
+      // Show success message
+      alert('Category deleted successfully');
       
-      if (!categoryToDelete?.parent_category_id) {
-        const { data: subcats, error: subcatError } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('parent_category_id', categoryId);
-
-        if (!subcatError && subcats && subcats.length > 0) {
-          for (const subcat of subcats) {
-            try {
-              let prodIdsRes = await supabase
-                .from('products')
-                .select('id')
-                .eq('subcategory_id', subcat.id);
-              let prodIdsError = prodIdsRes.error as any;
-              let prodIds = prodIdsRes.data as any[] | null;
-              if (prodIdsError && (prodIdsError.message?.includes('column') || prodIdsError.message?.includes('does not exist'))) {
-                const legacy = await supabase
-                  .from('products')
-                  .select('id')
-                  .eq('subcategory', subcat.name);
-                prodIds = legacy.data as any[] | null;
-              }
-              if (prodIds && prodIds.length > 0) {
-                for (const p of prodIds) {
-                  try { await deleteFolderContents('product-images', p.id); } catch {}
-                }
-              }
-            } catch {}
-            
-            let del = await supabase
-              .from('products')
-              .delete()
-              .eq('subcategory_id', subcat.id);
-            let prodDeleteError = del.error as any;
-            if (prodDeleteError && (prodDeleteError.message?.includes('column') || prodDeleteError.message?.includes('does not exist'))) {
-              await supabase
-              .from('products')
-              .delete()
-              .eq('subcategory', subcat.name);
-            }
-            
-            try {
-              await deleteFolderContents('subcategory-images', subcat.id);
-            } catch {}
-              try {
-              await deleteFolderContents('category-images', subcat.id);
-            } catch {}
-            }
-
-          const { error: subcatDeleteError } = await supabase
-            .from('subcategories')
-            .delete()
-            .eq('parent_category_id', categoryId);
-
-          if (subcatDeleteError) throw subcatDeleteError;
-        }
-
-        try {
-          let catProdRes = await supabase
-            .from('products')
-            .select('id')
-            .eq('category_id', categoryId);
-          let catProdErr = catProdRes.error as any;
-          let catProds = catProdRes.data as any[] | null;
-          if (catProdErr && (catProdErr.message?.includes('column') || catProdErr.message?.includes('does not exist'))) {
-            const legacy = await supabase
-              .from('products')
-              .select('id')
-              .eq('category', categoryToDelete?.name as string);
-            catProds = legacy.data as any[] | null;
-          }
-          if (catProds && catProds.length > 0) {
-            for (const p of catProds) { try { await deleteFolderContents('product-images', p.id); } catch {} }
-            let del = await supabase.from('products').delete().eq('category_id', categoryId);
-            let delErr = del.error as any;
-            if (delErr && (delErr.message?.includes('column') || delErr.message?.includes('does not exist'))) {
-              await supabase.from('products').delete().eq('category', categoryToDelete?.name as string);
-            }
-          }
-        } catch {}
-      } else {
-        try {
-          let prodIdsRes = await supabase
-          .from('products')
-            .select('id')
-            .eq('subcategory_id', categoryToDelete.id);
-          let prodIdsErr = prodIdsRes.error as any;
-          let prodIds = prodIdsRes.data as any[] | null;
-          if (prodIdsErr && (prodIdsErr.message?.includes('column') || prodIdsErr.message?.includes('does not exist'))) {
-            const legacy = await supabase
-              .from('products')
-              .select('id')
-          .eq('subcategory', categoryToDelete.name);
-            prodIds = legacy.data as any[] | null;
-          }
-          if (prodIds && prodIds.length > 0) {
-            for (const p of prodIds) { try { await deleteFolderContents('product-images', p.id); } catch {} }
-          }
-          try { await deleteFolderContents('subcategory-images', categoryToDelete.id); } catch {}
-          try { await deleteFolderContents('category-images', categoryToDelete.id); } catch {}
-        } catch {}
-        
-        let del = await supabase
-          .from('products')
-          .delete()
-          .eq('subcategory_id', categoryToDelete.id);
-        let prodError = del.error as any;
-        if (prodError && (prodError.message?.includes('column') || prodError.message?.includes('does not exist'))) {
-          await supabase
-            .from('products')
-            .delete()
-            .eq('subcategory', categoryToDelete.name);
-      }
-      }
-
-      if (isSubcategoryToDelete || categoryToDelete?.parent_category_id) {
-        const { error: deleteError } = await supabase
-          .from('subcategories')
-          .delete()
-          .eq('id', categoryId);
-        if (deleteError) throw deleteError;
-      } else {
-      const { error: deleteError } = await supabase
-        .from('categories')
-        .delete()
-        .eq('id', categoryId);
-      if (deleteError) throw deleteError;
-      }
+      // Refresh categories list
+      await fetchCategories();
       
-      if (!categoryToDelete?.parent_category_id) {
-        try {
-          await deleteFolderContents('category-images', categoryId);
-        } catch {}
-      }
-      if (isSubcategoryToDelete || categoryToDelete?.parent_category_id) {
-        if (categoryToDelete?.parent_category_id && subcategoriesList[categoryToDelete.parent_category_id]) {
-          setSubcategoriesList(prev => ({
-            ...prev,
-            [categoryToDelete.parent_category_id!]: prev[categoryToDelete.parent_category_id!].filter(cat => cat.id !== categoryId)
-          }));
-        }
-      } else {
-      setCategories(categories.filter(cat => cat.id !== categoryId));
-      if (subcategoriesList[categoryId]) {
-          const newSubcats = { ...subcategoriesList } as any;
-        delete newSubcats[categoryId];
-        setSubcategoriesList(newSubcats);
-      }
-      }
+      // Double-check after a delay
+      setTimeout(async () => {
+        await fetchCategories();
+      }, 1000);
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Failed to delete category');
+      alert(`Error: ${err.message || 'Failed to delete category'}`);
     }
   };
+
+  const handleDeleteSubcategory = async (subcategoryId: string) => {
+    if (!confirm('Are you sure you want to delete this subcategory? This will also delete all products under it and their images.')) return;
+
+    if (!user?.id) {
+      setError('User not authenticated');
+      return;
+    }
+
+    try {
+      setError(null);
+      
+      // Use API route for subcategory deletion (bypasses RLS)
+      const response = await fetch('/api/admin/delete-subcategory', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ subcategoryId }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to delete subcategory');
+      }
+
+      // Show success message
+      alert('Subcategory deleted successfully');
+      
+      // Refresh categories list to update subcategories
+      await fetchCategories();
+      
+      // Refresh subcategories for the parent category
+      const parentCategory = categories.find(cat => 
+        subcategoriesList[cat.id]?.some(sub => sub.id === subcategoryId)
+      );
+      if (parentCategory) {
+        // Reload subcategories for the parent category
+        setLoadingSubcats(prev => [...prev, parentCategory.id]);
+        try {
+          const { data, error } = await supabase
+            .from('subcategories')
+            .select('*')
+            .eq('parent_category_id', parentCategory.id)
+            .eq('is_active', true)
+            .order('name', { ascending: true });
+
+          if (error) throw error;
+
+          setSubcategoriesList(prev => ({
+            ...prev,
+            [parentCategory.id]: data || []
+          }));
+        } catch (err: any) {
+          setError(`Failed to refresh subcategories: ${err.message}`);
+        } finally {
+          setLoadingSubcats(prev => prev.filter(id => id !== parentCategory.id));
+        }
+      }
+      
+      // Also refresh the main categories list
+      await fetchCategories();
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete subcategory');
+      alert(`Error: ${err.message || 'Failed to delete subcategory'}`);
+    }
+  };
+
 
   const handleAddSubcategory = (parentId: string) => {
     setIsCreatingSubcategory(true);
@@ -1085,7 +1022,7 @@ export default function CategoriesPage() {
                                     Edit
                                   </button>
                                   <button
-                                    onClick={() => handleDelete(subcat.id)}
+                                    onClick={() => handleDeleteSubcategory(subcat.id)}
                                     className="px-2 py-1 text-xs text-red-600 hover:text-red-900"
                                   >
                                     Delete

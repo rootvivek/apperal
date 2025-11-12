@@ -602,7 +602,7 @@ function CheckoutContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
           <p className="text-gray-600 mb-6">Add some items to your cart before checkout</p>
-          <Link href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+          <Link href="/" className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700">
             Continue Shopping
           </Link>
         </div>
@@ -617,7 +617,7 @@ function CheckoutContent() {
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Product not found</h1>
           <p className="text-gray-600 mb-6">The product you're trying to purchase is no longer available.</p>
-          <Link href="/" className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
+          <Link href="/" className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700">
             Continue Shopping
           </Link>
         </div>
@@ -1330,7 +1330,7 @@ function CheckoutContent() {
                 className={`w-full py-3 px-6 rounded-md font-medium transition-colors ${
                   isProcessing
                     ? 'bg-gray-400 text-gray-200 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-orange-600 text-white hover:bg-orange-700'
                 }`}
               >
                 {isProcessing 

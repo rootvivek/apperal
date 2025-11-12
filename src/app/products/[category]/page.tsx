@@ -191,51 +191,87 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         setSubcategories(subcategoriesData);
       }
 
-      // Fetch products for this category - try UUID relationship first, fallback to legacy string
-      let productsData = null;
+      // Fetch products for this category - include products from category and all subcategories
+      let productsData: any[] = [];
       let productsError = null;
       
-      // Try UUID relationship first (category_id)
-      const { data: uuidProducts, error: uuidError } = await supabase
+      // Get all subcategory IDs for this category
+      const subcategoryIds = subcategoriesData?.map((sub: any) => sub.id) || [];
+      
+      // Fetch products from category (UUID relationship)
+      const { data: categoryProducts, error: categoryProductsError } = await supabase
         .from('products')
         .select('*, product_images (id, image_url, alt_text, display_order)')
         .eq('category_id', categoryData.id)
         .eq('is_active', true);
       
-      if (!uuidError && uuidProducts && uuidProducts.length > 0) {
-        productsData = uuidProducts;
-      } else {
-        // Fallback to legacy string field
-        const { data: legacyProducts, error: legacyError } = await supabase
+      if (!categoryProductsError && categoryProducts) {
+        productsData = [...productsData, ...categoryProducts];
+      }
+      
+      // Fetch products from all subcategories (UUID relationship)
+      if (subcategoryIds.length > 0) {
+        const { data: subcategoryProducts, error: subcategoryError } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .in('subcategory_id', subcategoryIds)
+          .eq('is_active', true);
+        
+        if (!subcategoryError && subcategoryProducts) {
+          // Combine and remove duplicates by product ID
+          const existingIds = new Set(productsData.map((p: any) => p.id));
+          const newProducts = subcategoryProducts.filter((p: any) => !existingIds.has(p.id));
+          productsData = [...productsData, ...newProducts];
+        }
+      }
+      
+      // If no products found with UUID relationship, try legacy string fields
+      if (productsData.length === 0) {
+        const subcategoryNames = subcategoriesData?.map((sub: any) => sub.name) || [];
+        
+        // Fetch products from category (legacy)
+        const { data: legacyCategoryProducts, error: legacyCategoryError } = await supabase
           .from('products')
           .select('*, product_images (id, image_url, alt_text, display_order)')
           .eq('category', categoryData.name)
           .eq('is_active', true);
-        productsData = legacyProducts;
-        productsError = legacyError;
+        
+        if (!legacyCategoryError && legacyCategoryProducts) {
+          productsData = [...productsData, ...legacyCategoryProducts];
+        }
+        
+        // Fetch products from subcategories (legacy)
+        if (subcategoryNames.length > 0) {
+          const { data: legacySubcategoryProducts, error: legacySubcategoryError } = await supabase
+            .from('products')
+            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .in('subcategory', subcategoryNames)
+            .eq('is_active', true);
+          
+          if (!legacySubcategoryError && legacySubcategoryProducts) {
+            const existingIds = new Set(productsData.map((p: any) => p.id));
+            const newProducts = legacySubcategoryProducts.filter((p: any) => !existingIds.has(p.id));
+            productsData = [...productsData, ...newProducts];
+          }
+        }
       }
 
-      if (productsError) {
-        setProducts([]);
-        setCategory(categoryData);
-        return;
-      }
 
       // Get subcategory names map for UUID-based products
       // Fetch ALL subcategories (active and inactive) for products that already have subcategory_id
       // This ensures products are still displayed even if their subcategory becomes inactive
-      const subcategoryIds = Array.from(new Set(
+      const productSubcategoryIds = Array.from(new Set(
         productsData
           .filter((p: any) => p.subcategory_id)
           .map((p: any) => p.subcategory_id)
       ));
       
       let subcategoryNameMap: { [key: string]: string } = {};
-      if (subcategoryIds.length > 0) {
+      if (productSubcategoryIds.length > 0) {
         const { data: subcats } = await supabase
           .from('subcategories')
           .select('id, name, is_active')
-          .in('id', subcategoryIds);
+          .in('id', productSubcategoryIds);
         if (subcats) {
           // Map all subcategories (we'll filter the display list, but keep products accessible)
           subcategoryNameMap = Object.fromEntries(
@@ -301,7 +337,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
             <p className="text-gray-600 mb-8">The category you&apos;re looking for doesn&apos;t exist.</p>
             <Link
               href="/products"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700"
             >
               Browse All Products
             </Link>
