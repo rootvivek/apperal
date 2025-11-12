@@ -10,7 +10,7 @@ interface AdminGuardProps {
 }
 
 // Admin phone number - only this user can access admin panel
-const ADMIN_PHONE = '8881765192';
+const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE || '8881765192';
 
 export default function AdminGuard({ children }: AdminGuardProps) {
   const { user, loading } = useAuth();
@@ -46,7 +46,6 @@ export default function AdminGuard({ children }: AdminGuardProps) {
           .maybeSingle();
 
         if (error) {
-          console.error('Error fetching user profile:', error);
           setAccessDenied(true);
           setIsAdmin(false);
           setIsChecking(false);
@@ -70,7 +69,6 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         }
         setIsChecking(false);
       } catch (error) {
-        console.error('Error checking admin access:', error);
         setAccessDenied(true);
         setIsAdmin(false);
         setIsChecking(false);

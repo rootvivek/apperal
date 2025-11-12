@@ -490,30 +490,68 @@ function CheckoutContent() {
     }
   };
   
+  // Check for direct purchase params immediately (even before mounted check) - CRITICAL FOR PRODUCTION
+  // This runs on every render to catch direct purchase params even if state hasn't updated
+  let immediateDirectPurchaseCheck = false;
+  let immediateProductId: string | null = null;
+  let immediateQuantity: string | null = null;
+  let immediateSize: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const direct = params.get('direct');
+      immediateProductId = params.get('productId');
+      immediateQuantity = params.get('quantity');
+      immediateSize = params.get('size');
+      immediateDirectPurchaseCheck = direct === 'true' && !!immediateProductId && !!immediateQuantity;
+    } catch (e) {
+      console.error('Error checking URL params:', e);
+    }
+  }
+  
+  // Use useLayoutEffect to trigger fetch immediately when direct purchase is detected (runs synchronously)
+  useEffect(() => {
+    if (immediateDirectPurchaseCheck && !isDirectPurchase && !hasFetchedDirectProduct.current && immediateProductId && immediateQuantity) {
+      console.log('Direct purchase detected from URL, triggering immediate fetch');
+      setIsDirectPurchase(true);
+      setLoadingDirectProduct(true);
+      setUrlParams({
+        direct: 'true',
+        productId: immediateProductId,
+        quantity: immediateQuantity,
+        size: immediateSize
+      });
+    }
+  }, [immediateDirectPurchaseCheck, immediateProductId, immediateQuantity, immediateSize, isDirectPurchase]);
+  
   // Always check URL on render (for production reliability) - but only after mount
   const isDirectPurchaseFromUrl = checkDirectPurchaseFromUrl();
-  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl;
-  
+  // Include immediate check in shouldShowDirectPurchase for maximum reliability
+  const shouldShowDirectPurchase = isDirectPurchase || isDirectPurchaseFromUrl || immediateDirectPurchaseCheck;
+
   // Determine if we're still waiting for direct purchase product to load
   // We're waiting if:
-  // 1. We detected direct purchase, AND
+  // 1. We detected direct purchase (from any source), AND
   // 2. We don't have items yet, AND
   // 3. Either we're actively loading OR we haven't attempted to fetch yet (hasFetchedDirectProduct is false)
-  const isWaitingForDirectProduct = shouldShowDirectPurchase && 
+  const isWaitingForDirectProduct = (shouldShowDirectPurchase || immediateDirectPurchaseCheck) && 
                                      directPurchaseItems.length === 0 && 
                                      (loadingDirectProduct || !hasFetchedDirectProduct.current);
-
+  
   // Show loading state while:
   // 1. Component hasn't mounted yet (SSR/hydration), OR
   // 2. Cart is loading, OR
   // 3. We detected direct purchase but haven't loaded the product yet
-  if (!mounted || cartLoading || isWaitingForDirectProduct) {
+  if (!mounted || 
+      cartLoading || 
+      isWaitingForDirectProduct || 
+      (immediateDirectPurchaseCheck && directPurchaseItems.length === 0)) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">
-            {shouldShowDirectPurchase ? 'Loading product details...' : 'Loading checkout...'}
+            {(shouldShowDirectPurchase || immediateDirectPurchaseCheck) ? 'Loading product details...' : 'Loading checkout...'}
           </p>
         </div>
       </div>
@@ -522,13 +560,43 @@ function CheckoutContent() {
 
   // Check if cart is empty and not a direct purchase
   // NEVER show "cart empty" if we've detected a direct purchase (even if product failed to load)
-  // Only show "cart empty" if:
+  // Check URL params one final time to be absolutely sure (even if mounted check fails)
+  let hasDirectPurchaseParams = false;
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      hasDirectPurchaseParams = params.get('direct') === 'true' && 
+                                !!params.get('productId') && 
+                                !!params.get('quantity');
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+  
+  // Final check - combine ALL possible direct purchase indicators
+  const finalDirectPurchaseCheck = hasDirectPurchaseParams || 
+                                   immediateDirectPurchaseCheck ||
+                                   checkDirectPurchaseFromUrl() || 
+                                   shouldShowDirectPurchase ||
+                                   isDirectPurchase ||
+                                   urlParams.direct === 'true';
+  
+  // CRITICAL: Only show "cart empty" if ALL of these are true:
   // 1. Component is mounted (client-side), AND
   // 2. Cart is empty, AND
-  // 3. We have NOT detected any direct purchase indicators (check URL one more time to be sure)
-  // 4. Cart loading is complete
-  const finalDirectPurchaseCheck = checkDirectPurchaseFromUrl() || shouldShowDirectPurchase;
-  if (mounted && cartItems.length === 0 && !finalDirectPurchaseCheck && !cartLoading) {
+  // 3. We have NOT detected ANY direct purchase indicators (multiple redundant checks), AND
+  // 4. Cart loading is complete, AND
+  // 5. We're not waiting for direct product, AND
+  // 6. We don't have direct purchase items
+  // This prevents the empty cart message from showing during direct purchase
+  if (mounted && 
+      cartItems.length === 0 && 
+      !finalDirectPurchaseCheck && 
+      !immediateDirectPurchaseCheck &&
+      !cartLoading && 
+      !isWaitingForDirectProduct &&
+      directPurchaseItems.length === 0 &&
+      !hasFetchedDirectProduct.current) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

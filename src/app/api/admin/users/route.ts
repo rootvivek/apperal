@@ -30,20 +30,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     
     const { data: users, error: usersError } = await query;
     
-    // Log for debugging
     if (usersError) {
-      console.error('Supabase query error:', {
-        error: usersError,
-        includeDeleted,
-        message: usersError.message,
-        code: usersError.code,
-        details: usersError.details,
-        hint: usersError.hint
-      });
-    }
-
-    if (usersError) {
-      console.error('Error fetching users:', usersError);
       return NextResponse.json(
         { error: 'Failed to fetch users', details: usersError.message },
         { status: 500 }
@@ -51,7 +38,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     }
 
     // Admin phone number - must match AdminGuard
-    const ADMIN_PHONE = '8881765192';
+    const ADMIN_PHONE = process.env.ADMIN_PHONE || '8881765192';
 
     // Fetch order counts for each user and check admin status
     const usersWithOrderCounts = await Promise.all(
@@ -93,7 +80,6 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
 
     return NextResponse.json({ users: usersWithOrderCounts });
   } catch (error: any) {
-    console.error('Error in users API route:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

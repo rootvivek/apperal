@@ -7,6 +7,7 @@ import ImageUpload from '@/components/ImageUpload';
 import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase, deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Category {
   id: string;
@@ -21,6 +22,7 @@ interface Category {
 }
 
 export default function CategoriesPage() {
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -110,11 +112,22 @@ export default function CategoriesPage() {
     try {
       let imageFolder: string = '';
       let imageBucket: string = 'category-images';
+      let isSubcategory = false;
       
+      // Delete old image from storage if editing existing category
       if (editingCategory && editingCategory.id) {
-        const isSubcategory = !!editingCategory.parent_category_id;
+        isSubcategory = !!editingCategory.parent_category_id;
         imageBucket = isSubcategory ? 'subcategory-images' : 'category-images';
         imageFolder = editingCategory.id;
+        
+        // Delete existing image from storage before uploading new one
+        if (editingCategory.image_url) {
+          try {
+            await deleteImageFromSupabase(editingCategory.image_url, imageBucket);
+          } catch (deleteErr) {
+            // Continue even if deletion fails - new upload will overwrite
+          }
+        }
       } else if (showEditModal && formData.name) {
         const foundCategory = categories.find(cat => 
           cat.name === formData.name || cat.slug === formData.slug
@@ -186,18 +199,36 @@ export default function CategoriesPage() {
         if (editingCategory) {
           try {
             const cleanUrl = cleanImageUrl(result.url!);
-            
             const isSubcategory = !!editingCategory.parent_category_id;
-            const tableName = isSubcategory ? 'subcategories' : 'categories';
             
-            const { error: imgUpdateError } = await supabase
-              .from(tableName)
-              .update({ image_url: cleanUrl, updated_at: new Date().toISOString() })
-              .eq('id', editingCategory.id);
+            // Use API route to update category image (bypasses RLS)
+            const headers: HeadersInit = {
+              'Content-Type': 'application/json',
+            };
             
-            if (imgUpdateError) {
-              setError(`Image uploaded but failed to save to database: ${imgUpdateError.message}`);
-            } else {
+            // Add user ID header for admin authentication
+            if (user?.id) {
+              headers['X-User-Id'] = user.id;
+            }
+            
+            const updateResponse = await fetch('/api/admin/update-category-image', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                categoryId: editingCategory.id,
+                imageUrl: cleanUrl,
+                isSubcategory: isSubcategory
+              })
+            });
+
+            const responseData = await updateResponse.json();
+            
+            if (!updateResponse.ok) {
+              setError(`Image uploaded but failed to save to database: ${responseData.error || 'Unknown error'}`);
+              return;
+            }
+            
+            if (responseData.success) {
               const newUpdatedAt = new Date().toISOString();
               const updatedCategory = { 
                 ...editingCategory, 

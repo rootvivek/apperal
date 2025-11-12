@@ -7,6 +7,7 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
 import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProductImage {
   id?: string;
@@ -54,6 +55,7 @@ interface Category {
 
 export default function NewProductPage() {
   const router = useRouter();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -376,46 +378,40 @@ export default function NewProductPage() {
       // Best-effort: Add legacy string fields if they exist in schema
       // These are optional and won't cause errors if columns don't exist
 
-      const ins = await supabase.from('products').insert([productInsert]).select('id');
-      let productDataSingle;
+      // Use API route to create product (bypasses RLS)
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
       
-      if (ins.error) {
-        const errorMsg = ins.error.message || '';
-        // If error is about missing columns, strip them and retry
-        let retryInsert: any = { ...productInsert };
-        
-        // Remove FK columns if they don't exist
-        if (errorMsg.includes('category_id') || errorMsg.includes('subcategory_id') || 
-            errorMsg.includes('schema cache') || errorMsg.includes('does not exist')) {
-          delete retryInsert.category_id;
-          delete retryInsert.subcategory_id;
-        }
-        
-        // Remove legacy string columns if they don't exist
-        if (errorMsg.includes("'category' column") || errorMsg.includes("'subcategory' column") ||
-            errorMsg.includes('products.category') || errorMsg.includes('products.subcategory')) {
-          delete retryInsert.category;
-          delete retryInsert.subcategory;
-        }
-        
-        const retry = await supabase.from('products').insert([retryInsert]).select('id');
-        if (retry.error) throw retry.error;
-        productDataSingle = retry.data?.[0];
-        if (!productDataSingle) throw new Error('Product creation failed');
-        
-        // Try to update with FK separately if they were removed
-        if (!retryInsert.category_id && (categoryId || subcategoryId)) {
-          try {
-            await supabase.from('products').update({
-              category_id: categoryId,
-              subcategory_id: subcategoryId,
-            }).eq('id', productDataSingle.id);
-          } catch {}
-        }
-      } else {
-        productDataSingle = ins.data?.[0];
-        if (!productDataSingle) throw new Error('Product creation failed');
+      // Add user ID header for admin authentication
+      if (user?.id) {
+        headers['X-User-Id'] = user.id;
       }
+
+      const createResponse = await fetch('/api/admin/create-product', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          product: productInsert,
+          images: formData.images.map(image => ({
+            image_url: image.image_url,
+            alt_text: image.alt_text || '',
+            display_order: image.display_order
+          }))
+        })
+      });
+
+      const responseData = await createResponse.json();
+
+      if (!createResponse.ok) {
+        throw new Error(responseData.error || 'Failed to create product');
+      }
+
+      if (!responseData.success || !responseData.product) {
+        throw new Error('Product creation failed');
+      }
+
+      const productDataSingle = responseData.product;
 
       // AUTO-SAVE: Use detail_type from PARENT CATEGORY (set in category admin page)
       // If category has detail_type='mobile' → product_cover_details
@@ -511,32 +507,7 @@ export default function NewProductPage() {
         }
       }
 
-      // Insert product images if any
-      if (formData.images.length > 0) {
-        const imageInserts = formData.images.map(image => ({
-          product_id: productDataSingle.id,
-          image_url: image.image_url,
-          alt_text: image.alt_text || '',
-          display_order: image.display_order
-        }));
-
-        let imgRes = await supabase.from('product_images').insert(imageInserts).select('id');
-        let imagesError = imgRes.error as any;
-        if (imagesError && (imagesError.message?.includes("product_id' column") || imagesError.message?.includes('product_id') || imagesError.message?.includes('schema cache') || imagesError.message?.includes('does not exist'))) {
-          // Fallback: attempt insert without product_id if legacy schema differs (will likely fail silently)
-          const legacyInserts = formData.images.map(image => ({
-            image_url: image.image_url,
-            alt_text: image.alt_text || '',
-            display_order: image.display_order
-          }));
-          imgRes = await supabase.from('product_images').insert(legacyInserts).select('id');
-          imagesError = imgRes.error as any;
-        }
-
-        if (imagesError) {
-          // Don't throw here, product was created successfully
-        }
-      }
+      // Images are now handled by the create-product API route
 
       setSuccess(true);
       setTimeout(() => {

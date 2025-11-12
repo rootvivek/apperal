@@ -37,7 +37,6 @@ export async function POST(request: NextRequest) {
         .single();
 
       if (error) {
-        console.error('Error updating stock:', error);
         return NextResponse.json(
           { error: 'Failed to update stock', details: error.message },
           { status: 500 }
@@ -53,7 +52,6 @@ export async function POST(request: NextRequest) {
 
     return withAdminAuth(handler)(request);
   } catch (error: any) {
-    console.error('Error in update-stock route:', error);
     return NextResponse.json(
       { error: 'Internal server error', details: error.message },
       { status: 500 }

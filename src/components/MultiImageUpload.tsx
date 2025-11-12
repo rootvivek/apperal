@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProductImage {
   id?: string;
@@ -27,10 +28,40 @@ export default function MultiImageUpload({
   productId = null,
   userId = null
 }: MultiImageUploadProps) {
+  const { user } = useAuth();
   const [dragActive, setDragActive] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Keep a ref of current images to avoid stale closures
+  const imagesRef = useRef<ProductImage[]>(currentImages);
+  
+  // Keep a ref of productId to ensure it doesn't change during upload
+  // Once locked, never changes to prevent creating new folders on refresh
+  const productIdRef = useRef<string | null>(productId);
+  
+  // Helper function to extract product ID from image URL
+  const extractProductIdFromUrl = (url: string): string | null => {
+    const match = url.match(/\/product-images\/([a-f0-9-]{36})\//i);
+    return match?.[1] || null;
+  };
+  
+  // Update refs when props change
+  useEffect(() => {
+    imagesRef.current = currentImages;
+    
+    // Lock productId on first mount - never change it afterwards
+    if (productId && !productIdRef.current) {
+      productIdRef.current = productId;
+    }
+    // If productId prop changes but ref is already set, keep the original
+    // This prevents folder changes on component remounts
+  }, [currentImages, productId]);
+  
+  // Get user ID from auth context or prop
+  const currentUserId = user?.id || userId;
 
   const handleFiles = async (files: FileList | null) => {
     if (!files) return;
@@ -61,14 +92,24 @@ export default function MultiImageUpload({
     try {
       const uploadPromises = validFiles.map(async (file, index) => {
         setUploadingIndex(index);
-        // Organize by product ID only
-        // Structure: {productId}/
-        let folder = 'products';
-        if (productId) {
-          folder = productId;
+        // Determine folder: Use locked productId from ref, or extract from existing images
+        // This ensures all images for the same product go into the same folder
+        let stableProductId = productIdRef.current || productId;
+        
+        // Fallback: Extract product ID from existing images if not available
+        if (!stableProductId && currentImages.length > 0) {
+          const extractedId = extractProductIdFromUrl(currentImages[0]?.image_url || '');
+          if (extractedId) {
+            stableProductId = extractedId;
+            productIdRef.current = extractedId;
+          }
         }
+        
+        // Use product ID as folder name, or default to 'products'
+        const folder = stableProductId || 'products';
         // Use unique filename for products (not fixed) to allow multiple images
-        const result = await uploadImageToSupabase(file, 'product-images', folder, false);
+        // Pass user ID for admin authentication
+        const result = await uploadImageToSupabase(file, 'product-images', folder, false, currentUserId);
         
         if (result.success && result.url) {
           return {
@@ -120,30 +161,108 @@ export default function MultiImageUpload({
   };
 
   const removeImage = async (index: number) => {
-    // Delete the image from storage
-    const imageToRemove = currentImages[index];
-    if (imageToRemove?.image_url) {
-      try {
-        // Extract the file path from the URL
-        const url = new URL(imageToRemove.image_url);
-        const pathParts = url.pathname.split('/');
-        const fileName = pathParts[pathParts.length - 1];
-        const folderPath = pathParts.slice(0, pathParts.length - 1).join('/');
-        
-        // Delete from product-images bucket
-        await deleteImageFromSupabase(imageToRemove.image_url, 'product-images');
-      } catch (err) {
-        // Continue with removal from UI even if storage deletion fails
-      }
+    // Use ref to get latest images to avoid stale closure
+    const latestImages = imagesRef.current;
+    const imageToRemove = latestImages[index];
+    
+    if (!imageToRemove) {
+      return;
     }
     
-    const updatedImages = currentImages.filter((_, i) => i !== index);
-    // Reorder display_order
+    // Confirm deletion
+    if (!confirm('Are you sure you want to remove this image?')) {
+      return;
+    }
+    
+    // Store image data BEFORE optimistic update to avoid closure issues
+    const imageId = imageToRemove.id;
+    const imageUrl = imageToRemove.image_url;
+    const fullImageData = { ...imageToRemove }; // Deep copy to preserve all data
+    
+    // Optimistically remove from UI first for better UX
+    const updatedImages = latestImages.filter((_, i) => i !== index);
     const reorderedImages = updatedImages.map((img, i) => ({
       ...img,
       display_order: i
     }));
     onImagesChange(reorderedImages);
+    
+    // Set loading state
+    if (imageId) {
+      setDeletingImageId(imageId);
+    }
+    
+    // Delete from database/storage in background (non-blocking)
+    // Use setTimeout to make it non-blocking
+    setTimeout(async () => {
+      try {
+        // If image has an ID, delete it from database
+        if (imageId) {
+          const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+          };
+          
+          // Use user ID from auth context or prop
+          if (currentUserId) {
+            headers['X-User-Id'] = currentUserId;
+          }
+
+          // Delete image from database
+          const deleteResponse = await fetch('/api/admin/delete-product-image', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              imageId: imageId,
+              imageUrl: imageUrl
+            })
+          });
+
+          const responseData = await deleteResponse.json();
+
+          if (!deleteResponse.ok) {
+            // Re-add image to UI if deletion failed
+            const restoredImages = [...reorderedImages];
+            restoredImages.splice(index, 0, {
+              ...fullImageData,
+              display_order: index
+            });
+            const fixedImages = restoredImages.map((img, i) => ({
+              ...img,
+              display_order: i
+            }));
+            onImagesChange(fixedImages);
+            alert(`Failed to delete image: ${responseData.error || 'Unknown error'}`);
+            setDeletingImageId(null);
+            return;
+          }
+
+          setDeletingImageId(null);
+        } else {
+          // If no ID, delete from storage (for newly uploaded images not yet saved)
+          if (imageUrl) {
+            deleteImageFromSupabase(imageUrl, 'product-images')
+              .catch(() => {})
+              .finally(() => setDeletingImageId(null));
+          } else {
+            setDeletingImageId(null);
+          }
+        }
+      } catch (err: any) {
+        // Re-add image to UI if deletion failed
+        const restoredImages = [...reorderedImages];
+        restoredImages.splice(index, 0, {
+          ...fullImageData,
+          display_order: index
+        });
+        const fixedImages = restoredImages.map((img, i) => ({
+          ...img,
+          display_order: i
+        }));
+        onImagesChange(fixedImages);
+        alert(`Failed to delete image: ${err.message || 'Unknown error'}`);
+        setDeletingImageId(null);
+      }
+    }, 0); // Execute in next tick to not block click handler
   };
 
   const moveImage = (fromIndex: number, toIndex: number) => {
@@ -167,7 +286,7 @@ export default function MultiImageUpload({
       {currentImages.length > 0 && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {currentImages.map((image, index) => (
-            <div key={index} className="relative group">
+            <div key={image.id || index} className="relative group">
               <img
                 src={image.image_url}
                 alt={image.alt_text || `Product image ${index + 1}`}
@@ -175,8 +294,8 @@ export default function MultiImageUpload({
               />
               
               {/* Overlay with controls */}
-              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center">
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2">
+              <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-all duration-200 rounded-lg flex items-center justify-center z-10">
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex space-x-2 pointer-events-auto">
                   {/* Move up */}
                   {index > 0 && (
                     <button
@@ -216,17 +335,26 @@ export default function MultiImageUpload({
                   {/* Remove */}
                   <button
                     type="button"
-                    onClick={(e) => {
+                    onClick={async (e) => {
                       e.preventDefault();
                       e.stopPropagation();
-                      removeImage(index);
+                      e.nativeEvent.stopImmediatePropagation();
+                      await removeImage(index);
                     }}
-                    className="p-1 bg-red-500 bg-opacity-80 rounded-full hover:bg-opacity-100"
-                    title="Remove image"
+                    disabled={deletingImageId === image.id}
+                    className={`p-1.5 bg-red-500 bg-opacity-90 rounded-full hover:bg-opacity-100 transition-all z-20 ${
+                      deletingImageId === image.id ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'
+                    }`}
+                    title={deletingImageId === image.id ? "Deleting..." : "Remove image"}
+                    style={{ pointerEvents: 'auto', zIndex: 20 }}
                   >
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
+                    {deletingImageId === image.id ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>

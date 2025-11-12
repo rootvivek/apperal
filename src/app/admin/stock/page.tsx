@@ -54,6 +54,7 @@ export default function StockPage() {
   };
 
   const handleStockUpdate = async (productId: string, newStock: number) => {
+    // Use API route for stock updates (already exists and bypasses RLS)
     if (!user?.id) {
       alert('No active session. Please log in again.');
       return;

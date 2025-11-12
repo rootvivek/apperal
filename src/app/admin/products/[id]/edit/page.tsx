@@ -6,8 +6,9 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
-import { deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
+import { deleteImageFromSupabase } from '@/utils/imageUpload';
 import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ProductImage {
   id?: string;
@@ -55,6 +56,7 @@ export default function EditProductPage() {
   const router = useRouter();
   const params = useParams();
   const productId = params.id as string;
+  const { user } = useAuth();
   
   // Create supabase client once at component level
   const supabase = createClient();
@@ -62,6 +64,9 @@ export default function EditProductPage() {
   // Track whether we've already fetched the product to prevent duplicate fetches
   const hasInitialFetched = useRef(false);
   const isMountedRef = useRef(true);
+  // Store the actual product ID from database to ensure consistency
+  // Start with null, will be set from database fetch (source of truth)
+  const actualProductIdRef = useRef<string | null>(null);
   
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
@@ -213,6 +218,32 @@ export default function EditProductPage() {
         const review_count = detailRecord?.review_count !== undefined ? detailRecord.review_count : ((product as any).review_count || 0);
         const in_stock = detailRecord?.in_stock !== undefined ? detailRecord.in_stock : ((product as any).in_stock !== undefined ? (product as any).in_stock : (product.stock_quantity > 0));
 
+        // Fetch images FIRST to extract product ID from existing image URLs (priority)
+        // This ensures new uploads use the same folder as existing images
+        const { data: productImages, error: imagesError } = await supabaseInstance
+          .from('product_images')
+          .select('*')
+          .eq('product_id', productId)
+          .order('display_order', { ascending: true });
+
+        // Extract product ID from existing image URLs to maintain folder consistency
+        // URL format: .../product-images/{productId}/filename.webp
+        if (!imagesError && productImages?.length > 0) {
+          const firstImageUrl = productImages[0]?.image_url;
+          if (firstImageUrl) {
+            const urlMatch = firstImageUrl.match(/\/product-images\/([a-f0-9-]{36})\//i);
+            if (urlMatch?.[1]) {
+              actualProductIdRef.current = urlMatch[1];
+            }
+          }
+        }
+
+        // Fallback to database product ID if no existing images found
+        // This ensures consistent folder usage for all uploads
+        if (!actualProductIdRef.current) {
+          actualProductIdRef.current = product.id;
+        }
+        
         // Ensure empty strings from database are converted to empty strings for form (not null)
         // This way when user clears a field, it stays empty
         setFormData({
@@ -259,14 +290,9 @@ export default function EditProductPage() {
           },
         });
 
-        const { data: productImages, error: imagesError } = await supabaseInstance
-          .from('product_images')
-          .select('*')
-          .eq('product_id', productId)
-          .order('display_order', { ascending: true });
-
         if (!isMountedRef.current) return;
 
+        // Process images (already fetched above)
         if (!imagesError && productImages && productImages.length > 0) {
           const loadedImages = productImages.map((img: any) => ({
             id: img.id,
@@ -537,15 +563,7 @@ export default function EditProductPage() {
     setSuccess(false);
 
     try {
-      const { error: deleteError } = await supabase
-        .from('product_images')
-        .delete()
-        .eq('product_id', productId);
-
-      if (deleteError) {
-        throw new Error(`Failed to delete old images: ${deleteError.message}`);
-      }
-
+      // Images are now handled by the update-product API route (preserves UUIDs)
       const newImageUrl = formData.images.length > 0 ? formData.images[0].image_url : null;
       
       // Get category and subcategory IDs
@@ -584,62 +602,39 @@ export default function EditProductPage() {
       const stripLegacy = (obj: any) => { const { category, subcategory, ...rest } = obj; return rest; };
       const stripFK = (obj: any) => { const { category_id, subcategory_id, ...rest } = obj; return rest; };
 
-      // Try 1: full update
-      const { error: updateError } = await supabase
-        .from('products')
-        .update(fullUpdate)
-        .eq('id', productId);
-
-      if (updateError) {
-        const msg = updateError.message || '';
-        let attemptObj: any = fullUpdate;
-        if (
-          msg.includes("category' column") ||
-          msg.includes("subcategory' column") ||
-          msg.includes('products.category') ||
-          msg.includes('products.subcategory') ||
-          (msg.includes('category') && msg.includes('does not exist')) ||
-          (msg.includes('subcategory') && msg.includes('does not exist'))
-        ) {
-          attemptObj = stripLegacy(attemptObj);
-        }
-        if (
-          msg.includes('category_id') ||
-          msg.includes('subcategory_id') ||
-          msg.includes('schema cache') ||
-          (msg.includes('column') && msg.includes('does not exist'))
-        ) {
-          attemptObj = stripFK(attemptObj);
-        }
-        if (attemptObj !== fullUpdate) {
-          const { error: retryError } = await supabase
-            .from('products')
-            .update(attemptObj)
-            .eq('id', productId);
-          if (retryError) {
-            throw new Error(`Failed to update product: ${retryError.message}`);
-          }
-        } else {
-          throw new Error(`Failed to update product: ${updateError.message}`);
-        }
+      // Use API route to update product (bypasses RLS)
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add user ID header for admin authentication
+      if (user?.id) {
+        headers['X-User-Id'] = user.id;
       }
 
-      if (formData.images.length > 0) {
-        const newImagesToInsert = formData.images.map((image, index) => ({
-          product_id: productId,
-          image_url: image.image_url,
-          alt_text: image.alt_text || '',
-          display_order: index
-        }));
-        
-        const { error: imagesError } = await supabase
-          .from('product_images')
-          .insert(newImagesToInsert)
-          .select();
+      const updateResponse = await fetch('/api/admin/update-product', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          productId,
+          product: fullUpdate,
+          images: formData.images.map((image, index) => ({
+            id: image.id, // Include existing image ID if it exists
+            image_url: image.image_url,
+            alt_text: image.alt_text || '',
+            display_order: index
+          }))
+        })
+      });
 
-        if (imagesError) {
-          throw new Error(`Failed to insert images: ${imagesError.message}`);
-        }
+      const responseData = await updateResponse.json();
+
+      if (!updateResponse.ok) {
+        throw new Error(responseData.error || 'Failed to update product');
+      }
+
+      if (!responseData.success) {
+        throw new Error('Product update failed');
       }
 
       // AUTO-SAVE: Use detail_type from PARENT CATEGORY (set in category admin page)
@@ -794,13 +789,34 @@ export default function EditProductPage() {
         }
       }
 
-      // IMPORTANT: Keep form data exactly as user left it - don't refetch or reset
-      // The form state already reflects what was saved to database
       setSuccess(true);
       setError(null);
       
-      // Explicitly preserve form state - ensure no refetch happens
-      // Form data in state already matches what was saved
+      // Reload images from database to get IDs for newly inserted images
+      // This ensures that images uploaded during this session get their UUIDs
+      const { data: updatedImages, error: imagesError } = await supabase
+        .from('product_images')
+        .select('*')
+        .eq('product_id', productId)
+        .order('display_order', { ascending: true });
+
+      if (!imagesError && updatedImages && updatedImages.length > 0) {
+        const loadedImages = updatedImages.map((img: any) => ({
+          id: img.id,
+          image_url: img.image_url,
+          alt_text: img.alt_text,
+          display_order: img.display_order
+        }));
+        
+        // Update formData with images that now have IDs from database
+        setFormData(prev => ({
+          ...prev,
+          images: loadedImages,
+          image_url: loadedImages[0]?.image_url || prev.image_url
+        }));
+      } else if (imagesError) {
+        // Don't fail the update if image reload fails - images were already saved
+      }
 
     } catch (err: any) {
       setError(err.message || 'An error occurred while saving the product');
@@ -820,31 +836,34 @@ export default function EditProductPage() {
     setError(null);
 
     try {
-      if (productId) {
-        try {
-          await deleteFolderContents('product-images', productId);
-        } catch (storageErr) {
-          // Continue with product deletion even if storage deletion fails
-        }
+      // Use API route to delete product (bypasses RLS and handles storage deletion)
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add user ID header for admin authentication
+      if (user?.id) {
+        headers['X-User-Id'] = user.id;
       }
 
-      const { error: imagesError } = await supabase
-        .from('product_images')
-        .delete()
-        .eq('product_id', productId);
+      const deleteResponse = await fetch('/api/admin/delete-product', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ productId })
+      });
 
-      if (imagesError) {
-        // Log but continue deletion
+      const responseData = await deleteResponse.json();
+
+      if (!deleteResponse.ok) {
+        throw new Error(responseData.error || 'Failed to delete product');
       }
 
-      const { error: productError } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
-
-      if (productError) throw productError;
-
-      router.push('/admin/products');
+      // Only redirect if API confirms successful deletion
+      if (responseData.success) {
+        router.push('/admin/products');
+      } else {
+        throw new Error('Deletion failed - product may still exist');
+      }
     } catch (err: any) {
       setError(err.message);
       setDeleting(false);
@@ -1170,14 +1189,22 @@ export default function EditProductPage() {
                   )}
                 </div>
 
-                <MultiImageUpload
-                  onImagesChange={handleImagesChange}
-                  currentImages={formData.images}
-                  maxImages={5}
-                  className="w-full"
-                  productId={productId}
-                  userId={null}
-                />
+                {/* Only render MultiImageUpload when we have the actual product ID from database */}
+                {actualProductIdRef.current && (
+                  <MultiImageUpload
+                    onImagesChange={handleImagesChange}
+                    currentImages={formData.images}
+                    maxImages={5}
+                    className="w-full"
+                    productId={actualProductIdRef.current}
+                    userId={user?.id || null}
+                  />
+                )}
+                {!actualProductIdRef.current && (
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+                    <p className="text-sm text-gray-500">Loading product information...</p>
+                  </div>
+                )}
                 <p className="mt-2 text-sm text-gray-500">
                   Upload multiple images for your product. The first image will be used as the main product image.
                 </p>

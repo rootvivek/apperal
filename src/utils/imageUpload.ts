@@ -1,5 +1,28 @@
 import { createClient } from '@/lib/supabase/client';
 
+// Helper to get current user ID (client-side only)
+async function getCurrentUserId(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  
+  try {
+    // Try to get from Firebase auth
+    const { auth } = await import('@/lib/firebase/config');
+    if (auth && auth.currentUser) {
+      return auth.currentUser.uid;
+    }
+    
+    // Fallback: try to get from localStorage (if stored)
+    const storedUserId = localStorage.getItem('firebase_user_id');
+    if (storedUserId) {
+      return storedUserId;
+    }
+  } catch (e) {
+    console.warn('Could not get user ID:', e);
+  }
+  
+  return null;
+}
+
 export interface UploadResult {
   success: boolean;
   url?: string;
@@ -10,9 +33,17 @@ export async function uploadImageToSupabase(
   file: File, 
   bucket: string = 'product-images',
   folder: string = 'products',
-  useFixedName: boolean = false
+  useFixedName: boolean = false,
+  userId?: string | null
 ): Promise<UploadResult> {
   try {
+    // For product images and category images, use API route with compression
+    // This ensures consistent processing and bypasses RLS issues
+    if (bucket === 'product-images' || bucket === 'category-images' || bucket === 'subcategory-images') {
+      return await uploadImageViaAPI(file, bucket, folder, useFixedName, userId);
+    }
+
+    // For other buckets, use direct upload
     const supabase = createClient();
     
     // Validate file
@@ -107,6 +138,54 @@ export async function uploadImageToSupabase(
     
   } catch (error: any) {
     return { success: false, error: error.message };
+  }
+}
+
+// Upload image via API route (with compression and WebP conversion)
+async function uploadImageViaAPI(
+  file: File,
+  bucket: string,
+  folder: string,
+  useFixedName: boolean,
+  providedUserId?: string | null
+): Promise<UploadResult> {
+  try {
+    // Get user ID for admin authentication (use provided ID or fetch from auth)
+    let userId = providedUserId;
+    if (!userId) {
+      userId = await getCurrentUserId();
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', bucket);
+    formData.append('folder', folder);
+    formData.append('useFixedName', useFixedName.toString());
+
+    // Add user ID to headers for admin authentication
+    const headers: HeadersInit = {};
+    if (userId) {
+      headers['X-User-Id'] = userId;
+    }
+
+    const response = await fetch('/api/admin/upload-image', {
+      method: 'POST',
+      headers,
+      body: formData
+    });
+
+    const result = await response.json();
+
+    if (!response.ok || !result.success) {
+      return { 
+        success: false, 
+        error: result.error || 'Upload failed' 
+      };
+    }
+
+    return { success: true, url: result.url };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Failed to upload image' };
   }
 }
 

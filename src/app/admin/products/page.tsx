@@ -6,6 +6,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import { createClient } from '@/lib/supabase/client';
 import { deleteFolderContents } from '@/utils/imageUpload';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Product {
   id: string;
@@ -26,6 +27,7 @@ export default function ProductsPage() {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const { user } = useAuth();
   const supabase = createClient();
 
   useEffect(() => {
@@ -120,42 +122,87 @@ export default function ProductsPage() {
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
+    if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) return;
 
     try {
-      try {
-        await deleteFolderContents('product-images', productId);
-      } catch (storageErr) {
-        // Continue with product deletion even if storage deletion fails
+      setError(null);
+      
+      // Use API route to delete product (bypasses RLS)
+      // The API route handles storage deletion, database deletion, and all related data
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add user ID header for admin authentication
+      if (user?.id) {
+        headers['X-User-Id'] = user.id;
       }
 
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
+      const deleteResponse = await fetch('/api/admin/delete-product', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ productId })
+      });
 
-      if (error) throw error;
-      
-      setProducts(products.filter(p => p.id !== productId));
+      const responseData = await deleteResponse.json();
+
+      if (!deleteResponse.ok) {
+        throw new Error(responseData.error || 'Failed to delete product');
+      }
+
+      // Only remove from local state if API confirms successful deletion
+      if (responseData.success) {
+        setProducts(products.filter(p => p.id !== productId));
+        alert('Product deleted successfully');
+      } else {
+        throw new Error('Deletion failed - product may still exist');
+      }
     } catch (err: any) {
-      setError(err.message);
+      const errorMessage = err.message || 'Failed to delete product. Please try again.';
+      setError(errorMessage);
+      alert(errorMessage);
+      console.error('Error deleting product:', err);
     }
   };
 
   const toggleProductStatus = async (productId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
-        .from('products')
-        .update({ is_active: !currentStatus })
-        .eq('id', productId);
-
-      if (error) throw error;
+      setError(null);
       
-      setProducts(products.map(p => 
-        p.id === productId ? { ...p, is_active: !currentStatus } : p
-      ));
+      // Use API route to toggle product status (bypasses RLS)
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+      
+      // Add user ID header for admin authentication
+      if (user?.id) {
+        headers['X-User-Id'] = user.id;
+      }
+
+      const toggleResponse = await fetch('/api/admin/toggle-product-status', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          productId,
+          isActive: !currentStatus
+        })
+      });
+
+      const responseData = await toggleResponse.json();
+
+      if (!toggleResponse.ok) {
+        throw new Error(responseData.error || 'Failed to update product status');
+      }
+
+      // Only update local state if API confirms success
+      if (responseData.success) {
+        setProducts(products.map(p => 
+          p.id === productId ? { ...p, is_active: !currentStatus } : p
+        ));
+      }
     } catch (err: any) {
       setError(err.message);
+      console.error('Error toggling product status:', err);
     }
   };
 

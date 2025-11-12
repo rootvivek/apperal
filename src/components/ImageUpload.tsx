@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface ImageUploadProps {
   onImageUpload: (file: File) => void;
@@ -17,7 +17,24 @@ export default function ImageUpload({
 }: ImageUploadProps) {
   const [dragActive, setDragActive] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImageUrl || null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Clean up blob URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+    };
+  }, [blobUrl]);
+  
+  // Update preview when currentImageUrl changes
+  useEffect(() => {
+    if (currentImageUrl) {
+      setPreviewUrl(currentImageUrl);
+    }
+  }, [currentImageUrl]);
 
   const handleFiles = (files: FileList | null) => {
     if (files && files[0]) {
@@ -35,8 +52,14 @@ export default function ImageUpload({
         return;
       }
       
+      // Clean up previous blob URL if exists
+      if (blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+      
       // Create preview URL
       const url = URL.createObjectURL(file);
+      setBlobUrl(url);
       setPreviewUrl(url);
       
       // Call the upload handler

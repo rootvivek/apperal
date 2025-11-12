@@ -3,7 +3,7 @@ import { createServerClient } from '@/lib/supabase/server';
 import { createServerAuthClient } from '@/lib/supabase/server-auth';
 
 // Admin phone number - must match AdminGuard
-const ADMIN_PHONE = '8881765192';
+const ADMIN_PHONE = process.env.ADMIN_PHONE || '8881765192';
 
 /**
  * Middleware to verify if the authenticated user is an admin
