@@ -13,6 +13,7 @@ const nextConfig = {
       },
     ],
     unoptimized: true, // Disable image optimization for Netlify
+    minimumCacheTTL: 86400, // Cache images for 24 hours
   },
   async headers() {
     return [

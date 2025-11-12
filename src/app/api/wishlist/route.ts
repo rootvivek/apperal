@@ -37,14 +37,15 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id);
 
     if (error) {
-      console.error('Error fetching wishlist:', error);
       return NextResponse.json({ error: 'Failed to fetch wishlist' }, { status: 500 });
     }
 
     const products = wishlistData?.map(item => item.products).filter(Boolean) || [];
-    return NextResponse.json({ wishlist: products });
+    const response = NextResponse.json({ wishlist: products });
+    // Cache user-specific data for 30 seconds
+    response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    return response;
   } catch (error) {
-    console.error('Wishlist API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -79,13 +80,11 @@ export async function POST(request: NextRequest) {
         // Unique constraint violation - item already in wishlist
         return NextResponse.json({ error: 'Item already in wishlist' }, { status: 409 });
       }
-      console.error('Error adding to wishlist:', error);
       return NextResponse.json({ error: 'Failed to add to wishlist' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Wishlist API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -116,13 +115,11 @@ export async function DELETE(request: NextRequest) {
       .eq('product_id', productId);
 
     if (error) {
-      console.error('Error removing from wishlist:', error);
       return NextResponse.json({ error: 'Failed to remove from wishlist' }, { status: 500 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Wishlist API error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

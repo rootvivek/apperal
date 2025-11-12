@@ -11,6 +11,26 @@ export function middleware(request: NextRequest) {
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   
+  // Add caching headers for static assets
+  const pathname = request.nextUrl.pathname;
+  
+  // Cache static assets aggressively
+  if (pathname.match(/\.(jpg|jpeg|png|gif|webp|svg|ico|woff|woff2|ttf|eot|css|js)$/i)) {
+    response.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  }
+  // Cache images from Supabase storage
+  else if (pathname.includes('/storage/') || pathname.includes('/product-images/') || pathname.includes('/category-images/')) {
+    response.headers.set('Cache-Control', 'public, max-age=86400, stale-while-revalidate=604800');
+  }
+  // Cache API routes that fetch public data (with shorter TTL)
+  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/orders')) {
+    response.headers.set('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=300');
+  }
+  // Default cache for pages (ISR)
+  else if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+  }
+  
   // Content Security Policy (adjust based on your needs)
   const csp = [
     "default-src 'self'",
