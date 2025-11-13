@@ -66,7 +66,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   }, []); // Empty deps - only run once on mount
 
   // Helper function to ensure user profile exists before cart operations
-  const ensureUserProfileExists = async (userId: string, maxRetries = 10): Promise<boolean> => {
+  const ensureUserProfileExists = async (userId: string, maxRetries = 15): Promise<boolean> => {
     for (let i = 0; i < maxRetries; i++) {
       const { data: profile, error } = await supabase
         .from('user_profiles')
@@ -79,11 +79,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (error && error.code !== 'PGRST116') {
-        return false; // Error checking profile
+        console.warn('Error checking user profile:', error);
+        // Continue retrying even on error (might be transient)
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+        }
+        continue;
       }
 
       // If profile doesn't exist and we have user info, try to create it
-      if (!profile && i === 2 && user) {
+      // Try creating on retries 1, 3, 5, 7, etc. to give AuthContext time first
+      if (!profile && i > 0 && i % 2 === 1 && user) {
         try {
           // Generate email - use user email if available, otherwise create placeholder from phone
           let userEmail = user.email || '';
@@ -96,6 +102,24 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
           }
           
+          // Check for soft-deleted profiles with same phone (like AuthContext does)
+          const userPhone = user.phone || null;
+          if (userPhone) {
+            const { data: profilesWithPhone } = await supabase
+              .from('user_profiles')
+              .select('id, deleted_at')
+              .eq('phone', userPhone)
+              .maybeSingle();
+
+            if (profilesWithPhone?.deleted_at) {
+              // Hard delete the soft-deleted profile
+              await supabase
+                .from('user_profiles')
+                .delete()
+                .eq('id', profilesWithPhone.id);
+            }
+          }
+          
           // Try to create profile with minimal data
           const { error: createError } = await supabase
             .from('user_profiles')
@@ -103,17 +127,38 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               id: userId,
               email: userEmail, // Now always has a value
               full_name: user.user_metadata?.full_name || 'User',
-              phone: user.phone || null,
+              phone: userPhone,
             })
             .select();
 
           if (!createError) {
-            // Profile created successfully
-            return true;
+            // Profile created successfully, verify it exists
+            await new Promise(resolve => setTimeout(resolve, 200));
+            const { data: verifyProfile } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (verifyProfile) {
+              return true;
+            }
           } else if (createError.code === '23505') {
-            // Duplicate key - profile was created by another process
-            console.log('Profile already exists (duplicate key):', userId);
-            return true;
+            // Duplicate key - profile was created by another process (likely AuthContext)
+            // Wait a bit and verify it exists
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const { data: verifyProfile } = await supabase
+              .from('user_profiles')
+              .select('id')
+              .eq('id', userId)
+              .maybeSingle();
+            
+            if (verifyProfile) {
+              return true;
+            }
+          } else if (createError.code === '23503') {
+            // Foreign key constraint - might be a transient issue, continue retrying
+            console.warn('Foreign key constraint error, will retry:', createError);
           } else {
             console.warn('Failed to create profile from cart context:', createError);
           }
@@ -122,9 +167,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Wait before retrying (exponential backoff)
+      // Wait before retrying (exponential backoff with longer initial wait)
       if (i < maxRetries - 1) {
-        await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
+        const waitTime = i === 0 ? 1000 : 500 * (i + 1); // Start with 1 second
+        await new Promise(resolve => setTimeout(resolve, waitTime));
       }
     }
     return false;
@@ -143,7 +189,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Ensure user profile exists before creating cart
       const profileExists = await ensureUserProfileExists(user.id);
       if (!profileExists) {
-        console.error('User profile does not exist, cannot create cart');
+        console.warn('User profile is being created, cart will be available shortly. Retrying...');
+        // Retry after a delay - profile might be created by AuthContext
+        setTimeout(() => {
+          fetchCartItems();
+        }, 2000);
         return;
       }
       
@@ -246,7 +296,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Ensure user profile exists before creating cart
         const profileExists = await ensureUserProfileExists(user.id);
         if (!profileExists) {
-          console.error('User profile does not exist, cannot create cart');
+          console.warn('User profile is being created, please try again in a moment');
           return;
         }
 
@@ -473,7 +523,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Ensure user profile exists before creating cart
         const profileExists = await ensureUserProfileExists(user.id);
         if (!profileExists) {
-          console.error('User profile does not exist, cannot create cart');
+          console.warn('User profile is being created, please try again in a moment');
           return;
         }
 

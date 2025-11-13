@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import ProductCard from '@/components/ProductCard';
+import ProductListing from '@/components/ProductListing';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -32,14 +32,39 @@ interface Product {
   }[];
 }
 
+interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
   useEffect(() => {
     fetchAllProducts();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const { data: categoriesData } = await supabase
+        .from('categories')
+        .select('id, name, slug')
+        .is('parent_category_id', null)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      if (categoriesData) {
+        setCategories(categoriesData);
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+    }
+  };
 
   const fetchAllProducts = async () => {
     try {
@@ -80,16 +105,6 @@ export default function ProductsPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50">
-        <div className="bg-white py-6">
-          <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
-            <div className="text-center">
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">All Products</h1>
-              <p className="text-xl text-gray-600">
-                Discover our carefully curated collection of clothing and accessories for every occasion
-              </p>
-            </div>
-          </div>
-        </div>
         <div className="flex items-center justify-center h-64">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -101,51 +116,12 @@ export default function ProductsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white py-6">
-        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">All Products</h1>
-            <p className="text-xl text-gray-600">
-              Discover our carefully curated collection of clothing and accessories for every occasion
-            </p>
-          </div>
-        </div>
-      </div>
-      
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-8">
-        {products.length > 0 ? (
-          <>
-            {/* Mobile: Horizontal scroll, 2 items visible */}
-            <div className="sm:hidden">
-              <div className="overflow-x-auto scrollbar-hide -mx-1 px-1">
-                <div className="flex gap-1" style={{ width: 'max-content' }}>
-                  {products.map((product) => (
-                    <div
-                      key={product.id}
-                      className="flex-shrink-0"
-                      style={{ width: 'calc((100vw - 2rem) / 1.95 - 0.25rem)', maxWidth: '190px' }}
-                    >
-                      <ProductCard product={product as any} />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Desktop: Grid layout */}
-            <div className="hidden sm:grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {products.map((product) => (
-                <ProductCard key={product.id} product={product as any} />
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-600 text-lg">No products found.</p>
-          </div>
-        )}
-      </div>
-    </div>
+    <ProductListing
+      products={products}
+      filterOptions={categories}
+      filterType="category"
+      showFilter={true}
+      emptyMessage="No products found."
+    />
   );
 }

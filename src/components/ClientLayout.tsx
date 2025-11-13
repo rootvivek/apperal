@@ -25,12 +25,19 @@ export default function ClientLayout({ children }: ClientLayoutProps) {
   const pathname = usePathname();
   const isCheckoutPage = pathname === '/checkout';
   const isProductDetailPage = pathname?.startsWith('/product/');
+  const isHomePage = pathname === '/';
+
+  // Show footer only on home page for mobile, or on all pages (except checkout/product detail) for desktop
+  const shouldShowFooter = !isCheckoutPage && !isProductDetailPage;
+  const footerClassName = isHomePage ? '' : 'hidden md:block';
 
   return (
     <>
       <ConditionalNavigation />
       {children}
-      {!isCheckoutPage && !isProductDetailPage && <Footer />}
+      {shouldShowFooter && (
+        <Footer className={footerClassName} />
+      )}
       <BannedModal />
     </>
   );

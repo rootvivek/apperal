@@ -2,7 +2,7 @@
 
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import ProductCard from '@/components/ProductCard';
+import ProductListing from '@/components/ProductListing';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, use } from 'react';
 
@@ -55,7 +55,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   const [category, setCategory] = useState<Category | null>(null);
   const [subcategories, setSubcategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -63,21 +62,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   useEffect(() => {
     fetchCategoryAndProducts();
   }, [categorySlug]);
-
-  // Filter products by subcategory
-  useEffect(() => {
-    if (selectedSubcategory === 'all') {
-      setFilteredProducts(products);
-    } else {
-      // Filter by exact subcategory name match
-      const filtered = products.filter(product => {
-        if (!product.subcategory) return false;
-        // Case-insensitive comparison for better matching
-        return product.subcategory.toLowerCase() === selectedSubcategory.toLowerCase();
-      });
-      setFilteredProducts(filtered);
-    }
-  }, [selectedSubcategory, products]);
 
   const handleSubcategoryClick = (subcategoryName: string) => {
     setSelectedSubcategory(subcategoryName);
@@ -151,7 +135,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       })) || [];
 
       setProducts(transformedProducts);
-      setFilteredProducts(transformedProducts);
     } catch (error) {
       await fetchCategoryAndProductsFallback();
     } finally {
@@ -175,7 +158,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       if (categoryError || !categoryData) {
         setCategory(null);
         setProducts([]);
-        setFilteredProducts([]);
         setSubcategories([]);
         return;
       }
@@ -309,7 +291,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
       setCategory(categoryData);
       setProducts(transformedProducts);
-      setFilteredProducts(transformedProducts);
     } catch (error) {
       setProducts([]);
     }
@@ -330,7 +311,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
   if (!category) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 pt-16 sm:pt-20">
         <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
           <div className="text-center py-12">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">Category Not Found</h1>
@@ -347,110 +328,59 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-        <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-8">
-        <div className="flex flex-col lg:flex-row gap-8">
-          {/* Left Sidebar - Subcategories */}
-          <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
-            <div className="bg-white rounded-lg shadow-sm p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Subcategories</h3>
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleSubcategoryClick('all')}
-                  className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                    selectedSubcategory === 'all'
-                      ? 'bg-blue-100 text-blue-700 font-medium'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }`}
-                >
-                  All Products ({products.length})
-                </button>
-                {subcategories.map((subcategory) => {
-                  const subcategoryProductCount = products.filter(
-                    product => product.subcategory && 
-                    product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
-                  ).length;
-                  
-                  return (
-                    <button
-                      key={subcategory.id}
-                      onClick={() => handleSubcategoryClick(subcategory.name)}
-                      className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                        selectedSubcategory === subcategory.name
-                          ? 'bg-blue-100 text-blue-700 font-medium'
-                          : 'text-gray-600 hover:bg-gray-100'
-                      }`}
-                    >
-                      {subcategory.name} ({subcategoryProductCount})
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {/* Right Content - Products */}
-          <div className="flex-1">
-            {/* Mobile Subcategory Selector */}
-            <div className="lg:hidden mb-6">
-              <select
-                value={selectedSubcategory}
-                onChange={(e) => handleSubcategoryClick(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm text-center"
+  const sidebarContent = (
+    <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
+      <div className="bg-white rounded-lg shadow-sm p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">Subcategories</h3>
+        <div className="space-y-2">
+          <button
+            onClick={() => handleSubcategoryClick('all')}
+            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+              selectedSubcategory === 'all'
+                ? 'bg-blue-100 text-blue-700 font-medium'
+                : 'text-gray-600 hover:bg-gray-100'
+            }`}
+          >
+            All Products ({products.length})
+          </button>
+          {subcategories.map((subcategory) => {
+            const subcategoryProductCount = products.filter(
+              product => product.subcategory && 
+              product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
+            ).length;
+            
+            return (
+              <button
+                key={subcategory.id}
+                onClick={() => handleSubcategoryClick(subcategory.name)}
+                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                  selectedSubcategory === subcategory.name
+                    ? 'bg-blue-100 text-blue-700 font-medium'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
               >
-                <option value="all">All Products ({products.length})</option>
-                {subcategories.map((subcategory) => {
-                  const subcategoryProductCount = products.filter(
-                    product => product.subcategory === subcategory.name
-                  ).length;
-                  return (
-                    <option key={subcategory.id} value={subcategory.name}>
-                      {subcategory.name} ({subcategoryProductCount})
-                    </option>
-                  );
-                })}
-              </select>
-            </div>
-
-            <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
-                {selectedSubcategory === 'all' 
-                  ? `All Products (${filteredProducts.length})`
-                  : `${selectedSubcategory} (${filteredProducts.length})`
-                }
-              </h2>
-              <div className="flex items-center space-x-4">
-                <select className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-                  <option>Sort by: Featured</option>
-                  <option>Price: Low to High</option>
-                  <option>Price: High to Low</option>
-                  <option>Customer Rating</option>
-                  <option>Newest</option>
-                </select>
-              </div>
-            </div>
-
-            {filteredProducts.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-gray-500 text-lg">
-                  {selectedSubcategory === 'all' 
-                    ? 'No products found in this category.'
-                    : `No products found in ${selectedSubcategory}.`
-                  }
-                </p>
-              </div>
-            )}
-          </div>
+                {subcategory.name} ({subcategoryProductCount})
+              </button>
+            );
+          })}
         </div>
       </div>
     </div>
+  );
+
+  return (
+    <ProductListing
+      products={products}
+      filterOptions={subcategories}
+      filterType="subcategory"
+      initialFilter={selectedSubcategory}
+      onFilterChange={setSelectedSubcategory}
+      showFilter={true}
+      emptyMessage={selectedSubcategory === 'all' 
+        ? 'No products found in this category.'
+        : `No products found in ${selectedSubcategory}.`
+      }
+      sidebar={sidebarContent}
+    />
   );
 }

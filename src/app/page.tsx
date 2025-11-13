@@ -292,17 +292,17 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white">
+    <main className="min-h-screen bg-white pt-16 sm:pt-20" style={{ touchAction: 'pan-x pan-y' }}>
       {/* Hero Carousel */}
       <HeroCarousel />
 
       {/* Categories Section - Show after carousel */}
-      <section className="pt-8 pb-0 sm:pt-8 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto">
+      <section className="pt-8 pb-0 sm:pt-8 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto" style={{ touchAction: 'pan-x pan-y' }}>
         <CategoryGrid categories={categories} />
       </section>
 
       {/* All Products Section */}
-      <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white">
+      <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white" style={{ touchAction: 'pan-x pan-y' }}>
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">All Products</h2>
@@ -314,31 +314,11 @@ export default function Home() {
             </Link>
           </div>
           {allProducts.length > 0 ? (
-            <>
-              {/* Mobile: Horizontal scroll, 2 items visible */}
-              <div className="sm:hidden">
-                <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
-                  <div className="flex gap-1" style={{ width: 'max-content' }}>
-                    {allProducts.map((product) => (
-                      <div
-                        key={product.id}
-                        className="flex-shrink-0"
-                        style={{ width: 'calc((100vw - 2rem) / 1.95 - 0.25rem)', maxWidth: '190px' }}
-                      >
-                        <ProductCard product={product as any} />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Desktop: Grid layout */}
-              <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                {allProducts.map((product) => (
-                  <ProductCard key={product.id} product={product as any} />
-                ))}
-              </div>
-            </>
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" style={{ touchAction: 'pan-x pan-y' }}>
+              {allProducts.map((product) => (
+                <ProductCard key={product.id} product={product as any} />
+              ))}
+            </div>
           ) : (
             <div className="text-center py-12">
               <div className="text-gray-400 text-6xl mb-4">🛍️</div>
@@ -356,9 +336,9 @@ export default function Home() {
         const bgColor = 'bg-white';
         
         return (
-          <section key={section.category.id} className={`pt-8 pb-16 sm:pt-8 sm:pb-4 ${bgColor}`}>
+          <section key={section.category.id} className={`pt-8 pb-16 sm:pt-8 sm:pb-4 ${bgColor}`} style={{ touchAction: 'pan-x pan-y' }}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between mb-12">
+              <div className="flex items-center justify-between mb-2 sm:mb-4">
                 <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
                 <Link
                   href={`/products/${section.category.slug}`}
@@ -368,31 +348,11 @@ export default function Home() {
                 </Link>
               </div>
               {section.products.length > 0 ? (
-                <>
-                  {/* Mobile: Horizontal scroll, 2 items visible */}
-                  <div className="sm:hidden">
-                    <div className="overflow-x-auto scrollbar-hide -mx-1.5 sm:-mx-6 lg:-mx-8 px-1.5 sm:px-6 lg:px-8">
-                      <div className="flex gap-1" style={{ width: 'max-content' }}>
-                        {section.products.map((product) => (
-                          <div
-                            key={product.id}
-                            className="flex-shrink-0"
-                            style={{ width: 'calc((100vw - 2rem) / 2 - 0.5rem)', maxWidth: '180px' }}
-                          >
-                            <ProductCard product={product as any} />
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Desktop: Grid layout */}
-                  <div className="hidden sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
-                    {section.products.map((product) => (
-                      <ProductCard key={product.id} product={product as any} />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" style={{ touchAction: 'pan-x pan-y' }}>
+                  {section.products.slice(0, 6).map((product) => (
+                    <ProductCard key={product.id} product={product as any} />
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <div className="text-gray-400 text-6xl mb-4">📦</div>

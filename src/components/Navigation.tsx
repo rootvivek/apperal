@@ -32,7 +32,7 @@ interface Subcategory {
 }
 
 export default function Navigation() {
-  const { user, signOut, loading, signingOut } = useAuth();
+  const { user, signOut, signingOut } = useAuth();
   const { cartCount } = useCart();
   const { wishlistCount } = useWishlist();
   const router = useRouter();
@@ -43,6 +43,9 @@ export default function Navigation() {
   const [dataFetched, setDataFetched] = useState(false);
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [userFullName, setUserFullName] = useState<string | null>(null);
+  const [currentCategoryName, setCurrentCategoryName] = useState<string | null>(null);
+  const [currentSubcategoryName, setCurrentSubcategoryName] = useState<string | null>(null);
+  const [isAllProductsPage, setIsAllProductsPage] = useState(false);
   const supabase = createClient();
 
   useEffect(() => {
@@ -53,6 +56,104 @@ export default function Navigation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataFetched]);
 
+  // Detect category/subcategory from pathname and fetch names
+  useEffect(() => {
+    const fetchCurrentCategoryInfo = async () => {
+      // Check if we're on the all products page (exact match or with trailing slash)
+      const normalizedPath = pathname.replace(/\/$/, ''); // Remove trailing slash
+      if (normalizedPath === '/products') {
+        setIsAllProductsPage(true);
+        setCurrentCategoryName(null);
+        setCurrentSubcategoryName(null);
+        return;
+      }
+      
+      setIsAllProductsPage(false);
+      
+      // Check if we're on a category or subcategory page
+      const categoryMatch = pathname.match(/^\/products\/([^/]+)(?:\/([^/]+))?$/);
+      
+      if (!categoryMatch) {
+        setCurrentCategoryName(null);
+        setCurrentSubcategoryName(null);
+        setIsAllProductsPage(false);
+        return;
+      }
+
+      const categorySlug = decodeURIComponent(categoryMatch[1]);
+      const subcategorySlug = categoryMatch[2] ? decodeURIComponent(categoryMatch[2]) : null;
+
+      try {
+        // Try to find category from already loaded categories first
+        const foundCategory = categories.find(cat => cat.slug === categorySlug);
+        
+        if (foundCategory) {
+          setCurrentCategoryName(foundCategory.name);
+          
+          // If subcategory, find it
+          if (subcategorySlug && foundCategory.subcategories) {
+            const foundSubcategory = foundCategory.subcategories.find(
+              sub => sub.slug === subcategorySlug
+            );
+            if (foundSubcategory) {
+              setCurrentSubcategoryName(foundSubcategory.name);
+            } else {
+              // Fetch subcategory if not in loaded categories
+              const { data } = await supabase
+                .from('subcategories')
+                .select('name')
+                .eq('slug', subcategorySlug)
+                .eq('parent_category_id', foundCategory.id)
+                .single();
+              setCurrentSubcategoryName(data?.name || null);
+            }
+          } else {
+            setCurrentSubcategoryName(null);
+          }
+        } else {
+          // Fetch category if not in loaded categories
+          const { data: categoryData } = await supabase
+            .from('categories')
+            .select('id, name')
+            .eq('slug', categorySlug)
+            .single();
+          
+          if (categoryData) {
+            setCurrentCategoryName(categoryData.name);
+            
+            // Fetch subcategory if needed
+            if (subcategorySlug) {
+              const { data: subcategoryData } = await supabase
+                .from('subcategories')
+                .select('name')
+                .eq('slug', subcategorySlug)
+                .eq('parent_category_id', categoryData.id)
+                .single();
+              setCurrentSubcategoryName(subcategoryData?.name || null);
+            } else {
+              setCurrentSubcategoryName(null);
+            }
+          } else {
+            setCurrentCategoryName(null);
+            setCurrentSubcategoryName(null);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching category info:', error);
+        setCurrentCategoryName(null);
+        setCurrentSubcategoryName(null);
+      }
+    };
+
+    fetchCurrentCategoryInfo();
+  }, [pathname, categories, supabase]);
+
+  const handleBack = () => {
+    router.back();
+  };
+
+  const isCategoryPage = (pathname === '/products') || (pathname.startsWith('/products/') && pathname.split('/').length >= 3);
+
   // Fetch user's full name from Supabase profile
   const fetchUserFullName = useCallback(async () => {
     if (!user?.id) {
@@ -60,12 +161,12 @@ export default function Navigation() {
       return;
     }
 
-        try {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('full_name')
-            .eq('id', user.id)
-            .maybeSingle();
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
 
       if (!error && data?.full_name) {
         setUserFullName(data.full_name);
@@ -210,25 +311,59 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-brand-500 shadow-sm border-b sticky top-0 z-50 py-3.5 sm:py-5">
+      <nav className="bg-brand-500 shadow-sm border-b fixed top-0 left-0 right-0 z-[100] py-3.5 sm:py-5" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center relative">
-          {/* Logo */}
-          <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
-            <Image 
-              src="/logo.svg" 
-              alt="Apperal Logo" 
-              width={120} 
-              height={40} 
-              className="h-8 sm:h-10 w-auto"
-              priority
-            />
-          </Link>
+          {/* Left side: Back button + Category/Subcategory name OR Logo */}
+          {(isAllProductsPage || currentCategoryName || currentSubcategoryName) ? (
+            <>
+              {/* Mobile: Back button + Name */}
+              <div className="flex lg:hidden items-center space-x-1.5 sm:space-x-2">
+                {/* Back Button */}
+                <button
+                  onClick={handleBack}
+                  className="text-white hover:text-brand-400 transition-colors p-1.5 sm:p-2"
+                  aria-label="Go back"
+                >
+                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                
+                {/* Category/Subcategory Name or All Products */}
+                <div className="flex items-center">
+                  <span className="text-white text-sm sm:text-base font-medium truncate max-w-[200px] sm:max-w-none">
+                    {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName)}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Desktop: Logo (hidden on mobile when showing back button) */}
+              <Link href="/" className="hidden lg:flex items-center">
+                <img 
+                  src="/logo.png" 
+                  alt="Carts24" 
+                  className="h-8 sm:h-10 w-auto"
+                  style={{ maxWidth: '120px' }}
+                />
+              </Link>
+            </>
+          ) : (
+            <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
+              <img 
+                src="/logo.png" 
+                alt="Carts24" 
+                className="h-8 sm:h-10 w-auto"
+                style={{ maxWidth: '120px' }}
+              />
+            </Link>
+          )}
 
-          {/* Categories Navigation - Hidden on mobile, visible on larger screens */}
-          <div className={`hidden lg:flex items-center space-x-4 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
+          {/* Categories Navigation - Hidden on mobile and category pages, visible on larger screens */}
+          {!isCategoryPage && (
+            <div className={`hidden lg:flex items-center space-x-4 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {categoriesLoading ? (
-              <div className="text-white text-sm opacity-70">Loading...</div>
+              <div className="text-white text-sm opacity-70 w-0 h-0"></div>
             ) : (
               categories.map((category) => (
                 <div key={category.id} className="relative group">
@@ -238,7 +373,7 @@ export default function Navigation() {
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
-                      <svg className="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="ml-0.5 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     )}
@@ -263,7 +398,8 @@ export default function Navigation() {
                 </div>
               ))
             )}
-          </div>
+            </div>
+          )}
 
           {/* Search Bar - Hidden on mobile, visible on larger screens */}
           {!showMobileSearch && <SearchBar variant="desktop" />}
@@ -304,9 +440,7 @@ export default function Navigation() {
             
             {/* Auth Section */}
             <div className={`flex items-center space-x-1 sm:space-x-2 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`}>
-              {loading ? (
-                <div className="text-white text-sm sm:text-base flex items-center h-full opacity-70">Loading...</div>
-              ) : user ? (
+              {user ? (
                 <div 
                   id="user-dropdown" 
                   className="relative flex items-center h-full"
@@ -318,7 +452,7 @@ export default function Navigation() {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="hidden sm:flex items-center space-x-1.5 text-white hover:text-brand-400 transition-colors cursor-pointer"
+                    className="hidden sm:flex items-center space-x-1 text-white hover:text-brand-400 transition-colors cursor-pointer"
                     >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -362,7 +496,7 @@ export default function Navigation() {
                           onClick={() => setShowUserDropdown(false)}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                           </svg>
@@ -374,7 +508,7 @@ export default function Navigation() {
                           onClick={() => setShowUserDropdown(false)}
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                           </svg>
@@ -392,7 +526,7 @@ export default function Navigation() {
                           disabled={signingOut}
                           className="w-full text-left block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-red-600 transition-colors disabled:opacity-50 cursor-pointer"
                         >
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-1.5">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>

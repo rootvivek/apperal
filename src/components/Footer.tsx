@@ -1,20 +1,23 @@
 import Link from 'next/link';
 import Image from 'next/image';
 
-export default function Footer() {
+interface FooterProps {
+  className?: string;
+}
+
+export default function Footer({ className = '' }: FooterProps) {
   return (
-    <footer className="bg-gray-900 text-white">
+    <footer className={`bg-gray-900 text-white ${className}`}>
       <div className="px-2 sm:px-4 md:px-6 lg:px-8">
         {/* Main Footer Content */}
         <div className="py-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {/* Company Info */}
           <div className="space-y-4">
-            <Image 
-              src="/logo.svg" 
-              alt="Apperal Logo" 
-              width={120} 
-              height={40} 
+            <img 
+              src="/logo.png" 
+              alt="Carts24" 
               className="h-8 w-auto"
+              style={{ maxWidth: '120px' }}
             />
             <p className="text-gray-300 text-sm leading-relaxed">
               Your one-stop destination for fashion, electronics, and lifestyle products. 
@@ -161,7 +164,7 @@ export default function Footer() {
           <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
               <p className="text-gray-400 text-sm">
-                © 2024 Apperal. All rights reserved.
+                © 2024 Carts24. All rights reserved.
               </p>
               <div className="flex space-x-6">
                 <Link href="/privacy" className="text-gray-400 hover:text-emerald-400 transition-colors text-sm">

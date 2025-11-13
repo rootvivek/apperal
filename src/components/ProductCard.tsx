@@ -234,13 +234,13 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
     
     const image = variant === 'minimal' || variant === 'image-only'
       ? "h-full w-full object-cover transition-transform duration-300"
-      : "h-full w-full object-cover group-hover:scale-105 transition-transform duration-300";
+      : "h-full w-full object-cover transition-transform duration-300";
       
     const content = variant === 'minimal'
-      ? "px-2 py-1"
+      ? "px-1.5 py-0.5"
       : variant === 'image-only'
       ? "hidden"
-      : "p-2";
+      : "p-1.5";
 
     // Use slug if available, otherwise use ID for backward compatibility
     const url = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
@@ -268,6 +268,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
       {/* Product Image */}
       <div 
         className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[5/6] sm:aspect-[4/5] overflow-hidden relative"} group`}
+        style={{ touchAction: 'pan-x pan-y' }}
         onMouseEnter={startImageSliding}
         onMouseLeave={stopImageSliding}
         onTouchStart={handleTouchStart}
@@ -308,8 +309,8 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
 
       {/* Product Info */}
       <div className={contentClasses}>
-        <div className="flex items-center justify-between gap-2 mb-1 sm:mb-2">
-          <h3 className="font-medium text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-sm sm:text-base flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+        <div className="flex items-center justify-between gap-2 mb-1 sm:mb-1.5">
+          <h3 className="font-medium sm:font-normal text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-xs sm:text-sm flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             {product.name}
           </h3>
           {variant !== 'image-only' && (
@@ -341,7 +342,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
         </div>
         
         <div className="flex items-center space-x-1">
-          <span className="text-sm sm:text-base font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
+          <span className="text-xs sm:text-sm font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             ₹{product.price.toFixed(2)}
           </span>
           {hasDiscount && product.original_price && (
@@ -350,7 +351,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
             </span>
           )}
           {hasDiscount && (
-            <span className="text-xs text-red-500 font-normal">
+            <span className="text-xs sm:text-sm text-red-500 font-normal">
               {discountPercentage}% off
             </span>
           )}

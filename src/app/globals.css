@@ -213,3 +213,123 @@
     scroll-behavior: smooth;
   }
 }
+
+/* Performance optimizations for scroll containers */
+.overflow-x-auto {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x; /* Allow horizontal panning, prevent zoom */
+}
+
+/* Prevent zoom on touch for Swiper containers */
+.swiper,
+.swiper-wrapper,
+.swiper-slide {
+  touch-action: pan-x pan-y; /* Allow panning, prevent pinch zoom */
+  -ms-touch-action: pan-x pan-y;
+}
+
+/* Prevent double-tap zoom on product cards and images */
+img {
+  touch-action: manipulation; /* Prevent double-tap zoom, allow single-finger pan */
+  -ms-touch-action: manipulation;
+}
+
+/* Prevent zoom on product card containers during horizontal scroll */
+[class*="swiper"] img,
+.overflow-x-auto img {
+  touch-action: pan-x pan-y; /* Allow panning in both directions, prevent pinch zoom */
+  -ms-touch-action: pan-x pan-y;
+}
+
+/* Prevent zoom on entire page during horizontal scrolling */
+html,
+body {
+  touch-action: pan-x pan-y; /* Allow panning, prevent pinch zoom */
+  -ms-touch-action: pan-x pan-y;
+  overflow-x: hidden; /* Prevent horizontal scroll on body */
+}
+
+/* Prevent zoom on main containers */
+main,
+section {
+  touch-action: pan-x pan-y; /* Allow panning, prevent pinch zoom */
+  -ms-touch-action: pan-x pan-y;
+}
+
+/* Prevent zoom on grid containers */
+.grid {
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+}
+
+/* Prevent zoom on CategoryGrid and Swiper containers */
+[class*="CategoryGrid"],
+[class*="swiper-container"],
+.swiper-wrapper {
+  touch-action: pan-x pan-y;
+  -ms-touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Swiper pagination custom styling */
+.swiper-pagination-custom {
+  bottom: 1rem !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  width: auto !important;
+}
+
+.swiper-pagination-bullet {
+  width: 0.5rem;
+  height: 0.5rem;
+  background: rgba(255, 255, 255, 0.5);
+  opacity: 1;
+  transition: all 0.3s;
+}
+
+.swiper-pagination-bullet-active {
+  width: 2rem;
+  background: white;
+}
+
+@media (min-width: 768px) {
+  .swiper-pagination-custom {
+    display: none;
+  }
+}
+
+/* Swiper FreeMode for subcategories - hide scrollbar */
+.swiper-free-mode > .swiper-wrapper {
+  transition-timing-function: ease-out;
+}
+
+/* Ensure smooth scrolling for subcategory swipers */
+.swiper-free-mode {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Ensure navbar stays fixed and doesn't move during scroll */
+nav.bg-brand-500[class*="fixed"],
+nav[class*="fixed"].bg-brand-500 {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 100 !important;
+  transform: translateZ(0) !important;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Ensure navbar is always on top, especially on home page */
+body nav.bg-brand-500,
+html body nav.bg-brand-500 {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 100 !important;
+}

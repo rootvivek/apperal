@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound } from 'next/navigation';
-import ProductCard from '@/components/ProductCard';
+import ProductListing from '@/components/ProductListing';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, use } from 'react';
 
@@ -259,36 +259,11 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Products Grid */}
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {products.length} Products
-          </h2>
-          <div className="flex items-center space-x-4">
-            <select className="border border-gray-300 rounded-md px-3 py-2 text-sm">
-              <option>Sort by: Featured</option>
-              <option>Price: Low to High</option>
-              <option>Price: High to Low</option>
-              <option>Customer Rating</option>
-              <option>Newest</option>
-            </select>
-          </div>
-        </div>
-
-        {products.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {products.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <p className="text-gray-500 text-lg">No products found in this subcategory.</p>
-          </div>
-        )}
-      </div>
-    </div>
+    <ProductListing
+      products={products}
+      filterType="none"
+      showFilter={false}
+      emptyMessage="No products found."
+    />
   );
 }

@@ -483,8 +483,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         unsubscribeRef.current = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [auth]); // Only depend on auth - mapFirebaseUser and ensureUserProfile are stable via useCallback
+  }, [auth, mapFirebaseUser, ensureUserProfile]); // mapFirebaseUser and ensureUserProfile are stable via useCallback
 
   // Subscribe to realtime updates on the user's profile to detect deactivation or deletion by admin.
   // Fallback: if realtime subscription fails, we keep a polling interval as backup.

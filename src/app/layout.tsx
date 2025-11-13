@@ -27,6 +27,8 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        {/* Viewport meta tag to prevent zoom on mobile */}
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
         {/* Resource hints for third-party domains - improves connection time */}
         <link rel="preconnect" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
         <link rel="dns-prefetch" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
@@ -36,6 +38,10 @@ export default function RootLayout({
         <link rel="dns-prefetch" href="https://api.razorpay.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+        {/* Preconnect to Google APIs for Firebase */}
+        <link rel="preconnect" href="https://www.google.com" />
+        <link rel="preconnect" href="https://apis.google.com" />
+        <link rel="dns-prefetch" href="https://www.gstatic.com" />
       </head>
       <body className={inter.className}>
         <AuthProvider>
