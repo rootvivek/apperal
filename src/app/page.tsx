@@ -57,145 +57,7 @@ export default function Home() {
   // Simple cache to prevent refetching on refresh
   const [dataFetched, setDataFetched] = useState(false);
 
-  // Memoize fetchData to prevent recreation on every render
-  const fetchData = useCallback(async () => {
-    if (dataFetched) return; // Prevent duplicate calls
-    try {
-      setLoading(true);
-      
-      // ULTRA-FAST: Single database call using optimized function
-      // Note: This RPC function is optional - if it doesn't exist, we fall back to regular queries
-      let result: any = null;
-      let error: any = null;
-      
-      try {
-        const rpcResult = await supabase.rpc('get_home_page_data');
-        result = rpcResult.data;
-        error = rpcResult.error;
-      } catch (rpcError: any) {
-        // Catch any unexpected errors (like network issues)
-        error = { message: 'RPC call failed', status: 404, ...rpcError };
-      }
-
-      if (error) {
-        // Silently fallback to regular queries if RPC function is not available
-        // Suppress expected errors for missing RPC function (404, function not found, etc.)
-        const errorMessage = error.message || '';
-        const errorCode = 'code' in error ? error.code : undefined;
-        const errorStatus = 'status' in error ? error.status : ('statusCode' in error ? error.statusCode : undefined);
-        const isExpectedError = 
-          errorCode === 'PGRST116' ||
-          errorStatus === 404 ||
-          errorMessage.includes('function get_home_page_data') ||
-          errorMessage.includes('Could not find the function') ||
-          errorMessage.includes('does not exist') ||
-          errorMessage.includes('schema cache') ||
-          errorMessage.includes('RPC function not found');
-        
-        // Only log unexpected errors (not 404s for missing RPC function)
-        if (!isExpectedError) {
-          console.warn('Unexpected error calling get_home_page_data:', error);
-        }
-        // Silently fallback - no console error for expected missing function
-        await fetchDataFallback();
-        return;
-      }
-
-      // Extract data from the optimized response
-      const allProducts = result?.all_products || [];
-      const categorySections = result?.category_sections || [];
-      
-      // Transform data to match existing component expectations
-      const transformedAllProducts = allProducts.map((product: any) => ({
-        id: product.id,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: '',
-        subcategory: '',
-        image_url: product.main_image_url,
-        stock_quantity: 0,
-        is_active: true,
-        created_at: product.created_at,
-        updated_at: product.created_at,
-        images: product.additional_images || []
-      }));
-
-      const transformedCategorySections = categorySections.map((section: any) => ({
-        category: section.category,
-        products: section.products.map((product: any) => ({
-          id: product.id,
-          name: product.name,
-          description: product.description || '',
-          price: product.price,
-          category: section.category.name,
-          subcategory: '',
-          image_url: product.main_image_url,
-          stock_quantity: 0,
-          is_active: true,
-          created_at: product.created_at,
-          updated_at: product.created_at,
-          images: product.additional_images || []
-        }))
-      }));
-
-      // Filter categories to only show active ones (in case RPC function returns inactive)
-      const activeCategorySections = transformedCategorySections.filter(
-        (section: any) => section.category?.is_active !== false
-      );
-      let activeCategories = activeCategorySections.map((s: any) => s.category).filter(
-        (cat: any) => cat?.is_active !== false
-      );
-
-      // If RPC result includes subcategories, attach them; otherwise fetch separately
-      if (result?.subcategories) {
-        const subcategories = result.subcategories || [];
-        activeCategories = activeCategories.map((category: any) => ({
-          ...category,
-          subcategories: subcategories.filter(
-            (subcat: any) => subcat.parent_category_id === category.id
-          )
-        }));
-      } else {
-        // Fetch subcategories if not in RPC result
-        const { data: subcategoriesData } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('is_active', true)
-          .order('name', { ascending: true });
-        
-        if (subcategoriesData) {
-          activeCategories = activeCategories.map((category: any) => ({
-            ...category,
-            subcategories: subcategoriesData.filter(
-              (subcat: any) => subcat.parent_category_id === category.id
-            )
-          }));
-        }
-      }
-      
-      setAllProducts(transformedAllProducts);
-      setCategorySections(activeCategorySections);
-      setCategories(activeCategories);
-      setDataFetched(true); // Mark data as fetched
-    } catch (error) {
-      console.error('Error fetching data:', error);
-      setAllProducts([]);
-      setCategorySections([]);
-      setCategories([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [dataFetched, supabase]); // Include supabase and dataFetched
-
-  useEffect(() => {
-    // Only fetch data if not already fetched (prevents refetch on refresh)
-    if (!dataFetched) {
-      fetchData();
-    }
-  }, [dataFetched, fetchData]);
-
-  // FALLBACK: Original query method if optimized function fails - memoized
+  // FALLBACK: Original query method - memoized
   const fetchDataFallback = useCallback(async () => {
     try {
       
@@ -298,6 +160,30 @@ export default function Home() {
       setCategories([]);
     }
   }, [supabase]); // Include supabase dependency
+
+  // Memoize fetchData to prevent recreation on every render
+  const fetchData = useCallback(async () => {
+    if (dataFetched) return; // Prevent duplicate calls
+    try {
+      setLoading(true);
+      // Directly use fallback method since RPC function doesn't exist
+      await fetchDataFallback();
+    } catch (error) {
+      console.error('Error fetching data:', error);
+      setAllProducts([]);
+      setCategorySections([]);
+      setCategories([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [dataFetched, fetchDataFallback]); // Include fetchDataFallback
+
+  useEffect(() => {
+    // Only fetch data if not already fetched (prevents refetch on refresh)
+    if (!dataFetched) {
+      fetchData();
+    }
+  }, [dataFetched, fetchData]);
 
   if (loading) {
     return <HomePageSkeleton />;

@@ -45,8 +45,8 @@ export function middleware(request: NextRequest) {
     "img-src 'self' data: https: blob:",
     "font-src 'self' data: https://fonts.gstatic.com",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://*.razorpay.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://www.google.com https://www.google-analytics.com", // Allow Firebase API calls, Razorpay, Google services, and Supabase WebSocket
-    "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com", // Allow Razorpay and Google reCAPTCHA iframes
-    "frame-ancestors 'none'",
+    "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com https://*.firebaseapp.com https://*.firebase.com", // Allow Razorpay, Google reCAPTCHA, and Firebase iframes
+    "frame-ancestors 'self' https://www.google.com", // Allow Google to frame for reCAPTCHA
   ].join('; ');
   
   response.headers.set('Content-Security-Policy', csp);

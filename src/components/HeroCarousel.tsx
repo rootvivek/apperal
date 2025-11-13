@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination } from 'swiper/modules';
 import 'swiper/css';
@@ -22,15 +22,12 @@ export default function HeroCarousel() {
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
-  useEffect(() => {
-    fetchFeaturedProducts();
-  }, []);
-
-  const fetchFeaturedProducts = async () => {
+  const fetchFeaturedProducts = useCallback(async () => {
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
+      // First try to get products marked for hero
+      let { data, error } = await supabase
         .from('products')
         .select('id, name, price, original_price, image_url, discount_percentage')
         .eq('is_active', true)
@@ -38,16 +35,39 @@ export default function HeroCarousel() {
         .order('created_at', { ascending: false })
         .limit(4);
 
-      if (error) throw error;
-      
-      setProducts(data || []);
+      // If no hero products found, fallback to latest active products
+      if (!data || data.length === 0) {
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('products')
+          .select('id, name, price, original_price, image_url, discount_percentage')
+          .eq('is_active', true)
+          .order('created_at', { ascending: false })
+          .limit(4);
+        
+        if (fallbackError) throw fallbackError;
+        setProducts(fallbackData || []);
+      } else {
+        if (error) throw error;
+        setProducts(data || []);
+      }
     } catch (err: any) {
       console.error('Error fetching featured products:', err);
       setProducts([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchFeaturedProducts();
+  }, [fetchFeaturedProducts]);
+
+  // Debug: Log products count
+  useEffect(() => {
+    if (!loading) {
+      console.log('HeroCarousel products:', products.length);
+    }
+  }, [products, loading]);
 
   if (loading) {
     return (
@@ -61,52 +81,40 @@ export default function HeroCarousel() {
   }
 
   if (products.length === 0) {
-    return (
-      <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 sm:pb-4 flex items-center justify-center">
-        <div className="text-center text-gray-500">
-          <p>No featured products available</p>
-        </div>
-      </div>
-    );
+    return null; // Don't show anything if no products
   }
 
   return (
-    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 sm:pb-4 relative" style={{ touchAction: 'pan-x pan-y' }}>
+    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0" style={{ minHeight: '400px' }}>
       <Swiper
         modules={[Autoplay, Pagination]}
-        spaceBetween={4}
+        spaceBetween={2}
         slidesPerView={1}
         breakpoints={{
-          768: {
+          640: {
             slidesPerView: 2,
-            spaceBetween: 4,
+            spaceBetween: 2,
           },
           1024: {
-            slidesPerView: 4,
-            spaceBetween: 4,
+            slidesPerView: 3,
+            spaceBetween: 2,
           },
         }}
         autoplay={{
-          delay: 4000,
+          delay: 3000,
           disableOnInteraction: false,
-          pauseOnMouseEnter: true,
         }}
         pagination={{
           clickable: true,
-          dynamicBullets: true,
+          bulletClass: 'swiper-pagination-bullet !bg-gray-400 !opacity-50',
+          bulletActiveClass: 'swiper-pagination-bullet-active !bg-blue-600 !opacity-100',
         }}
-        loop={products.length > 1}
-        speed={600}
-        grabCursor={true}
+        loop={products.length > 3}
         className="h-full w-full"
-        style={{
-          paddingLeft: '0.25rem',
-          paddingRight: '0.25rem',
-          touchAction: 'pan-x pan-y',
-        }}
+        style={{ height: '100%', width: '100%' }}
       >
         {products.map((product) => (
-          <SwiperSlide key={product.id} className="h-full">
+          <SwiperSlide key={product.id} className="h-full" style={{ height: '100%' }}>
             <div className="h-full w-full">
               <ProductCard 
                 product={{
@@ -126,7 +134,6 @@ export default function HeroCarousel() {
           </SwiperSlide>
         ))}
       </Swiper>
-      
     </div>
   );
 }

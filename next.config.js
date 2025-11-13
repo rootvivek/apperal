@@ -102,8 +102,8 @@ const nextConfig = {
               "connect-src 'self' https://*.supabase.co wss://*.supabase.co wss://ugzyijiuhchxbuiooclv.supabase.co https://api.razorpay.com https://*.razorpay.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://www.google.com https://www.google-analytics.com",
               "img-src 'self' data: https:",
               "font-src 'self' data: https://fonts.gstatic.com",
-              "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com",
-              "frame-ancestors 'none'",
+              "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com https://*.firebaseapp.com https://*.firebase.com",
+              "frame-ancestors 'self' https://www.google.com",
             ].join('; '),
           },
           {

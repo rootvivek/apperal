@@ -42,6 +42,23 @@
   line-height: 1;
 }
 
+/* Swiper pagination styles for carousel */
+.swiper-pagination {
+  bottom: 10px !important;
+}
+
+.swiper-pagination-bullet {
+  width: 8px !important;
+  height: 8px !important;
+  background: rgba(156, 163, 175, 0.5) !important;
+  opacity: 0.5 !important;
+}
+
+.swiper-pagination-bullet-active {
+  background: rgb(37, 99, 235) !important;
+  opacity: 1 !important;
+}
+
 /* Ensure proper spacing in navigation */
 .nav-cart-link {
   position: relative;
@@ -221,14 +238,6 @@
   touch-action: pan-x; /* Allow horizontal panning, prevent zoom */
 }
 
-/* Prevent zoom on touch for Swiper containers */
-.swiper,
-.swiper-wrapper,
-.swiper-slide {
-  touch-action: pan-x pan-y; /* Allow panning, prevent pinch zoom */
-  -ms-touch-action: pan-x pan-y;
-}
-
 /* Prevent double-tap zoom on product cards and images */
 img {
   touch-action: manipulation; /* Prevent double-tap zoom, allow single-finger pan */
@@ -236,7 +245,6 @@ img {
 }
 
 /* Prevent zoom on product card containers during horizontal scroll */
-[class*="swiper"] img,
 .overflow-x-auto img {
   touch-action: pan-x pan-y; /* Allow panning in both directions, prevent pinch zoom */
   -ms-touch-action: pan-x pan-y;
@@ -263,51 +271,11 @@ section {
   -ms-touch-action: pan-x pan-y;
 }
 
-/* Prevent zoom on CategoryGrid and Swiper containers */
-[class*="CategoryGrid"],
-[class*="swiper-container"],
-.swiper-wrapper {
+/* Prevent zoom on CategoryGrid containers */
+[class*="CategoryGrid"] {
   touch-action: pan-x pan-y;
   -ms-touch-action: pan-x pan-y;
   -webkit-overflow-scrolling: touch;
-}
-
-/* Swiper pagination custom styling */
-.swiper-pagination-custom {
-  bottom: 1rem !important;
-  left: 50% !important;
-  transform: translateX(-50%) !important;
-  width: auto !important;
-}
-
-.swiper-pagination-bullet {
-  width: 0.5rem;
-  height: 0.5rem;
-  background: rgba(255, 255, 255, 0.5);
-  opacity: 1;
-  transition: all 0.3s;
-}
-
-.swiper-pagination-bullet-active {
-  width: 2rem;
-  background: white;
-}
-
-@media (min-width: 768px) {
-  .swiper-pagination-custom {
-    display: none;
-  }
-}
-
-/* Swiper FreeMode for subcategories - hide scrollbar */
-.swiper-free-mode > .swiper-wrapper {
-  transition-timing-function: ease-out;
-}
-
-/* Ensure smooth scrolling for subcategory swipers */
-.swiper-free-mode {
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior-x: contain;
 }
 
 /* Ensure navbar stays fixed and doesn't move during scroll */

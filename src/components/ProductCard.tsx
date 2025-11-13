@@ -145,7 +145,6 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
   }, [product.image_url, product.images]);
 
   // Only show image sliding if product has more than 1 valid image
-  // This ensures swiper only shows when product actually has multiple images
   const hasMultipleImages = availableImages.length > 1;
 
   // Start image sliding when hovering - memoized

@@ -48,6 +48,7 @@ export default function Navigation() {
   const [currentSubcategoryName, setCurrentSubcategoryName] = useState<string | null>(null);
   const [isAllProductsPage, setIsAllProductsPage] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const supabase = createClient();
   
   // Get login modal - safe to call as provider wraps this component
@@ -58,6 +59,23 @@ export default function Navigation() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.category-dropdown-container')) {
+        setOpenCategoryId(null);
+      }
+    };
+
+    if (openCategoryId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openCategoryId]);
 
   useEffect(() => {
     // Only fetch data if not already fetched (prevents refetch on refresh)
@@ -377,14 +395,23 @@ export default function Navigation() {
               <div className="text-white text-sm opacity-70 w-0 h-0"></div>
             ) : (
               categories.map((category) => (
-                <div key={category.id} className="relative group">
+                <div 
+                  key={category.id} 
+                  className="relative group category-dropdown-container"
+                  onMouseEnter={() => category.subcategories && category.subcategories.length > 0 && setOpenCategoryId(category.id)}
+                >
                   <Link
                     href={`/products/${category.slug}`}
+                    onClick={() => {
+                      if (category.subcategories && category.subcategories.length > 0) {
+                        setOpenCategoryId(category.id);
+                      }
+                    }}
                     className="text-white hover:text-brand-400 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
-                      <svg className="ml-0.5 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className={`ml-0.5 w-4 h-4 transition-transform ${openCategoryId === category.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                       </svg>
                     )}
@@ -392,13 +419,19 @@ export default function Navigation() {
                   
                   {/* Subcategories Dropdown */}
                   {category.subcategories && category.subcategories.length > 0 && (
-                    <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                    <div 
+                      className={`absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 transition-all duration-200 z-50 ${
+                        openCategoryId === category.id ? 'opacity-100 visible' : 'opacity-0 invisible'
+                      }`}
+                      onMouseEnter={() => setOpenCategoryId(category.id)}
+                    >
                       <div className="py-2">
                         {category.subcategories.map((subcategory) => (
                           <Link
                             key={subcategory.id}
                             href={`/products/${category.slug}/${subcategory.slug}`}
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors"
+                            onClick={() => setOpenCategoryId(null)}
                           >
                             {subcategory.name}
                           </Link>
