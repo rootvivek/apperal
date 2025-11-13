@@ -7,6 +7,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
+import { useLoginModal } from '@/contexts/LoginModalContext';
 import { createClient } from '@/lib/supabase/client';
 import CartIcon from './CartIcon';
 import WishlistIcon from './WishlistIcon';
@@ -46,7 +47,17 @@ export default function Navigation() {
   const [currentCategoryName, setCurrentCategoryName] = useState<string | null>(null);
   const [currentSubcategoryName, setCurrentSubcategoryName] = useState<string | null>(null);
   const [isAllProductsPage, setIsAllProductsPage] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const supabase = createClient();
+  
+  // Get login modal - safe to call as provider wraps this component
+  const { openModal: openLoginModal } = useLoginModal();
+
+  // Ensure component is mounted before rendering interactive elements
+  // This prevents hydration mismatches
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     // Only fetch data if not already fetched (prevents refetch on refresh)
@@ -530,7 +541,7 @@ export default function Navigation() {
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
-                            <span>{signingOut ? 'Signing out...' : 'Sign Out'}</span>
+                            <span suppressHydrationWarning>{signingOut ? 'Signing out...' : 'Sign Out'}</span>
                           </div>
                         </button>
                       </div>
@@ -540,24 +551,33 @@ export default function Navigation() {
               ) : (
                 <>
                   {/* Mobile: User Icon */}
-                  <Link
-                    href="/login"
-                    className="sm:hidden text-white hover:text-brand-400 p-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </Link>
+                  {isMounted ? (
+                    <button
+                      onClick={() => openLoginModal()}
+                      className="sm:hidden text-white hover:text-brand-400 p-2"
+                      aria-label="Sign In"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </button>
+                  ) : (
+                    <div className="sm:hidden w-9 h-9" aria-hidden="true" />
+                  )}
                   
                   {/* Desktop: Sign In button */}
-                  <div className="hidden sm:flex items-center">
-                    <Link
-                      href="/login"
-                      className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
-                    >
-                      Sign In
-                    </Link>
-                  </div>
+                  {isMounted ? (
+                    <div className="hidden sm:flex items-center">
+                      <button
+                        onClick={() => openLoginModal()}
+                        className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
+                      >
+                        Sign In
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="hidden sm:flex items-center w-20 h-8" aria-hidden="true" />
+                  )}
                 </>
               )}
               </div>

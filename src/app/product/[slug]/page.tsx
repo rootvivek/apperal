@@ -6,9 +6,11 @@ import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWishlist } from '@/contexts/WishlistContext';
+import { useLoginModal } from '@/contexts/LoginModalContext';
 import { createClient } from '@/lib/supabase/client';
 import CartIcon from '@/components/CartIcon';
 import ProductCard from '@/components/ProductCard';
+import ProductReviews from '@/components/ProductReviews';
 
 interface ProductCardProduct {
   id: string;
@@ -80,11 +82,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [loading, setLoading] = useState(true);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [productRating, setProductRating] = useState<number | null>(null);
+  const [productReviewCount, setProductReviewCount] = useState<number>(0);
   const [categorySlug, setCategorySlug] = useState<string>('');
   const [subcategorySlug, setSubcategorySlug] = useState<string>('');
   const { addToCart } = useCart();
   const { user } = useAuth();
   const { wishlist, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { openModal: openLoginModal } = useLoginModal();
   const supabase = createClient();
 
   const [selectedImage, setSelectedImage] = useState(0);
@@ -99,47 +104,85 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const previousSlugRef = useRef<string>('');
 
-  const fetchRelatedProducts = async (category: string, currentProductId: string) => {
+  const fetchRelatedProducts = async (categoryName: string, categoryId: string | null, currentProductId: string, subcategoryId?: string | null) => {
     try {
       setRelatedLoading(true);
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('category', category)
-        .neq('id', currentProductId)
-        .eq('is_active', true)
-        .limit(4)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching related products:', error);
-        return;
-      }
-
-      if (data) {
-        // Fetch images for each related product
-        const productsWithImages = await Promise.all(
-          data.map(async (product: any) => {
-            const { data: images } = await supabase
-              .from('product_images')
-              .select('*')
-              .eq('product_id', product.id)
-              .order('display_order', { ascending: true });
-            
-            const productWithImages = {
-              ...product,
-              images: images || []
-            };
-            
-            
-            return productWithImages;
-          })
-        );
+      
+      let productsData: any[] = [];
+      
+      // Try to query by category_id first (UUID relationship) - this is the primary method
+      if (categoryId) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('category_id', categoryId)
+          .neq('id', currentProductId)
+          .eq('is_active', true)
+          .limit(8)
+          .order('created_at', { ascending: false });
         
-        setRelatedProducts(productsWithImages as ProductCardProduct[]);
+        if (error) {
+          console.error('Error fetching related products by category_id:', error);
+        } else if (data && data.length > 0) {
+          productsData = data;
+        }
+      }
+      
+      // If no products found by category_id, try to fetch by subcategory_id as fallback
+      if (productsData.length === 0 && subcategoryId) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('subcategory_id', subcategoryId)
+          .neq('id', currentProductId)
+          .eq('is_active', true)
+          .limit(8)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching related products by subcategory_id:', error);
+        } else if (data && data.length > 0) {
+          productsData = data;
+        }
+      }
+      
+      // If still no products, fetch any active products as a last resort
+      if (productsData.length === 0) {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .neq('id', currentProductId)
+          .eq('is_active', true)
+          .limit(8)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error fetching any related products:', error);
+        } else if (data && data.length > 0) {
+          productsData = data;
+        }
+      }
+      
+      // Transform products to include images array
+      if (productsData.length > 0) {
+        const transformedProducts = productsData.map((product: any) => ({
+          ...product,
+          images: product.product_images || (product.image_url ? [{
+            id: 'main-image',
+            image_url: product.image_url,
+            alt_text: product.name,
+            display_order: 0
+          }] : [])
+        }));
+        
+        setRelatedProducts(transformedProducts as ProductCardProduct[]);
+      } else {
+        console.log('No related products found for category:', categoryId || categoryName, 'subcategory:', subcategoryId);
+        setRelatedProducts([]);
       }
     } catch (err) {
       console.error('Error fetching related products:', err);
+      setRelatedProducts([]);
     } finally {
       setRelatedLoading(false);
     }
@@ -164,7 +207,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       try {
         setLoading(true);
         
-        // First try to find by exact slug match - include all detail tables
+        // First try to find by exact slug match - include all detail tables and category relationship
         let { data: product, error: productError } = await supabase
           .from('products')
           .select(`
@@ -172,7 +215,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             product_images (id, image_url, alt_text, display_order),
             product_cover_details (*),
             product_apparel_details (*),
-            product_accessories_details (*)
+            product_accessories_details (*),
+            category:categories!products_category_id_fkey (id, name, slug)
           `)
           .eq('slug', slug)
           .eq('is_active', true)
@@ -189,7 +233,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               product_images (id, image_url, alt_text, display_order),
               product_cover_details (*),
               product_apparel_details (*),
-              product_accessories_details (*)
+              product_accessories_details (*),
+              category:categories!products_category_id_fkey (id, name, slug)
             `)
             .ilike('slug', `${slugWithoutSuffix}%`)
             .eq('is_active', true)
@@ -211,7 +256,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               product_images (id, image_url, alt_text, display_order),
               product_cover_details (*),
               product_apparel_details (*),
-              product_accessories_details (*)
+              product_accessories_details (*),
+              category:categories!products_category_id_fkey (id, name, slug)
             `)
             .eq('id', slug)
             .eq('is_active', true)
@@ -286,6 +332,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           };
           
           setProduct(productWithImages as ProductCardProduct);
+          setProductRating(product.rating || null);
+          setProductReviewCount(product.review_count || 0);
           
           // Handle size selection: restore saved size or set default
           if (productWithImages.product_apparel_details?.size) {
@@ -316,33 +364,73 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           }
           
           // Fetch category and subcategory slugs
-          const categoryName = typeof product.category === 'string' ? product.category : product.category?.name;
-          if (categoryName) {
-            // Fetch category by name
+        // Handle category - could be from relationship (object) or string field
+        let categoryName = '';
+        let categoryId: string | null = null;
+        
+        // First, try to get category from relationship
+        if (product.category && typeof product.category === 'object' && !Array.isArray(product.category)) {
+          // Category from relationship (object)
+          categoryName = product.category.name || '';
+          categoryId = product.category.id || null;
+        } else if (typeof product.category === 'string') {
+          // Category from string field (legacy)
+          categoryName = product.category;
+        }
+        
+        // If we have category_id but no name, fetch the category
+        if (product.category_id && !categoryName) {
+          try {
             const { data: categoryData } = await supabase
               .from('categories')
-              .select('slug')
+              .select('id, name, slug')
+              .eq('id', product.category_id)
+              .single();
+            
+            if (categoryData) {
+              categoryName = categoryData.name;
+              categoryId = categoryData.id;
+              setCategorySlug(categoryData.slug);
+            }
+          } catch (err) {
+            console.error('Error fetching category by ID:', err);
+          }
+        }
+          
+        // If we have category name but no ID, try to fetch it
+        if (categoryName && !categoryId) {
+          try {
+            const { data: categoryData } = await supabase
+              .from('categories')
+              .select('id, name, slug')
               .eq('name', categoryName)
               .single();
             
             if (categoryData) {
+              categoryId = categoryData.id;
               setCategorySlug(categoryData.slug);
             }
+          } catch (err) {
+            console.error('Error fetching category by name:', err);
+          }
+        }
+          
+          // Fetch related products
+          if (categoryName || categoryId || product.subcategory_id) {
+            fetchRelatedProducts(categoryName || '', categoryId, product.id, product.subcategory_id || null);
+          }
+          
+          // Fetch subcategory by name if product has subcategory
+          if (product.subcategory) {
+            const { data: subcategoryData } = await supabase
+              .from('subcategories')
+              .select('slug')
+              .eq('name', product.subcategory)
+              .single();
             
-            // Fetch subcategory by name if product has subcategory
-            if (product.subcategory) {
-              const { data: subcategoryData } = await supabase
-                .from('subcategories')
-                .select('slug')
-                .eq('name', product.subcategory)
-                .single();
-              
-              if (subcategoryData) {
-                setSubcategorySlug(subcategoryData.slug);
-              }
+            if (subcategoryData) {
+              setSubcategorySlug(subcategoryData.slug);
             }
-            
-            fetchRelatedProducts(categoryName, product.id);
           }
         } else {
           setError('Product not found');
@@ -387,8 +475,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     
     // Check if user is authenticated for checkout
     if (!user) {
-      const currentUrl = window.location.pathname;
-      window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
+      openLoginModal();
       return;
     }
     
@@ -409,7 +496,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const handleWishlistToggle = () => {
     if (!user) {
-      window.location.href = '/login';
+      openLoginModal();
       return;
     }
     
@@ -946,13 +1033,13 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   )}
                 </div>
               </div>
-              {product.rating !== null && product.rating !== undefined && (
+              {(productRating !== null && productRating !== undefined) && (
                 <div className="mt-3 flex items-center gap-2">
                   <span className="flex items-center text-yellow-500">
-                    {'⭐'.repeat(Math.round(product.rating))}
+                    {'⭐'.repeat(Math.round(productRating))}
                   </span>
                   <span className="text-sm text-gray-600">
-                    {product.rating.toFixed(1)} ({product.review_count || 0} reviews)
+                    {productRating.toFixed(1)} ({productReviewCount} reviews)
                   </span>
                 </div>
               )}
@@ -1087,7 +1174,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
                   className="flex-1 bg-orange-500 text-white py-4 px-6 rounded font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
                 >
-                  Buy Now
+                  {!user ? 'Login to Buy' : 'Buy Now'}
                 </button>
               </div>
 
@@ -1144,6 +1231,23 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         </div>
         </div>
 
+        {/* Product Reviews Section */}
+        {product && (
+          <ProductReviews
+            productId={product.id}
+            onRatingUpdate={(avgRating, reviewCount) => {
+              setProductRating(avgRating);
+              setProductReviewCount(reviewCount);
+              // Also update the product state
+              setProduct(prev => prev ? {
+                ...prev,
+                rating: avgRating,
+                review_count: reviewCount
+              } : null);
+            }}
+          />
+        )}
+
         {/* Related Products Section */}
         <div className="mt-12 mb-8">
           <div className="text-center mb-10">
@@ -1157,7 +1261,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               <span className="ml-4 text-gray-600 text-lg">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
               {relatedProducts.map((relatedProduct: any) => (
                 <ProductCard 
                   key={relatedProduct.id} 
@@ -1194,7 +1298,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
             className="flex-1 bg-orange-500 text-white py-4 px-4 rounded-md font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm"
           >
-            Buy Now
+            {!user ? 'Login to Buy' : 'Buy Now'}
           </button>
         </div>
       </div>

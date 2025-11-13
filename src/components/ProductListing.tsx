@@ -194,11 +194,206 @@ export default function ProductListing({
     return 0;
   };
 
+  // Render filter and sort buttons (reusable component)
+  const renderFilterSortButtons = (isDesktop: boolean = false) => (
+    <div className={`flex items-center ${isDesktop ? 'justify-start gap-4' : 'justify-between gap-1'}`}>
+      {/* Filter Button */}
+      {showFilter && filterType !== 'none' ? (
+        <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
+          <button
+            onClick={() => {
+              setShowFilterDropdown(!showFilterDropdown);
+              setShowSortDropdown(false);
+            }}
+            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 ${isDesktop ? 'py-2.5' : 'py-3.5'} text-sm bg-white hover:bg-gray-50 font-medium`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>Filter By</span>
+            <svg className={`w-4 h-4 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showFilterDropdown && (
+            <>
+              <div
+                className="fixed inset-0 z-30"
+                onClick={() => setShowFilterDropdown(false)}
+              ></div>
+              <div className={`absolute ${isDesktop ? 'top-full left-0 mt-2' : 'bottom-full left-0 mb-2'} w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto`}>
+                <div className="py-2">
+                  <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="filter"
+                      value="all"
+                      checked={selectedFilter === 'all'}
+                      onChange={(e) => {
+                        setSelectedFilter(e.target.value);
+                        setShowFilterDropdown(false);
+                      }}
+                      className="mr-3"
+                    />
+                    <span className="text-sm">All Products ({products.length})</span>
+                  </label>
+                  {filterOptions.map((option) => {
+                    const count = getFilterOptionCount(option);
+                    return (
+                      <label key={option.id} className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="filter"
+                          value={option.slug || option.name}
+                          checked={selectedFilter === (option.slug || option.name)}
+                          onChange={(e) => {
+                            setSelectedFilter(e.target.value);
+                            setShowFilterDropdown(false);
+                          }}
+                          className="mr-3"
+                        />
+                        <span className="text-sm">{option.name} ({count})</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
+          <button
+            disabled
+            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-100 text-gray-400 font-medium cursor-not-allowed`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+            </svg>
+            <span>Filter</span>
+          </button>
+        </div>
+      )}
+
+      {/* Sort Button */}
+      <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
+        <button
+          onClick={() => {
+            setShowSortDropdown(!showSortDropdown);
+            setShowFilterDropdown(false);
+          }}
+            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 ${isDesktop ? 'py-2.5' : 'py-3.5'} text-sm bg-white hover:bg-gray-50 font-medium`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
+          </svg>
+          <span>Sort By</span>
+          <svg className={`w-4 h-4 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {showSortDropdown && (
+          <>
+            <div
+              className="fixed inset-0 z-30"
+              onClick={() => setShowSortDropdown(false)}
+            ></div>
+            <div className={`absolute ${isDesktop ? 'top-full right-0 mt-2' : 'bottom-full right-0 mb-2'} w-full bg-white border border-gray-200 rounded-md shadow-lg z-50`}>
+              <div className="py-2">
+                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort"
+                    value="featured"
+                    checked={sortBy === 'featured'}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setShowSortDropdown(false);
+                    }}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">Featured</span>
+                </label>
+                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort"
+                    value="price-low"
+                    checked={sortBy === 'price-low'}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setShowSortDropdown(false);
+                    }}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">Price: Low to High</span>
+                </label>
+                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort"
+                    value="price-high"
+                    checked={sortBy === 'price-high'}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setShowSortDropdown(false);
+                    }}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">Price: High to Low</span>
+                </label>
+                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort"
+                    value="newest"
+                    checked={sortBy === 'newest'}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setShowSortDropdown(false);
+                    }}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">Newest</span>
+                </label>
+                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="sort"
+                    value="oldest"
+                    checked={sortBy === 'oldest'}
+                    onChange={(e) => {
+                      setSortBy(e.target.value);
+                      setShowSortDropdown(false);
+                    }}
+                    className="mr-3"
+                  />
+                  <span className="text-sm">Oldest</span>
+                </label>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <>
       {/* Products Grid */}
       <div className="min-h-screen bg-gray-50 pt-16 sm:pt-20">
         <div className="max-w-[1450px] mx-auto w-full px-2 pt-0 pb-8 !mt-3 sm:!mt-0">
+          {/* Desktop: Filter and Sort at Top */}
+          <div className="hidden md:block mb-6">
+            <div className="bg-white border-b border-gray-200 py-4">
+              <div className="max-w-[1450px] mx-auto w-full px-4 md:px-6 lg:px-8">
+                {renderFilterSortButtons(true)}
+              </div>
+            </div>
+          </div>
+
           {sidebar ? (
             <div className="flex flex-col lg:flex-row gap-8">
               {/* Sidebar */}
@@ -237,196 +432,15 @@ export default function ProductListing({
         </div>
       </div>
 
-      {/* Sticky Bottom Bar - Filter and Sort */}
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-        <div className="max-w-[1450px] mx-auto w-full px-4 md:px-6 lg:px-8 py-3">
-          <div className="flex items-center justify-around gap-4">
-            {/* Filter Button */}
-            {showFilter && filterType !== 'none' ? (
-              <div className="flex-1 relative">
-                <button
-                  onClick={() => {
-                    setShowFilterDropdown(!showFilterDropdown);
-                    setShowSortDropdown(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-white hover:bg-gray-50 font-medium"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>{getFilterButtonText()}</span>
-                  <svg className={`w-4 h-4 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-
-                {showFilterDropdown && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-30"
-                      onClick={() => setShowFilterDropdown(false)}
-                    ></div>
-                    <div className="absolute bottom-full left-0 mb-2 w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto">
-                      <div className="py-2">
-                        <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="filter"
-                            value="all"
-                            checked={selectedFilter === 'all'}
-                            onChange={(e) => {
-                              setSelectedFilter(e.target.value);
-                              setShowFilterDropdown(false);
-                            }}
-                            className="mr-3"
-                          />
-                          <span className="text-sm">All Products ({products.length})</span>
-                        </label>
-                        {filterOptions.map((option) => {
-                          const count = getFilterOptionCount(option);
-                          return (
-                            <label key={option.id} className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                              <input
-                                type="radio"
-                                name="filter"
-                                value={option.slug || option.name}
-                                checked={selectedFilter === (option.slug || option.name)}
-                                onChange={(e) => {
-                                  setSelectedFilter(e.target.value);
-                                  setShowFilterDropdown(false);
-                                }}
-                                className="mr-3"
-                              />
-                              <span className="text-sm">{option.name} ({count})</span>
-                            </label>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex-1 relative">
-                <button
-                  disabled
-                  className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-100 text-gray-400 font-medium cursor-not-allowed"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                  </svg>
-                  <span>Filter</span>
-                </button>
-              </div>
-            )}
-
-            {/* Sort Button */}
-            <div className="flex-1 relative">
-              <button
-                onClick={() => {
-                  setShowSortDropdown(!showSortDropdown);
-                  setShowFilterDropdown(false);
-                }}
-                className="w-full flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-white hover:bg-gray-50 font-medium"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-                </svg>
-                <span>Sort</span>
-                <svg className={`w-4 h-4 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-
-              {showSortDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-30"
-                    onClick={() => setShowSortDropdown(false)}
-                  ></div>
-                  <div className="absolute bottom-full right-0 mb-2 w-full bg-white border border-gray-200 rounded-md shadow-lg z-50">
-                    <div className="py-2">
-                      <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="sort"
-                          value="featured"
-                          checked={sortBy === 'featured'}
-                          onChange={(e) => {
-                            setSortBy(e.target.value);
-                            setShowSortDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">Featured</span>
-                      </label>
-                      <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="sort"
-                          value="price-low"
-                          checked={sortBy === 'price-low'}
-                          onChange={(e) => {
-                            setSortBy(e.target.value);
-                            setShowSortDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">Price: Low to High</span>
-                      </label>
-                      <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="sort"
-                          value="price-high"
-                          checked={sortBy === 'price-high'}
-                          onChange={(e) => {
-                            setSortBy(e.target.value);
-                            setShowSortDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">Price: High to Low</span>
-                      </label>
-                      <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="sort"
-                          value="newest"
-                          checked={sortBy === 'newest'}
-                          onChange={(e) => {
-                            setSortBy(e.target.value);
-                            setShowSortDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">Newest</span>
-                      </label>
-                      <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="sort"
-                          value="oldest"
-                          checked={sortBy === 'oldest'}
-                          onChange={(e) => {
-                            setSortBy(e.target.value);
-                            setShowSortDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">Oldest</span>
-                      </label>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
+      {/* Mobile: Sticky Bottom Bar - Filter and Sort */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
+        <div className="max-w-[1450px] mx-auto w-full px-2 py-3">
+          {renderFilterSortButtons(false)}
         </div>
       </div>
 
-      {/* Add padding to bottom to prevent content from being hidden behind sticky bar */}
-      <div className="h-20"></div>
+      {/* Add padding to bottom on mobile to prevent content from being hidden behind sticky bar */}
+      <div className="md:hidden h-20"></div>
     </>
   );
 }

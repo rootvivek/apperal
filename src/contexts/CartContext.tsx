@@ -296,7 +296,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Ensure user profile exists before creating cart
         const profileExists = await ensureUserProfileExists(user.id);
         if (!profileExists) {
-          console.warn('User profile is being created, please try again in a moment');
+          // Profile is being created by AuthContext, retry after a delay
+          console.log('User profile is being created, will retry cart creation shortly...');
+          setTimeout(() => {
+            fetchCartItems();
+          }, 2000);
           return;
         }
 

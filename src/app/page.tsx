@@ -64,25 +64,37 @@ export default function Home() {
       setLoading(true);
       
       // ULTRA-FAST: Single database call using optimized function
-      const { data: result, error } = await supabase.rpc('get_home_page_data');
+      // Note: This RPC function is optional - if it doesn't exist, we fall back to regular queries
+      let result: any = null;
+      let error: any = null;
+      
+      try {
+        const rpcResult = await supabase.rpc('get_home_page_data');
+        result = rpcResult.data;
+        error = rpcResult.error;
+      } catch (rpcError: any) {
+        // Catch any unexpected errors (like network issues)
+        error = { message: 'RPC call failed', status: 404, ...rpcError };
+      }
 
       if (error) {
         // Silently fallback to regular queries if RPC function is not available
         // Suppress expected errors for missing RPC function (404, function not found, etc.)
         const errorMessage = error.message || '';
         const errorCode = 'code' in error ? error.code : undefined;
+        const errorStatus = 'status' in error ? error.status : ('statusCode' in error ? error.statusCode : undefined);
         const isExpectedError = 
           errorCode === 'PGRST116' ||
+          errorStatus === 404 ||
           errorMessage.includes('function get_home_page_data') ||
           errorMessage.includes('Could not find the function') ||
           errorMessage.includes('does not exist') ||
           errorMessage.includes('schema cache') ||
-          ('status' in error && error.status === 404) ||
-          ('statusCode' in error && error.statusCode === 404);
+          errorMessage.includes('RPC function not found');
         
-        // Only log unexpected errors
+        // Only log unexpected errors (not 404s for missing RPC function)
         if (!isExpectedError) {
-          // Fallback to direct query on RPC error
+          console.warn('Unexpected error calling get_home_page_data:', error);
         }
         // Silently fallback - no console error for expected missing function
         await fetchDataFallback();

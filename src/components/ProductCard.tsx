@@ -108,32 +108,51 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
 
   // Get all available images for the product - memoized
   const availableImages = useMemo(() => {
-    const images = [];
+    const images: string[] = [];
     
-    // Add main image
-    if (product.image_url) {
+    // Add main image first
+    if (product.image_url && typeof product.image_url === 'string' && product.image_url.trim() !== '') {
       images.push(product.image_url);
     }
     
     // Add additional images if they exist
-    if (product.images && product.images.length > 0) {
-      product.images.forEach((image, index) => {
-        if (typeof image === 'string' && image !== product.image_url) {
-          images.push(image);
-        } else if (typeof image === 'object' && image.image_url && image.image_url !== product.image_url) {
-          images.push(image.image_url);
+    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+      product.images.forEach((image) => {
+        let imageUrl: string | null = null;
+        
+        // Handle string images
+        if (typeof image === 'string' && image.trim() !== '') {
+          imageUrl = image;
+        }
+        // Handle object images with image_url property
+        else if (typeof image === 'object' && image !== null && 'image_url' in image && typeof image.image_url === 'string') {
+          imageUrl = image.image_url;
+        }
+        
+        // Add if valid and not duplicate
+        if (imageUrl && 
+            imageUrl.trim() !== '' &&
+            imageUrl !== product.image_url && 
+            !images.includes(imageUrl) &&
+            (imageUrl.startsWith('http') || imageUrl.startsWith('https') || imageUrl.startsWith('/'))) {
+          images.push(imageUrl);
         }
       });
     }
     
-    return images;
+    // Return images or main image as fallback
+    return images.length > 0 ? images : (product.image_url ? [product.image_url] : []);
   }, [product.image_url, product.images]);
 
+  // Only show image sliding if product has more than 1 valid image
+  // This ensures swiper only shows when product actually has multiple images
   const hasMultipleImages = availableImages.length > 1;
 
   // Start image sliding when hovering - memoized
+  // Only start if product actually has multiple images (more than 1)
   const startImageSliding = useCallback(() => {
-    if (!hasMultipleImages) return;
+    // Double check: only start if we have more than 1 image
+    if (availableImages.length <= 1) return;
     
     setIsHovered(true);
     setCurrentImageIndex(0);
@@ -156,8 +175,9 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
   }, []);
 
   // Touch event handlers for mobile swipe - memoized
+  // Only allow swipe if product has multiple images
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!hasMultipleImages) return;
+    if (availableImages.length <= 1) return;
     
     setIsTouching(true);
     setTouchEnd(null);
@@ -171,12 +191,12 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
   }, [hasMultipleImages]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!hasMultipleImages) return;
+    if (availableImages.length <= 1) return;
     setTouchEnd(e.targetTouches[0].clientX);
-  }, [hasMultipleImages]);
+  }, [availableImages.length]);
 
   const handleTouchEnd = useCallback(() => {
-    if (!hasMultipleImages || !touchStart || !touchEnd) {
+    if (availableImages.length <= 1 || !touchStart || !touchEnd) {
       setIsTouching(false);
       return;
     }
@@ -196,7 +216,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
     setIsTouching(false);
     setTouchStart(null);
     setTouchEnd(null);
-  }, [hasMultipleImages, touchStart, touchEnd, availableImages.length]);
+  }, [availableImages.length, touchStart, touchEnd]);
 
   // Cleanup interval on unmount
   useEffect(() => {
@@ -290,12 +310,34 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
           }}
         />
         
-        {/* Multiple images indicator - subtle hint - only show if no product badge */}
-        {hasMultipleImages && variant !== 'image-only' && !product.badge && (
-          <div className="absolute top-2 left-2 bg-brand-400 text-white text-xs px-1.5 py-0.5 rounded-full opacity-80">
-            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-            </svg>
+        {/* Image dots indicator - show when multiple images */}
+        {hasMultipleImages && availableImages.length > 1 && (
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1.5 z-20">
+            {availableImages.map((_, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setCurrentImageIndex(index);
+                  // Reset auto-slide interval
+                  if (intervalRef.current) {
+                    clearInterval(intervalRef.current);
+                  }
+                  if (isHovered) {
+                    intervalRef.current = setInterval(() => {
+                      setCurrentImageIndex(prevIndex => (prevIndex + 1) % availableImages.length);
+                    }, 2000);
+                  }
+                }}
+                className={`transition-all duration-200 rounded-full ${
+                  currentImageIndex === index
+                    ? 'w-2 h-2 bg-white'
+                    : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/75'
+                }`}
+                aria-label={`Go to image ${index + 1}`}
+              />
+            ))}
           </div>
         )}
         

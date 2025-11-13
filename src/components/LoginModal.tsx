@@ -1,13 +1,15 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
-import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 
-function LoginPageContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+interface LoginModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  redirectTo?: string; // Kept for compatibility but not used for redirects
+}
+
+export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const { user, sendOTP, verifyOTP } = useAuth();
   
   const [formData, setFormData] = useState({
@@ -19,29 +21,38 @@ function LoginPageContent() {
   const [otpSent, setOtpSent] = useState(false);
   const [otpLoading, setOtpLoading] = useState(false);
 
-  // Redirect if already logged in
+  // Close modal if user logs in (stay on same page)
   useEffect(() => {
-    if (user) {
-      const redirectTo = searchParams.get('redirect') || '/';
-      router.push(redirectTo);
+    if (user && isOpen) {
+      onClose();
+      // Stay on the same page - no redirect needed
     }
-  }, [user, searchParams, router]);
-
-  const handleClose = () => {
-    const redirectTo = searchParams.get('redirect') || '/';
-    router.push(redirectTo);
-  };
+  }, [user, isOpen, onClose]);
 
   // Close modal on ESC key
   useEffect(() => {
+    if (!isOpen) return;
+    
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        handleClose();
+        onClose();
       }
     };
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [searchParams, router]);
+  }, [isOpen, onClose]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
 
   const handleSendOTP = async () => {
     if (!formData.phone.trim()) {
@@ -68,7 +79,6 @@ function LoginPageContent() {
     setOtpLoading(true);
 
     try {
-      // Send OTP without checking if user exists - will create user automatically after verification
       const { data, error: otpError } = await sendOTP(formData.phone);
       
       if (otpError) {
@@ -96,9 +106,9 @@ function LoginPageContent() {
         setError(verifyError);
         setLoading(false);
       } else {
-        // Redirect after successful verification
-        const redirectTo = searchParams.get('redirect') || '/';
-        window.location.href = redirectTo;
+        // Close modal and stay on the same page
+        onClose();
+        // User will stay on the current page automatically
       }
     } catch (err: any) {
       setError('Failed to verify OTP. Please try again.');
@@ -114,8 +124,17 @@ function LoginPageContent() {
     }));
   };
 
+  const handleClose = () => {
+    setError('');
+    setOtpSent(false);
+    setFormData({ phone: '+91', otp: '' });
+    onClose();
+  };
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
       {/* Glass effect backdrop with blur */}
       <div 
         className="absolute inset-0 bg-gradient-to-br from-black/40 via-black/30 to-black/40 backdrop-blur-lg"
@@ -135,7 +154,7 @@ function LoginPageContent() {
           {/* Close button */}
           <button
             onClick={handleClose}
-            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+            className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors z-10"
             aria-label="Close"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,10 +270,3 @@ function LoginPageContent() {
   );
 }
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
-      <LoginPageContent />
-    </Suspense>
-  );
-}

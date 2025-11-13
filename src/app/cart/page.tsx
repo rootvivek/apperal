@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLoginModal } from '@/contexts/LoginModalContext';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
   const { user } = useAuth();
+  const { openModal: openLoginModal } = useLoginModal();
 
   // Don't render if loading
   if (cartLoading) {
@@ -57,9 +59,17 @@ function CartContent() {
               Looks like you haven&apos;t added any items to your cart yet.
             </p>
             {!user && (
-              <p className="text-sm text-gray-500 mb-4">
-                Note: Your cart items will be saved and transferred to your account when you login.
-              </p>
+              <div className="mb-6">
+                <p className="text-sm text-gray-500 mb-4">
+                  Note: Your cart items will be saved and transferred to your account when you login.
+                </p>
+                <button
+                  onClick={() => openLoginModal()}
+                  className="inline-flex items-center px-6 py-3 border border-transparent text-sm sm:text-base font-medium rounded text-white bg-brand hover:bg-brand-600 transition-colors mb-4"
+                >
+                  Login to Continue
+                </button>
+              </div>
             )}
             <Link
               href="/products"
@@ -241,12 +251,12 @@ function CartContent() {
                 </div>
                 <div className="pt-3 sm:pt-4">
                   {!user && (
-                    <Link
-                      href="/login"
+                    <button
+                      onClick={() => openLoginModal()}
                       className="w-full bg-brand text-white py-3 px-4 rounded font-medium hover:bg-brand-600 active:bg-brand-700 transition-colors text-center block mb-2 text-sm sm:text-base"
                     >
                       Login to Checkout
-                    </Link>
+                    </button>
                   )}
                   {user && (
                     <Link
@@ -271,12 +281,12 @@ function CartContent() {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-50" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
           <div className="px-3 py-4">
             {!user && (
-              <Link
-                href="/login"
+              <button
+                onClick={() => openLoginModal()}
                 className="w-full bg-brand text-white py-4 px-4 rounded-md font-semibold hover:bg-brand-600 active:bg-brand-700 transition-colors text-center block text-sm"
               >
                 Login to Checkout
-              </Link>
+              </button>
             )}
             {user && (
               <Link
