@@ -49,6 +49,7 @@ export default function Navigation() {
   const [isAllProductsPage, setIsAllProductsPage] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
+  const [dropdownTimeout, setDropdownTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const supabase = createClient();
   
   // Get login modal - safe to call as provider wraps this component
@@ -59,6 +60,9 @@ export default function Navigation() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+
+  // Ensure user check is consistent (convert undefined to null for consistent rendering)
+  const isUserLoggedIn = Boolean(user);
 
   // Close category dropdown when clicking outside
   useEffect(() => {
@@ -76,6 +80,15 @@ export default function Navigation() {
       };
     }
   }, [openCategoryId]);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (dropdownTimeout) {
+        clearTimeout(dropdownTimeout);
+      }
+    };
+  }, [dropdownTimeout]);
 
   useEffect(() => {
     // Only fetch data if not already fetched (prevents refetch on refresh)
@@ -340,9 +353,9 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-brand-500 shadow-sm border-b fixed top-0 left-0 right-0 z-[100] py-3.5 sm:py-5" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100 }}>
+      <nav className="bg-brand-500 fixed top-0 left-0 right-0 z-[100]" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, height: '72px', minHeight: '72px', maxHeight: '72px', display: 'flex', alignItems: 'center' }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
-          <div className="flex justify-between items-center relative">
+          <div className="flex justify-between items-center relative h-full">
           {/* Left side: Back button + Category/Subcategory name OR Logo */}
           {(isAllProductsPage || currentCategoryName || currentSubcategoryName) ? (
             <>
@@ -398,15 +411,27 @@ export default function Navigation() {
                 <div 
                   key={category.id} 
                   className="relative group category-dropdown-container"
-                  onMouseEnter={() => category.subcategories && category.subcategories.length > 0 && setOpenCategoryId(category.id)}
+                  onMouseEnter={() => {
+                    // Clear any pending timeout
+                    if (dropdownTimeout) {
+                      clearTimeout(dropdownTimeout);
+                      setDropdownTimeout(null);
+                    }
+                    // Open dropdown if category has subcategories
+                    if (category.subcategories && category.subcategories.length > 0) {
+                      setOpenCategoryId(category.id);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    // Close dropdown after a short delay to allow moving to dropdown menu
+                    const timeout = setTimeout(() => {
+                      setOpenCategoryId(null);
+                    }, 150);
+                    setDropdownTimeout(timeout);
+                  }}
                 >
                   <Link
                     href={`/products/${category.slug}`}
-                    onClick={() => {
-                      if (category.subcategories && category.subcategories.length > 0) {
-                        setOpenCategoryId(category.id);
-                      }
-                    }}
                     className="text-white hover:text-brand-400 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
@@ -420,10 +445,21 @@ export default function Navigation() {
                   {/* Subcategories Dropdown */}
                   {category.subcategories && category.subcategories.length > 0 && (
                     <div 
-                      className={`absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 transition-all duration-200 z-50 ${
-                        openCategoryId === category.id ? 'opacity-100 visible' : 'opacity-0 invisible'
+                      className={`absolute top-full left-0 mt-1 w-48 bg-white rounded-md shadow-lg border border-gray-200 transition-all duration-200 z-[110] ${
+                        openCategoryId === category.id ? 'opacity-100 visible' : 'opacity-0 invisible pointer-events-none'
                       }`}
-                      onMouseEnter={() => setOpenCategoryId(category.id)}
+                      onMouseEnter={() => {
+                        // Clear timeout when entering dropdown
+                        if (dropdownTimeout) {
+                          clearTimeout(dropdownTimeout);
+                          setDropdownTimeout(null);
+                        }
+                        setOpenCategoryId(category.id);
+                      }}
+                      onMouseLeave={() => {
+                        // Close dropdown when leaving
+                        setOpenCategoryId(null);
+                      }}
                     >
                       <div className="py-2">
                         {category.subcategories.map((subcategory) => (
@@ -431,7 +467,10 @@ export default function Navigation() {
                             key={subcategory.id}
                             href={`/products/${category.slug}/${subcategory.slug}`}
                             className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors"
-                            onClick={() => setOpenCategoryId(null)}
+                            onClick={() => {
+                              // Close dropdown when clicking a subcategory
+                              setOpenCategoryId(null);
+                            }}
                           >
                             {subcategory.name}
                           </Link>
@@ -450,7 +489,7 @@ export default function Navigation() {
 
           {/* Mobile Search Bar - Outside of hidden container */}
           {showMobileSearch && (
-            <div className="sm:hidden w-full flex items-center px-4">
+            <div className="sm:hidden w-full flex items-center px-4 h-full" style={{ maxHeight: '72px', overflow: 'hidden' }}>
               <SearchBar variant="mobile" onClose={closeMobileSearch} />
             </div>
           )}
@@ -472,10 +511,12 @@ export default function Navigation() {
               </button>
             )}
 
-            {/* Wishlist Icon */}
-            <Link href="/wishlist" className={`text-white hover:text-brand-400 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-              <WishlistIcon showCount={true} count={wishlistCount} />
-            </Link>
+            {/* Wishlist Icon - Only show when user is logged in */}
+            {isUserLoggedIn && (
+              <Link href="/wishlist" className={`text-white hover:text-brand-400 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+                <WishlistIcon showCount={true} count={wishlistCount} />
+              </Link>
+            )}
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
             <Link href="/cart" className={`text-white hover:text-brand-400 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
@@ -483,8 +524,8 @@ export default function Navigation() {
             </Link>
             
             {/* Auth Section */}
-            <div className={`flex items-center space-x-1 sm:space-x-2 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`}>
-              {user ? (
+            <div className={`flex items-center space-x-1 sm:space-x-2 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`} suppressHydrationWarning>
+              {isUserLoggedIn ? (
                 <div 
                   id="user-dropdown" 
                   className="relative flex items-center h-full"
@@ -584,33 +625,36 @@ export default function Navigation() {
               ) : (
                 <>
                   {/* Mobile: User Icon */}
-                  {isMounted ? (
-                    <button
-                      onClick={() => openLoginModal()}
-                      className="sm:hidden text-white hover:text-brand-400 p-2"
-                      aria-label="Sign In"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                      </svg>
-                    </button>
-                  ) : (
-                    <div className="sm:hidden w-9 h-9" aria-hidden="true" />
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isMounted) {
+                        openLoginModal();
+                      }
+                    }}
+                    className="sm:hidden text-white hover:text-brand-400 p-2"
+                    aria-label="Sign In"
+                    suppressHydrationWarning
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                  </button>
                   
                   {/* Desktop: Sign In button */}
-                  {isMounted ? (
-                    <div className="hidden sm:flex items-center">
-                      <button
-                        onClick={() => openLoginModal()}
-                        className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
-                      >
-                        Sign In
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="hidden sm:flex items-center w-20 h-8" aria-hidden="true" />
-                  )}
+                  <div className="hidden sm:flex items-center" suppressHydrationWarning>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isMounted) {
+                          openLoginModal();
+                        }
+                      }}
+                      className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
+                    >
+                      Sign In
+                    </button>
+                  </div>
                 </>
               )}
               </div>

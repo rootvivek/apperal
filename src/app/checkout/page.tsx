@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import AuthGuard from '@/components/AuthGuard';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
+import { useLoginModal } from '@/contexts/LoginModalContext';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
@@ -26,8 +26,9 @@ interface CheckoutFormData {
 }
 
 function CheckoutContent() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { cartItems, loading: cartLoading, clearCart } = useCart();
+  const { openModal: openLoginModal } = useLoginModal();
   const searchParams = useSearchParams();
   const supabase = createClient();
   
@@ -831,6 +832,12 @@ function CheckoutContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check if user is logged in - if not, show login modal
+    if (!user) {
+      openLoginModal();
+      return;
+    }
+    
     // Check if address is complete, if not show modal
     if (!isAddressComplete()) {
       setShowAddressModal(true);
@@ -1085,8 +1092,7 @@ function CheckoutContent() {
     try {
       // Verify user is logged in
       if (!user || !user.id) {
-        alert('Please log in to continue with payment.');
-        window.location.href = '/login?redirect=' + encodeURIComponent(window.location.pathname);
+        openLoginModal();
         setIsProcessing(false);
         return;
       }
@@ -1259,7 +1265,7 @@ function CheckoutContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
-      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8 pt-0 pb-4 sm:py-8">
+      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8 pt-1 pb-4 sm:pb-8">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden p-0 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-semibold sm:font-normal text-gray-900 mb-4 sm:mb-8 px-3 sm:px-6 pt-3 sm:pt-0 pb-3 sm:pb-0 border-b border-gray-200 sm:border-b-0">Checkout</h1>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8">
@@ -2009,8 +2015,15 @@ function CheckoutContent() {
 
 export default function CheckoutPage() {
   return (
-    <AuthGuard>
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading checkout...</p>
+        </div>
+      </div>
+    }>
       <CheckoutContent />
-    </AuthGuard>
+    </Suspense>
   );
 }

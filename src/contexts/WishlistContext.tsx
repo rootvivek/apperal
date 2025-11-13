@@ -17,63 +17,257 @@ interface WishlistContextType {
 const WishlistContext = createContext<WishlistContextType | undefined>(undefined);
 
 export function WishlistProvider({ children }: { children: React.ReactNode }) {
-  const [wishlist, setWishlist] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const supabase = createClient();
+  
+  // Initialize wishlist from localStorage immediately for guest users (synchronous)
+  const getInitialWishlist = (): Product[] => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const savedWishlist = localStorage.getItem('guest-wishlist');
+      if (savedWishlist) {
+        return JSON.parse(savedWishlist);
+      }
+    } catch (error) {
+      console.error('Error loading guest wishlist:', error);
+    }
+    return [];
+  };
+
+  const [wishlist, setWishlist] = useState<Product[]>(getInitialWishlist);
+  const [isFetching, setIsFetching] = useState(false);
+
+  // Computed loading: only true if user is logged in AND we're actually fetching
+  // Never true for guest users or when auth is loading
+  const loading = !!(user && !authLoading && isFetching);
+
+  // Always ensure wishlist is loaded from localStorage for guest users
+  useEffect(() => {
+    if (!authLoading && !user) {
+      const guestWishlist = getInitialWishlist();
+      setWishlist(guestWishlist);
+      setIsFetching(false);
+    }
+  }, [authLoading, user]);
 
   // Load wishlist from database when user changes
   useEffect(() => {
-    const loadWishlist = async () => {
-      setLoading(true);
-      
-      if (user) {
-        // Load from database for logged-in users
-        try {
-          const { data: wishlistRows, error } = await supabase
-            .from('wishlist')
-            .select('product_id')
-            .eq('user_id', user.id);
+    // Don't do anything while auth is loading
+    if (authLoading) {
+      setIsFetching(false);
+      return;
+    }
 
-          if (error) {
-            // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
-            // This is expected for users who don't have items in their wishlist yet
+    // For guest users, load immediately from localStorage (no loading state)
+    if (!user) {
+      const guestWishlist = getInitialWishlist();
+      setWishlist(guestWishlist);
+      setIsFetching(false);
+      return;
+    }
+
+    // Only for logged-in users: transfer guest wishlist and pending items first, then load from database
+    const loadWishlist = async () => {
+      setIsFetching(true);
+      try {
+        // Transfer pending wishlist items (items user tried to add before login)
+        const pendingWishlistStr = localStorage.getItem('pending-wishlist-add');
+        if (pendingWishlistStr) {
+          try {
+            const pendingWishlist: Product[] = JSON.parse(pendingWishlistStr);
+            if (pendingWishlist.length > 0) {
+              console.log(`Adding ${pendingWishlist.length} pending wishlist items to database...`);
+              
+              // Add each pending item to database
+              let addedCount = 0;
+              for (const product of pendingWishlist) {
+                try {
+                  // Check if item already exists in user wishlist
+                  const { data: existingItem, error: checkError } = await supabase
+                    .from('wishlist')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('product_id', product.id)
+                    .maybeSingle();
+
+                  if (checkError && checkError.code !== 'PGRST116') {
+                    console.error('Error checking existing wishlist item:', checkError);
+                    continue; // Skip this item if there's an error
+                  }
+
+                  if (!existingItem) {
+                    // Add new item to database wishlist
+                    const { error: insertError } = await supabase
+                      .from('wishlist')
+                      .insert({
+                        user_id: user.id,
+                        product_id: product.id
+                      })
+                      .select();
+
+                    if (insertError) {
+                      console.error('Error inserting wishlist item:', insertError);
+                      // Continue with other items even if one fails
+                    } else {
+                      addedCount++;
+                    }
+                  }
+                } catch (itemError) {
+                  console.error('Error processing pending wishlist item:', itemError);
+                  // Continue with other items
+                }
+              }
+
+              // Clear pending wishlist after successful transfer
+              if (addedCount > 0) {
+                localStorage.removeItem('pending-wishlist-add');
+                console.log(`Successfully added ${addedCount} pending items to user wishlist`);
+              } else {
+                // Clear if all items already existed
+                localStorage.removeItem('pending-wishlist-add');
+              }
+            }
+          } catch (parseError) {
+            console.error('Error parsing pending wishlist:', parseError);
+            // Clear invalid localStorage data
+            localStorage.removeItem('pending-wishlist-add');
+          }
+        }
+
+        // Transfer guest wishlist items to database after login
+        const guestWishlistStr = localStorage.getItem('guest-wishlist');
+        if (guestWishlistStr) {
+          try {
+            const guestWishlist: Product[] = JSON.parse(guestWishlistStr);
+            if (guestWishlist.length > 0) {
+              console.log(`Transferring ${guestWishlist.length} items from guest wishlist to database...`);
+              
+              // Transfer each guest wishlist item to database
+              let transferredCount = 0;
+              for (const product of guestWishlist) {
+                try {
+                  // Check if item already exists in user wishlist
+                  const { data: existingItem, error: checkError } = await supabase
+                    .from('wishlist')
+                    .select('id')
+                    .eq('user_id', user.id)
+                    .eq('product_id', product.id)
+                    .maybeSingle();
+
+                  if (checkError && checkError.code !== 'PGRST116') {
+                    console.error('Error checking existing wishlist item:', checkError);
+                    continue; // Skip this item if there's an error
+                  }
+
+                  if (!existingItem) {
+                    // Add new item to database wishlist
+                    const { error: insertError } = await supabase
+                      .from('wishlist')
+                      .insert({
+                        user_id: user.id,
+                        product_id: product.id
+                      })
+                      .select();
+
+                    if (insertError) {
+                      console.error('Error inserting wishlist item:', insertError);
+                      // Continue with other items even if one fails
+                    } else {
+                      transferredCount++;
+                    }
+                  }
+                } catch (itemError) {
+                  console.error('Error processing wishlist item:', itemError);
+                  // Continue with other items
+                }
+              }
+
+              // Clear guest wishlist after successful transfer
+              if (transferredCount > 0) {
+                localStorage.removeItem('guest-wishlist');
+                console.log(`Successfully transferred ${transferredCount} items from guest wishlist to user account`);
+              } else {
+                console.warn('No items were transferred from guest wishlist');
+              }
+            }
+          } catch (parseError) {
+            console.error('Error parsing guest wishlist:', parseError);
+            // Clear invalid localStorage data
+            localStorage.removeItem('guest-wishlist');
+          }
+        }
+
+        // Now load wishlist from database
+        const { data: wishlistRows, error } = await supabase
+          .from('wishlist')
+          .select('product_id')
+          .eq('user_id', user.id);
+
+        if (error) {
+          // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
+          if (error.code !== 'PGRST116') {
+            console.error('Error fetching wishlist:', error);
+          }
+          setWishlist([]);
+        } else {
+          const productIds = (wishlistRows || []).map((r: any) => r.product_id).filter(Boolean);
+          if (productIds.length === 0) {
             setWishlist([]);
           } else {
-            const productIds = (wishlistRows || []).map((r: any) => r.product_id).filter(Boolean);
-            if (productIds.length === 0) {
+            const { data: productsData, error: productsError } = await supabase
+              .from('products')
+              .select(`
+                id,
+                name,
+                slug,
+                description,
+                price,
+                image_url,
+                category_id,
+                brand,
+                in_stock,
+                stock_quantity,
+                rating,
+                review_count,
+                created_at,
+                updated_at,
+                product_images (image_url)
+              `)
+              .in('id', productIds);
+
+            if (productsError) {
+              console.error('Error fetching wishlist products:', productsError);
               setWishlist([]);
             } else {
-              const { data: productsData, error: productsError } = await supabase
-                .from('products')
-                .select(`
-                  id,
-                  name,
-                  slug,
-                  description,
-                  price,
-                  category_id,
-                  brand,
-                  in_stock,
-                  stock_quantity,
-                  rating,
-                  review_count,
-                  created_at,
-                  updated_at
-                `)
-                .in('id', productIds);
-
-              if (productsError) {
-                setWishlist([]);
-              } else {
-                // Transform to Product type
-                const products = (productsData || []).map((dbProduct: any) => ({
+              // Transform to Product type
+              const products = (productsData || []).map((dbProduct: any) => {
+                // Collect images from product_images table and fallback to image_url
+                const images: string[] = [];
+                
+                // Add main image_url if it exists
+                if (dbProduct.image_url) {
+                  images.push(dbProduct.image_url);
+                }
+                
+                // Add product_images if they exist
+                if (dbProduct.product_images && Array.isArray(dbProduct.product_images)) {
+                  dbProduct.product_images.forEach((img: any) => {
+                    if (img?.image_url && !images.includes(img.image_url)) {
+                      images.push(img.image_url);
+                    }
+                  });
+                }
+                
+                const finalImages = images.length > 0 ? images : (dbProduct.image_url ? [dbProduct.image_url] : []);
+                
+                return {
                   id: dbProduct.id,
                   name: dbProduct.name,
                   description: dbProduct.description || '',
                   price: dbProduct.price,
                   originalPrice: dbProduct.price,
-                  images: [],
+                  image_url: dbProduct.image_url || (finalImages.length > 0 ? finalImages[0] : ''),
+                  images: finalImages,
                   category: {
                     id: dbProduct.category_id || 'unknown',
                     name: 'Uncategorized',
@@ -92,36 +286,22 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                   tags: [],
                   createdAt: new Date(dbProduct.created_at),
                   updatedAt: new Date(dbProduct.updated_at)
-                })) as Product[];
-                setWishlist(products);
-              }
+                };
+              }) as Product[];
+              setWishlist(products);
             }
           }
-        } catch (error: any) {
-          // Silently handle errors - wishlist might not exist yet for new users
-          setWishlist([]);
         }
-      } else {
-        // Load from localStorage for guest users
-        try {
-          const savedWishlist = localStorage.getItem('guest-wishlist');
-          if (savedWishlist) {
-            const parsedWishlist = JSON.parse(savedWishlist);
-            setWishlist(parsedWishlist);
-          } else {
-            setWishlist([]);
-          }
-        } catch (error) {
-          console.error('Error loading guest wishlist:', error);
-          setWishlist([]);
-        }
+      } catch (error: any) {
+        console.error('Error loading wishlist:', error);
+        setWishlist([]);
+      } finally {
+        setIsFetching(false);
       }
-      
-      setLoading(false);
     };
 
     loadWishlist();
-  }, [user, supabase]);
+  }, [user, supabase, authLoading]);
 
   const addToWishlist = async (product: Product) => {
     if (!user) {

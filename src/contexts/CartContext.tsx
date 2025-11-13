@@ -200,79 +200,120 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Transfer guest cart items to user cart after login
       const guestCartStr = localStorage.getItem('guest-cart');
       if (guestCartStr) {
-        const guestCart: CartItem[] = JSON.parse(guestCartStr);
-        if (guestCart.length > 0) {
-          // Get or create user's cart
-          let { data: cartData, error: cartError } = await supabase
-            .from('carts')
-            .select('id')
-            .eq('user_id', user.id)
-            .maybeSingle();
-
-          let cart = cartData;
-
-          if (cartError && cartError.code !== 'PGRST116') {
-            console.error('Error fetching cart:', cartError);
-          }
-
-          if (!cart) {
-            // Create cart if it doesn't exist
-            const { data: newCartData, error: createError } = await supabase
+        try {
+          const guestCart: CartItem[] = JSON.parse(guestCartStr);
+          if (guestCart.length > 0) {
+            console.log(`Transferring ${guestCart.length} items from guest cart to database...`);
+            
+            // Get or create user's cart
+            let { data: cartData, error: cartError } = await supabase
               .from('carts')
-              .insert({ user_id: user.id })
-              .select('id');
+              .select('id')
+              .eq('user_id', user.id)
+              .maybeSingle();
 
-            if (createError) {
-              console.error('Error creating cart:', createError);
-              // If foreign key error, wait a bit and retry once
-              if (createError.code === '23503') {
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                const retryResult = await supabase
-                  .from('carts')
-                  .insert({ user_id: user.id })
-                  .select('id');
-                if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
-                  cart = retryResult.data[0];
+            let cart = cartData;
+
+            if (cartError && cartError.code !== 'PGRST116') {
+              console.error('Error fetching cart:', cartError);
+            }
+
+            if (!cart) {
+              // Create cart if it doesn't exist
+              const { data: newCartData, error: createError } = await supabase
+                .from('carts')
+                .insert({ user_id: user.id })
+                .select('id');
+
+              if (createError) {
+                console.error('Error creating cart:', createError);
+                // If foreign key error, wait a bit and retry once
+                if (createError.code === '23503') {
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  const retryResult = await supabase
+                    .from('carts')
+                    .insert({ user_id: user.id })
+                    .select('id');
+                  if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
+                    cart = retryResult.data[0];
+                  }
+                }
+              } else if (newCartData && newCartData.length > 0) {
+                cart = newCartData[0];
+              }
+            }
+
+            if (cart) {
+              // Transfer each guest cart item to user cart
+              let transferredCount = 0;
+              for (const guestItem of guestCart) {
+                try {
+                  // Check if item already exists in user cart (same product_id AND same size)
+                  const { data: existingItem, error: checkError } = await supabase
+                    .from('cart_items')
+                    .select('id, quantity')
+                    .eq('cart_id', cart.id)
+                    .eq('product_id', guestItem.product_id)
+                    .eq('size', guestItem.size || null)
+                    .maybeSingle();
+
+                  if (checkError && checkError.code !== 'PGRST116') {
+                    console.error('Error checking existing cart item:', checkError);
+                    continue; // Skip this item if there's an error
+                  }
+
+                  if (existingItem) {
+                    // Update quantity if item exists
+                    const { error: updateError } = await supabase
+                      .from('cart_items')
+                      .update({ quantity: existingItem.quantity + guestItem.quantity })
+                      .eq('id', existingItem.id);
+
+                    if (updateError) {
+                      console.error('Error updating cart item quantity:', updateError);
+                    } else {
+                      transferredCount++;
+                    }
+                  } else {
+                    // Add new item
+                    const { error: insertError } = await supabase
+                      .from('cart_items')
+                      .insert({
+                        cart_id: cart.id,
+                        product_id: guestItem.product_id,
+                        quantity: guestItem.quantity,
+                        size: guestItem.size || null
+                      })
+                      .select();
+
+                    if (insertError) {
+                      console.error('Error inserting cart item:', insertError);
+                      // Continue with other items even if one fails
+                    } else {
+                      transferredCount++;
+                    }
+                  }
+                } catch (itemError) {
+                  console.error('Error processing cart item:', itemError);
+                  // Continue with other items
                 }
               }
-            } else if (newCartData && newCartData.length > 0) {
-              cart = newCartData[0];
-            }
-          }
 
-          if (cart) {
-            // Transfer each guest cart item to user cart
-            for (const guestItem of guestCart) {
-              // Check if item already exists in user cart
-              const { data: existingItem } = await supabase
-                .from('cart_items')
-                .select('id, quantity')
-                .eq('cart_id', cart.id)
-                .eq('product_id', guestItem.product_id)
-                .maybeSingle();
-
-              if (existingItem) {
-                // Update quantity if item exists
-                await supabase
-                  .from('cart_items')
-                  .update({ quantity: existingItem.quantity + guestItem.quantity })
-                  .eq('id', existingItem.id);
+              // Clear guest cart after successful transfer
+              if (transferredCount > 0) {
+                localStorage.removeItem('guest-cart');
+                console.log(`Successfully transferred ${transferredCount} items from guest cart to user account`);
               } else {
-                // Add new item
-                await supabase
-                  .from('cart_items')
-                  .insert({
-                    cart_id: cart.id,
-                    product_id: guestItem.product_id,
-                    quantity: guestItem.quantity
-                  });
+                console.warn('No items were transferred from guest cart');
               }
+            } else {
+              console.error('Could not create or fetch user cart, skipping guest cart transfer');
             }
           }
-
-          // Clear guest cart after transfer
+        } catch (parseError) {
+          console.error('Error parsing guest cart:', parseError);
+          // Clear invalid localStorage data
           localStorage.removeItem('guest-cart');
-          console.log('Guest cart transferred to user account');
         }
       }
       

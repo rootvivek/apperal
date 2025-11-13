@@ -47,8 +47,8 @@ export default function HeroCarousel() {
         if (fallbackError) throw fallbackError;
         setProducts(fallbackData || []);
       } else {
-        if (error) throw error;
-        setProducts(data || []);
+      if (error) throw error;
+      setProducts(data || []);
       }
     } catch (err: any) {
       console.error('Error fetching featured products:', err);
@@ -85,7 +85,7 @@ export default function HeroCarousel() {
   }
 
   return (
-    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0" style={{ minHeight: '400px' }}>
+    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0" style={{ minHeight: '400px', backgroundColor: '#ffffff' }}>
       <Swiper
         modules={[Autoplay, Pagination]}
         spaceBetween={2}
@@ -116,23 +116,23 @@ export default function HeroCarousel() {
         {products.map((product) => (
           <SwiperSlide key={product.id} className="h-full" style={{ height: '100%' }}>
             <div className="h-full w-full">
-              <ProductCard 
-                product={{
-                  ...product,
-                  description: '',
-                  category: 'Featured',
-                  subcategories: [],
-                  stock_quantity: 0,
-                  is_active: true,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                  images: product.image_url ? [product.image_url] : []
-                }} 
-                variant="image-only"
-              />
-            </div>
+                <ProductCard 
+                  product={{
+                    ...product,
+                    description: '',
+                    category: 'Featured',
+                    subcategories: [],
+                    stock_quantity: 0,
+                    is_active: true,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    images: product.image_url ? [product.image_url] : []
+                  }} 
+                  variant="image-only"
+                />
+              </div>
           </SwiperSlide>
-        ))}
+            ))}
       </Swiper>
     </div>
   );

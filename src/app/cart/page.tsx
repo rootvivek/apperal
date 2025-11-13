@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import Link from 'next/link';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,20 +9,37 @@ import { getProductDetailType } from '@/utils/productDetailsMapping';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
-  const { user } = useAuth();
+  const { user, authLoading } = useAuth();
   const { openModal: openLoginModal } = useLoginModal();
 
-  // Don't render if loading
-  if (cartLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading cart...</p>
-        </div>
-      </div>
-    );
-  }
+  // Scroll to top on mount and ensure it happens after render
+  useEffect(() => {
+    // Use setTimeout to ensure scroll happens after DOM is fully rendered
+    const scrollToTop = () => {
+      // Try multiple methods to ensure scroll works
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      if (document.documentElement) {
+        document.documentElement.scrollTop = 0;
+      }
+      if (document.body) {
+        document.body.scrollTop = 0;
+      }
+    };
+    
+    // Immediate scroll
+    scrollToTop();
+    
+    // Also scroll after delays to handle any layout shifts
+    const timeoutId1 = setTimeout(scrollToTop, 50);
+    const timeoutId2 = setTimeout(scrollToTop, 100);
+    const timeoutId3 = setTimeout(scrollToTop, 200);
+    
+    return () => {
+      clearTimeout(timeoutId1);
+      clearTimeout(timeoutId2);
+      clearTimeout(timeoutId3);
+    };
+  }, []);
 
   const getSubtotal = () => {
     return cartItems.reduce((total, item) => total + (item.product.price * item.quantity), 0);
@@ -36,8 +54,9 @@ function CartContent() {
     return getSubtotal() + getShipping();
   };
 
-  // Show loading while checking cart data
-  if (cartLoading) {
+  // Only show loading if user is logged in AND cart is loading
+  // Guest users don't need to wait for cart loading since it's from localStorage
+  if (cartLoading && user && !authLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -50,7 +69,7 @@ function CartContent() {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-[1450px] mx-auto w-full px-0">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
@@ -58,19 +77,6 @@ function CartContent() {
             <p className="text-lg text-gray-600 mb-8">
               Looks like you haven&apos;t added any items to your cart yet.
             </p>
-            {!user && (
-              <div className="mb-6">
-                <p className="text-sm text-gray-500 mb-4">
-                  Note: Your cart items will be saved and transferred to your account when you login.
-                </p>
-                <button
-                  onClick={() => openLoginModal()}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-sm sm:text-base font-medium rounded text-white bg-brand hover:bg-brand-600 transition-colors mb-4"
-                >
-                  Login to Continue
-                </button>
-              </div>
-            )}
             <Link
               href="/products"
               className="inline-flex items-center px-6 py-3 border border-transparent text-sm sm:text-base font-medium rounded text-white bg-brand hover:bg-brand-600"
@@ -85,7 +91,7 @@ function CartContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-24 sm:pb-0">
-      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8">
+      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8 pt-1">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           {/* Cart Items and Order Summary - Combined on Mobile */}
           <div className="lg:col-span-2">
@@ -160,7 +166,12 @@ function CartContent() {
                           <div className="flex items-center">
                             <select
                               value={item.quantity}
-                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value))}
+                              onChange={(e) => {
+                                const newQuantity = parseInt(e.target.value, 10);
+                                if (!isNaN(newQuantity) && newQuantity > 0) {
+                                  updateQuantity(item.id, newQuantity);
+                                }
+                              }}
                               className="w-16 h-9 sm:w-20 sm:h-8 border border-gray-300 rounded px-2 text-sm sm:text-base font-medium text-gray-900 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent cursor-pointer"
                             >
                               {(() => {
@@ -267,11 +278,6 @@ function CartContent() {
                     </Link>
                   )}
                 </div>
-                {!user && (
-                  <p className="text-xs text-gray-500 mt-2 text-center">
-                    Your items are saved in your guest cart
-                  </p>
-                )}
               </div>
             </div>
           </div>

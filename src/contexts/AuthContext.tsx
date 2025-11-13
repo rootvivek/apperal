@@ -44,6 +44,7 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  authLoading: boolean; // Alias for loading for clarity
   signingOut: boolean;
   showBannedModal: boolean;
   setBannedModal: (show: boolean) => void;
@@ -58,6 +59,7 @@ export const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  authLoading: true,
   signingOut: false,
   showBannedModal: false,
   setBannedModal: () => {},
@@ -739,13 +741,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const handleOTPVerify = useCallback(async (phone: string, token: string): Promise<AuthResponse> => {
     try {
       if (!confirmationResult) {
+        console.log('OTP Verify: No confirmationResult available');
         return {
           data: null,
           error: 'No verification code was sent. Please request a new one.'
         };
       }
 
+      console.log('OTP Verify: Attempting to verify code with confirmationResult');
+      // Attempt to verify the code
+      // Firebase allows multiple attempts with the same confirmationResult
       const result = await confirmationResult.confirm(token);
+      console.log('OTP Verify: Code verified successfully', result?.user?.uid);
       if (!result?.user) {
         return {
           data: null,
@@ -805,24 +812,92 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setConfirmationResult(null);
       return { data: { user: mappedUser }, error: null };
 
-    } catch (error) {
-      console.error('Error verifying OTP:', error);
+    } catch (error: any) {
+      // Extract error code from Firebase error object
+      // Firebase errors can have code in different places: error.code, error.error?.code, or error.message
+      let errorCode = '';
+      let errorMessageText = '';
       
-      let errorMessage = 'Failed to verify code.';
-      
-      if (error instanceof Error) {
-        const authError = error as { code?: string };
-        switch (authError.code) {
-          case 'auth/invalid-verification-code':
-            errorMessage = 'Invalid code. Please check and try again.';
-            break;
-          case 'auth/code-expired':
-            errorMessage = 'Code has expired. Please request a new one.';
-            break;
+      if (error?.code) {
+        errorCode = error.code;
+      } else if (error?.error?.code) {
+        errorCode = error.error.code;
+      } else if (error?.message) {
+        errorMessageText = error.message;
+        // Try to extract code from message (e.g., "Firebase: Error (auth/invalid-verification-code)")
+        const codeMatch = errorMessageText.match(/auth\/[a-z-]+/i);
+        if (codeMatch) {
+          errorCode = codeMatch[0];
         }
       }
+      
+      // If still no code, check if it's a string error
+      if (!errorCode && typeof error === 'string') {
+        errorMessageText = error;
+        const codeMatch = error.match(/auth\/[a-z-]+/i);
+        if (codeMatch) {
+          errorCode = codeMatch[0];
+        }
+      }
+      
+      let errorMessage = 'Failed to verify code.';
+      let shouldClearConfirmation = false;
+      
+      console.log('OTP Verify Error Details:', { 
+        errorCode, 
+        errorMessageText: errorMessageText || error?.message,
+        fullError: error 
+      });
+      
+      switch (errorCode) {
+        case 'auth/invalid-verification-code':
+          errorMessage = 'Invalid code. Please check and try again.';
+          // Don't clear confirmationResult for invalid code - user can try again
+          shouldClearConfirmation = false;
+          console.log('Invalid code - preserving confirmationResult for retry');
+          break;
+        case 'auth/code-expired':
+          errorMessage = 'Code has expired. Please request a new one.';
+          // Clear confirmationResult only when code expires
+          shouldClearConfirmation = true;
+          console.log('Code expired - clearing confirmationResult');
+          break;
+        case 'auth/session-expired':
+          errorMessage = 'Session expired. Please request a new code.';
+          shouldClearConfirmation = true;
+          console.log('Session expired - clearing confirmationResult');
+          break;
+        case 'auth/too-many-requests':
+          errorMessage = 'Too many failed attempts. Please request a new code.';
+          shouldClearConfirmation = true;
+          console.log('Too many requests - clearing confirmationResult');
+          break;
+        default:
+          // Check error message for expiration or session issues
+          const message = errorMessageText || error?.message || '';
+          if (message.toLowerCase().includes('expired') || 
+              message.toLowerCase().includes('session')) {
+            errorMessage = 'Session expired. Please request a new code.';
+            shouldClearConfirmation = true;
+            console.log('Session/expired detected in message - clearing confirmationResult');
+          } else {
+            // For other errors (including invalid code without specific code), don't clear confirmationResult
+            // This allows user to retry with correct code after wrong attempts
+            errorMessage = message || 'Invalid code. Please check and try again.';
+            shouldClearConfirmation = false;
+            console.log('Other error - preserving confirmationResult for retry');
+          }
+      }
 
-      setConfirmationResult(null);
+      // Only clear confirmationResult if code expired, session expired, or too many attempts
+      // This allows user to retry with correct code after wrong attempts (up to Firebase's limit)
+      if (shouldClearConfirmation) {
+        console.log('Clearing confirmationResult');
+        setConfirmationResult(null);
+      } else {
+        console.log('Keeping confirmationResult for retry - user can try again');
+      }
+      
       return { data: null, error: errorMessage };
     }
   }, [auth, confirmationResult, mapFirebaseUser]);
@@ -862,6 +937,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     user,
     session,
     loading,
+    authLoading: loading, // Alias for loading for clarity
     signingOut,
     showBannedModal,
     setBannedModal,

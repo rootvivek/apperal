@@ -53,78 +53,78 @@ export default function Footer({ className = '' }: FooterProps) {
 
           {/* Quick Links and Customer Service in one row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-            {/* Quick Links */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Quick Links</h3>
-              <ul className="space-y-2">
-                <li>
+          {/* Quick Links */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white">Quick Links</h3>
+            <ul className="space-y-2">
+              <li>
                   <Link href="/" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Home
-                  </Link>
-                </li>
-                <li>
+                  Home
+                </Link>
+              </li>
+              <li>
                   <Link href="/products" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    All Products
-                  </Link>
-                </li>
-                <li>
+                  All Products
+                </Link>
+              </li>
+              <li>
                   <Link href="/products/mens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Men&apos;s Clothing
-                  </Link>
-                </li>
-                <li>
+                  Men&apos;s Clothing
+                </Link>
+              </li>
+              <li>
                   <Link href="/products/womens-clothing" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Women&apos;s Clothing
-                  </Link>
-                </li>
-                <li>
+                  Women&apos;s Clothing
+                </Link>
+              </li>
+              <li>
                   <Link href="/products/accessories" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Accessories
-                  </Link>
-                </li>
-                <li>
+                  Accessories
+                </Link>
+              </li>
+              <li>
                   <Link href="/products/electronics" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Electronics
-                  </Link>
-                </li>
-              </ul>
-            </div>
+                  Electronics
+                </Link>
+              </li>
+            </ul>
+          </div>
 
-            {/* Customer Service */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold text-white">Customer Service</h3>
-              <ul className="space-y-2">
-                <li>
+          {/* Customer Service */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-white">Customer Service</h3>
+            <ul className="space-y-2">
+              <li>
                   <Link href="/contact" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Contact Us
-                  </Link>
-                </li>
-                <li>
+                  Contact Us
+                </Link>
+              </li>
+              <li>
                   <Link href="/shipping" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Shipping Info
-                  </Link>
-                </li>
-                <li>
+                  Shipping Info
+                </Link>
+              </li>
+              <li>
                   <Link href="/returns" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Returns & Exchanges
-                  </Link>
-                </li>
-                <li>
+                  Returns & Exchanges
+                </Link>
+              </li>
+              <li>
                   <Link href="/size-guide" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Size Guide
-                  </Link>
-                </li>
-                <li>
+                  Size Guide
+                </Link>
+              </li>
+              <li>
                   <Link href="/faq" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    FAQ
-                  </Link>
-                </li>
-                <li>
+                  FAQ
+                </Link>
+              </li>
+              <li>
                   <Link href="/track-order" className="text-gray-300 hover:text-emerald-400 transition-colors text-sm">
-                    Track Your Order
-                  </Link>
-                </li>
-              </ul>
+                  Track Your Order
+                </Link>
+              </li>
+            </ul>
             </div>
           </div>
 

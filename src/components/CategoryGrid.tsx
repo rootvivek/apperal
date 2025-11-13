@@ -80,7 +80,7 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
           <div className="-mx-1.5 px-1.5">
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide" style={scrollStyle}>
               {row1Subcategories.map(({ sub, slug }) => (
-                <Link
+            <Link
                   key={sub.id}
                   href={`/products/${slug}/${sub.slug}`}
                   className="flex-shrink-0 group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-200"
@@ -88,9 +88,9 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                     width: 'calc((100vw - 2rem) / 3 - 0.33rem)',
                     scrollSnapAlign: 'start'
                   }}
-                >
+            >
                   <div className="w-full aspect-[5/6] overflow-hidden relative">
-                    <img
+                <img
                       src={sub.image_url || sub.image || '/images/categories/placeholder.svg'}
                       alt={sub.name}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -98,12 +98,12 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                       decoding="async"
                       width={400}
                       height={480}
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = '/images/categories/placeholder.svg';
-                      }}
-                    />
-                  </div>
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/images/categories/placeholder.svg';
+                  }}
+                />
+              </div>
                   <div className="p-1.5">
                     <h3 className="font-medium sm:font-normal text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-xs sm:text-sm text-center" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
                       {sub.name}
@@ -147,14 +147,14 @@ export default function CategoryGrid({ categories }: CategoryGridProps) {
                   <div className="p-1.5">
                     <h3 className="font-medium sm:font-normal text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-xs sm:text-sm text-center" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
                       {sub.name}
-                    </h3>
+              </h3>
                   </div>
-                </Link>
+            </Link>
               ))}
             </div>
           </div>
         )}
-      </div>
+        </div>
 
       {/* Desktop: Subcategories Grid */}
       <div className="hidden sm:block">

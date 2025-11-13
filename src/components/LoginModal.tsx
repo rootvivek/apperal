@@ -13,7 +13,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const { user, sendOTP, verifyOTP } = useAuth();
   
   const [formData, setFormData] = useState({
-    phone: '+91',
+    phone: '',
     otp: ''
   });
   const [error, setError] = useState('');
@@ -54,32 +54,63 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     };
   }, [isOpen]);
 
+  // Normalize phone number: add +91 if missing
+  const normalizePhoneNumber = (phone: string): string => {
+    const trimmed = phone.trim();
+    
+    // If already starts with +91, return as is
+    if (trimmed.startsWith('+91')) {
+      return trimmed;
+    }
+    
+    // If starts with + but not +91, return as is (other country code)
+    if (trimmed.startsWith('+')) {
+      return trimmed;
+    }
+    
+    // Remove any leading zeros or spaces
+    const cleaned = trimmed.replace(/^0+/, '').replace(/\s/g, '');
+    
+    // If it's a 10-digit number, add +91
+    if (/^\d{10}$/.test(cleaned)) {
+      return '+91' + cleaned;
+    }
+    
+    // If it's already 12 digits (91 + 10 digits), add +
+    if (/^91\d{10}$/.test(cleaned)) {
+      return '+' + cleaned;
+    }
+    
+    // Otherwise, add +91 prefix
+    return '+91' + cleaned;
+  };
+
   const handleSendOTP = async () => {
     if (!formData.phone.trim()) {
       setError('Please enter your phone number');
       return;
     }
 
-    // Validate phone number format
-    if (!/^\+[1-9]\d{1,14}$/.test(formData.phone.trim())) {
-      const phone = formData.phone.trim();
-      if (!phone.startsWith('+')) {
-        setError('Phone number must start with + (e.g., +1234567890)');
-      } else if (phone.length < 8) {
-        setError('Phone number too short (minimum 8 digits including country code)');
-      } else if (phone.length > 16) {
-        setError('Phone number too long (maximum 15 digits including country code)');
-      } else {
-        setError('Please enter a valid phone number with country code (e.g., +1234567890)');
-      }
+    // Since input only accepts digits, add +91 prefix
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    
+    // Validate phone number format (must be 10 digits)
+    if (phoneDigits.length !== 10) {
+      setError('Please enter a valid 10-digit mobile number');
       return;
     }
+
+    // Normalize phone number (add +91 prefix)
+    const normalizedPhone = '+91' + phoneDigits;
+    
+    // Update form data with normalized phone for display
+    setFormData(prev => ({ ...prev, phone: phoneDigits }));
 
     setError('');
     setOtpLoading(true);
 
     try {
-      const { data, error: otpError } = await sendOTP(formData.phone);
+      const { data, error: otpError } = await sendOTP(normalizedPhone);
       
       if (otpError) {
         setError(otpError);
@@ -100,7 +131,9 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
     setLoading(true);
 
     try {
-      const { data, error: verifyError } = await verifyOTP(formData.phone, formData.otp);
+      // Add +91 prefix to phone number for verification
+      const phoneWithPrefix = '+91' + formData.phone.replace(/\D/g, '');
+      const { data, error: verifyError } = await verifyOTP(phoneWithPrefix, formData.otp);
       
       if (verifyError) {
         setError(verifyError);
@@ -118,16 +151,35 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name === 'phone') {
+      // Only allow digits - remove all non-numeric characters
+      const cleaned = value.replace(/\D/g, '');
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: cleaned
+      }));
+    } else if (name === 'otp') {
+      // Only allow digits for OTP
+      const cleaned = value.replace(/\D/g, '');
+      
+      setFormData(prev => ({
+        ...prev,
+        [name]: cleaned
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleClose = () => {
     setError('');
     setOtpSent(false);
-    setFormData({ phone: '+91', otp: '' });
+    setFormData({ phone: '', otp: '' });
     onClose();
   };
 
@@ -183,25 +235,33 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                 <div className="mt-1">
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                      <span className="text-gray-500 sm:text-sm">+91</span>
+                      <span className="text-gray-700 sm:text-sm font-medium">+91 -</span>
                     </div>
                     <input
                       id="phone"
                       name="phone"
                       type="tel"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       autoComplete="tel"
                       required
-                      value={formData.phone.replace('+91', '')}
-                      onChange={(e) => {
-                        const value = '+91' + e.target.value;
-                        setFormData(prev => ({ ...prev, phone: value }));
+                      value={formData.phone}
+                      onChange={handleChange}
+                      onKeyPress={(e) => {
+                        // Only allow numbers
+                        if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                          e.preventDefault();
+                        }
                       }}
-                      className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300/50 bg-white/50 backdrop-blur-sm rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Type phone number"
+                      className="appearance-none block w-full pl-14 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white"
+                      placeholder="Enter 10-digit mobile number"
+                      maxLength={10}
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
-                    Enter your mobile number
+                    {formData.phone && formData.phone.length >= 10
+                      ? 'Press Enter or click Send OTP' 
+                      : 'Enter your 10-digit mobile number'}
                   </p>
                 </div>
               </div>
@@ -220,7 +280,7 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
               <div className="mb-4">
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-gray-600">
-                    OTP sent to <span className="font-medium text-gray-900">{formData.phone}</span>
+                    OTP sent to <span className="font-medium text-gray-900">+91 {formData.phone}</span>
                   </p>
                   <button
                     type="button"
@@ -245,10 +305,18 @@ export default function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     id="otp"
                     name="otp"
                     type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     maxLength={6}
                     required
                     value={formData.otp}
                     onChange={handleChange}
+                    onKeyPress={(e) => {
+                      // Only allow numbers
+                      if (!/[0-9]/.test(e.key) && e.key !== 'Backspace' && e.key !== 'Delete' && e.key !== 'Tab') {
+                        e.preventDefault();
+                      }
+                    }}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300/50 bg-white/50 backdrop-blur-sm rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-center text-lg tracking-widest"
                     placeholder="000000"
                   />

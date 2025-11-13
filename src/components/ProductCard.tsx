@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
 import { useWishlist } from '@/contexts/WishlistContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useLoginModal } from '@/contexts/LoginModalContext';
 import { Product } from '@/types/product';
 
 interface ProductCardProduct {
@@ -36,7 +38,9 @@ interface ProductCardProps {
 }
 
 function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
+  const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
+  const { openModal: openLoginModal } = useLoginModal();
   const isWishlisted = isInWishlist(product.id);
   
   // State for image sliding functionality
@@ -89,12 +93,33 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
     
     if (loading) return; // Prevent multiple clicks while loading
     
+    // If user is not logged in, open login modal and save product to pending wishlist
+    if (!user) {
+      // Save product to pending wishlist in localStorage
+      const pendingProduct = convertToWishlistProduct(product);
+      try {
+        const pendingWishlist = localStorage.getItem('pending-wishlist-add');
+        const pendingItems = pendingWishlist ? JSON.parse(pendingWishlist) : [];
+        // Check if product already in pending list
+        if (!pendingItems.find((item: Product) => item.id === product.id)) {
+          pendingItems.push(pendingProduct);
+          localStorage.setItem('pending-wishlist-add', JSON.stringify(pendingItems));
+        }
+      } catch (error) {
+        console.error('Error saving pending wishlist item:', error);
+      }
+      // Open login modal
+      openLoginModal();
+      return;
+    }
+    
+    // For logged-in users, add/remove from database
     if (isWishlisted) {
       await removeFromWishlist(product.id);
     } else {
       await addToWishlist(convertToWishlistProduct(product));
     }
-  }, [isWishlisted, loading, product, addToWishlist, removeFromWishlist, convertToWishlistProduct]);
+  }, [isWishlisted, loading, product, user, addToWishlist, removeFromWishlist, convertToWishlistProduct, openLoginModal]);
 
   // Calculate discount percentage automatically - memoized
   const discountPercentage = useMemo(() => {
@@ -359,7 +384,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
               onClick={handleWishlistToggle}
               disabled={loading}
               className="p-0 rounded-full transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-              aria-label={isWishlisted ? 'Remove from wishlist' : 'Add to wishlist'}
+              aria-label={user ? (isWishlisted ? 'Remove from wishlist' : 'Add to wishlist') : 'Sign in to add to wishlist'}
             >
               <svg 
                 className={`w-5 h-5 sm:w-6 sm:h-6 transition-colors duration-200 ${

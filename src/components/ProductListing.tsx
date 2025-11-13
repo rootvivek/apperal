@@ -383,8 +383,8 @@ export default function ProductListing({
   return (
     <>
       {/* Products Grid */}
-      <div className="min-h-screen bg-gray-50 pt-16 sm:pt-20">
-        <div className="max-w-[1450px] mx-auto w-full px-2 pt-0 pb-8 !mt-3 sm:!mt-0">
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-[1450px] mx-auto w-full px-2 pt-0 pb-8 !mt-0">
           {/* Desktop: Filter and Sort at Top */}
           <div className="hidden md:block mb-6">
             <div className="bg-white border-b border-gray-200 py-4">

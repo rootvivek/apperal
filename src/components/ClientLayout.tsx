@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { LoginModalProvider, useLoginModal } from '@/contexts/LoginModalContext';
@@ -25,6 +26,14 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   const isProductDetailPage = pathname?.startsWith('/product/');
   const isHomePage = pathname === '/';
   const { isOpen, closeModal, redirectTo } = useLoginModal();
+  
+  // Fixed navbar height: 72px - matches navbar fixed height to prevent overlap
+  const navbarHeight = 72;
+
+  // Scroll to top whenever pathname changes (page navigation)
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
 
   // Show footer only on home page for mobile, or on all pages (except checkout/product detail) for desktop
   const shouldShowFooter = !isCheckoutPage && !isProductDetailPage;
@@ -33,7 +42,21 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   return (
     <>
       <ConditionalNavigation />
-      {children}
+      <div className="relative">
+        {/* Fill padding area with navbar color to eliminate white space - only show on non-home pages */}
+        {!isHomePage && (
+          <div 
+            className="absolute top-0 left-0 right-0 bg-brand-500 pointer-events-none"
+            style={{ height: `${navbarHeight}px` }}
+          ></div>
+        )}
+        <div 
+          className="relative"
+          style={{ paddingTop: `${navbarHeight}px` }} // Match navbar height exactly
+        >
+          {children}
+        </div>
+      </div>
       {shouldShowFooter && (
         <Footer className={footerClassName} />
       )}

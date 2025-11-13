@@ -590,8 +590,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-white pb-24 sm:pb-8 pt-16 sm:pt-20">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-4 lg:px-6 pb-8">
+    <div className="min-h-screen bg-white pb-24 sm:pb-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-4 lg:px-6 pt-1 pb-8">
         {/* Breadcrumb Navigation - Desktop only */}
         <nav className="hidden sm:flex mb-2" aria-label="Breadcrumb">
           <ol className="flex items-center space-x-2">
@@ -658,7 +658,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             {/* Product Images */}
             <div className="w-full overflow-visible">
             {/* Desktop: Thumbnails on Left, Main Image on Right */}
-            <div className="hidden md:flex gap-1 overflow-visible">
+            <div className="hidden md:flex gap-4 overflow-visible">
               {/* Thumbnail Gallery - Left (Desktop only) */}
               {product.images && product.images.length > 1 && (
                 <div className="flex flex-col gap-2 flex-shrink-0">
@@ -976,7 +976,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="md:hidden flex gap-1 overflow-x-auto pb-2 pt-1 mt-1 scrollbar-hide items-center px-1">
+              <div className="md:hidden flex gap-2 overflow-x-auto pb-2 pt-2 mt-3 scrollbar-hide items-center px-1">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}

@@ -190,7 +190,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white pt-16 sm:pt-20" style={{ touchAction: 'pan-x pan-y' }}>
+    <main className="min-h-screen bg-white" style={{ touchAction: 'pan-x pan-y' }}>
       {/* Hero Carousel */}
       <HeroCarousel />
 
