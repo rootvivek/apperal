@@ -349,7 +349,7 @@ export default function CategoryPage({ params }: CategoryPageProps) {
               product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
             ).length;
             
-            const subcategoryImage = (subcategory as any).image_url || (subcategory as any).image || '/images/categories/placeholder.svg';
+            const subcategoryImage = (subcategory as any).image_url || '/images/categories/placeholder.svg';
             
             return (
               <button

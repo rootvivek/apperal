@@ -22,8 +22,8 @@ const SubcategoryCard = memo(function SubcategoryCard({
 }: SubcategoryCardProps) {
   // Memoize image URL to prevent recalculation
   const imageUrl = useMemo(
-    () => subcategory.image_url || subcategory.image || '/images/categories/placeholder.svg',
-    [subcategory.image_url, subcategory.image]
+    () => subcategory.image_url || '/images/categories/placeholder.svg',
+    [subcategory.image_url]
   );
 
   // Memoize href to prevent Link re-renders
@@ -114,7 +114,6 @@ const SubcategoryCard = memo(function SubcategoryCard({
     prevProps.subcategory.name === nextProps.subcategory.name &&
     prevProps.subcategory.slug === nextProps.subcategory.slug &&
     prevProps.subcategory.image_url === nextProps.subcategory.image_url &&
-    prevProps.subcategory.image === nextProps.subcategory.image &&
     prevProps.categorySlug === nextProps.categorySlug &&
     prevProps.variant === nextProps.variant
   );

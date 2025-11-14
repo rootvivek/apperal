@@ -994,7 +994,7 @@ export default function CategoriesPage() {
                         ) : (subcategoriesList[category.id]?.length || 0) > 0 ? (
                           <div className="divide-y divide-gray-200">
                             {subcategoriesList[category.id].map((subcat) => {
-                              const subcategoryImage = subcat.image_url || subcat.image || '/images/categories/placeholder.svg';
+                              const subcategoryImage = subcat.image_url || '/images/categories/placeholder.svg';
                               return (
                               <div key={subcat.id} className="p-4 flex items-center justify-between ml-12 bg-gray-50 hover:bg-gray-100">
                                 <div className="flex items-center gap-3 flex-1">

@@ -537,7 +537,7 @@ export default function Navigation() {
                     >
                       <div className="py-2">
                         {category.subcategories.map((subcategory) => {
-                          const subcategoryImage = subcategory.image_url || subcategory.image || '/images/categories/placeholder.svg';
+                          const subcategoryImage = subcategory.image_url || '/images/categories/placeholder.svg';
                           return (
                             <Link
                               key={subcategory.id}
