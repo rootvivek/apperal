@@ -2,35 +2,7 @@
 
 export default function HomePageSkeleton() {
   return (
-    <div className="min-h-screen bg-white">
-      {/* Navigation Skeleton */}
-      <div className="bg-white shadow-sm border-b sticky top-0 z-50 min-h-[64px] sm:min-h-[80px]">
-        <div className="max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16 sm:h-20 relative">
-            {/* Logo Skeleton */}
-            <div className="h-8 sm:h-10 w-32 bg-gray-200 animate-pulse rounded"></div>
-            
-            {/* Desktop Nav Items Skeleton */}
-            <div className="hidden lg:flex items-center space-x-6 ml-12">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-4 w-16 bg-gray-200 animate-pulse rounded"></div>
-              ))}
-            </div>
-            
-            {/* Search Bar Skeleton - Desktop */}
-            <div className="hidden sm:flex flex-1 max-w-md mx-4">
-              <div className="h-10 w-full bg-gray-200 animate-pulse rounded-lg"></div>
-            </div>
-            
-            {/* Right Icons Skeleton */}
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <div className="w-8 h-8 bg-gray-200 animate-pulse rounded-full"></div>
-              <div className="w-8 h-8 bg-gray-200 animate-pulse rounded-full"></div>
-              <div className="hidden sm:block h-8 w-20 bg-gray-200 animate-pulse rounded"></div>
-            </div>
-          </div>
-        </div>
-      </div>
+    <main className="min-h-screen bg-white pt-14 sm:pt-[72px]">
 
       {/* CategoryGrid Skeleton */}
       <section className="pb-3 bg-white mb-4">
@@ -111,7 +83,7 @@ export default function HomePageSkeleton() {
           </div>
         </section>
       ))}
-    </div>
+    </main>
   );
 }
 

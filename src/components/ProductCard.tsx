@@ -305,7 +305,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
       sessionStorage.setItem('productReferrer', pathname);
     }
   }, [pathname]);
-
+  
   return (
     <Link href={productUrl} className={`${cardClasses} relative z-0`} onClick={handleProductClick}>
       {/* Product Badge */}

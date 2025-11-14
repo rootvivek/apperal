@@ -26,7 +26,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Admin Header */}
-      <div className="bg-white shadow-sm border-b">
+      <div className="bg-white shadow-sm border-b sticky top-0 z-50">
         <div className="px-2 sm:px-4 md:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -68,8 +68,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       <div className="flex">
         {/* Sidebar */}
         <div className="hidden md:flex md:w-64 md:flex-col">
-          <div className="flex flex-col flex-grow pt-5 bg-white overflow-y-auto border-r border-gray-200">
-            <nav className="flex-1 px-2 pb-4 space-y-1">
+          <div className="flex flex-col flex-grow bg-white overflow-y-auto border-r border-gray-200">
+            <nav className="flex-1 px-2 pt-2 pb-4 space-y-1">
               {navigation.map((item) => {
                 const isActive = pathname === item.href;
                 return (

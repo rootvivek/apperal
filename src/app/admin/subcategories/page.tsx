@@ -505,15 +505,36 @@ export default function SubcategoriesPage() {
 
             <DataTable
               columns={[
+                { 
+                  key: 'image_url', 
+                  label: 'Image', 
+                  sortable: false, 
+                  render: (value: string | null) => (
+                    value ? (
+                      <div className="flex items-center justify-center">
+                        <img 
+                          src={value} 
+                          alt="Subcategory" 
+                          className="w-16 h-16 object-cover rounded-lg border border-gray-200 shadow-sm"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.src = '/images/categories/placeholder.svg';
+                          }}
+                        />
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center w-16 h-16 bg-gray-100 rounded-lg border border-gray-200">
+                        <span className="text-xs text-gray-400">No image</span>
+                      </div>
+                    )
+                  )
+                },
                 { key: 'name', label: 'Name', sortable: true },
                 { key: 'slug', label: 'Slug', sortable: true },
                 { key: 'parent_category_id', label: 'Parent', sortable: false, render: (value: string) => {
                   const category = categories.find(c => c.id === value);
                   return category?.name || value;
                 }},
-                { key: 'image_url', label: 'Image', sortable: false, render: (value: string) => (
-                  value ? <img src={value} alt="Subcategory" className="w-12 h-12 object-cover rounded" /> : '-'
-                )},
                 { key: 'created_at', label: 'Created', sortable: true, render: (value: string) => formatDate(value) },
                 { key: 'id', label: 'Actions', sortable: false, render: (value: string, row: Subcategory) => (
                   <div className="flex space-x-2">

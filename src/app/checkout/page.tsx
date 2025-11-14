@@ -798,7 +798,7 @@ function CheckoutContent() {
             phone: last10Digits
           }));
         } else {
-          newErrors.phone = 'Phone number must be exactly 10 digits';
+        newErrors.phone = 'Phone number must be exactly 10 digits';
         }
       }
     }
@@ -996,12 +996,12 @@ function CheckoutContent() {
         // For Razorpay: Don't create order yet - wait for payment verification
         // Pass order data to Razorpay handler
         try {
-          await handleRazorpayPayment(orderNumber, orderItemsData, {
-            subtotal,
-            shipping,
-            total,
-            formData
-          });
+        await handleRazorpayPayment(orderNumber, orderItemsData, {
+          subtotal,
+          shipping,
+          total,
+          formData
+        });
         } catch (error: any) {
           console.error('Error in handleRazorpayPayment:', error);
           setPaymentError(error.message || 'Payment failed. Please try again.');
@@ -1187,7 +1187,7 @@ function CheckoutContent() {
     console.log('After waiting loop:', { retries, hasRazorpay: !!(window as any).Razorpay });
 
     // Check if Razorpay is available after waiting
-    if (!(window as any).Razorpay) {
+      if (!(window as any).Razorpay) {
       // Try to load the script one more time (only if not already loading)
       try {
         const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');

@@ -546,6 +546,13 @@ export default function EditProductPage() {
     return trimmed === '' ? null : trimmed;
   };
 
+  // Helper function to convert empty strings to empty string for database (for optional fields with NOT NULL constraints)
+  const toEmptyIfEmpty = (value: string | undefined | null): string => {
+    if (!value || typeof value !== 'string') return '';
+    const trimmed = value.trim();
+    return trimmed === '' ? '' : trimmed;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -767,11 +774,11 @@ export default function EditProductPage() {
           const accessoriesInsert: any = {
             product_id: productId,
             // Accessories-specific details only (common fields are in products table)
-            // Explicitly set to null if empty string - always include in update
-            accessory_type: toNullIfEmpty(formData.accessoriesDetails?.accessory_type),
-            compatible_with: toNullIfEmpty(formData.accessoriesDetails?.compatible_with),
-            material: toNullIfEmpty(formData.accessoriesDetails?.material),
-            color: toNullIfEmpty(formData.accessoriesDetails?.color),
+            // Use empty strings for optional fields instead of null
+            accessory_type: toEmptyIfEmpty(formData.accessoriesDetails?.accessory_type),
+            compatible_with: toEmptyIfEmpty(formData.accessoriesDetails?.compatible_with),
+            material: toEmptyIfEmpty(formData.accessoriesDetails?.material),
+            color: toEmptyIfEmpty(formData.accessoriesDetails?.color),
           };
           
           // Check if record exists
@@ -1452,7 +1459,7 @@ export default function EditProductPage() {
                   </div>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Accessory Type *</label>
+                      <label className="block text-sm font-medium text-gray-700">Accessory Type</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1463,11 +1470,10 @@ export default function EditProductPage() {
                             accessoriesDetails: { ...prev.accessoriesDetails, accessory_type: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Compatible With *</label>
+                      <label className="block text-sm font-medium text-gray-700">Compatible With</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1479,11 +1485,10 @@ export default function EditProductPage() {
                             accessoriesDetails: { ...prev.accessoriesDetails, compatible_with: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Material *</label>
+                      <label className="block text-sm font-medium text-gray-700">Material</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1495,11 +1500,10 @@ export default function EditProductPage() {
                             accessoriesDetails: { ...prev.accessoriesDetails, material: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Color *</label>
+                      <label className="block text-sm font-medium text-gray-700">Color</label>
                       <input
                         type="text"
                         className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -1511,7 +1515,6 @@ export default function EditProductPage() {
                             accessoriesDetails: { ...prev.accessoriesDetails, color: e.target.value },
                           }))
                         }
-                        required
                       />
                     </div>
                   </div>

@@ -349,17 +349,32 @@ export default function CategoryPage({ params }: CategoryPageProps) {
               product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
             ).length;
             
+            const subcategoryImage = (subcategory as any).image_url || (subcategory as any).image || '/images/categories/placeholder.svg';
+            
             return (
               <button
                 key={subcategory.id}
                 onClick={() => handleSubcategoryClick(subcategory.name)}
-                className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-md text-sm transition-colors ${
                   selectedSubcategory === subcategory.name
                     ? 'bg-blue-100 text-blue-700 font-medium'
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                {subcategory.name} ({subcategoryProductCount})
+                <img
+                  src={subcategoryImage}
+                  alt={subcategory.name}
+                  className="w-10 h-10 object-cover rounded flex-shrink-0"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    if (target.src !== '/images/categories/placeholder.svg') {
+                      target.src = '/images/categories/placeholder.svg';
+                    }
+                  }}
+                />
+                <span className="flex-1">
+                  {subcategory.name} ({subcategoryProductCount})
+                </span>
               </button>
             );
           })}

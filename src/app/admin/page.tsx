@@ -577,7 +577,7 @@ function AdminDashboardContent() {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
               <DashboardCard title="Total Users" value={users.length} icon="👥" color="blue" />
-              <DashboardCard title="Total Products" value={products.length} icon="📦" color="green" />
+              <DashboardCard title="Total Products" value={products.length} icon="📦" color="blue" />
               <DashboardCard title="Total Orders" value={orders.length} icon="🛒" color="amber" />
               <DashboardCard
                 title="Total Revenue"

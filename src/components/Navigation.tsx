@@ -250,7 +250,7 @@ export default function Navigation() {
     // For other pages, use browser back
     // Check if there's history to go back to
     if (typeof window !== 'undefined' && window.history.length > 1) {
-      router.back();
+    router.back();
     } else {
       // No history, navigate to home
       router.push('/');
@@ -536,19 +536,33 @@ export default function Navigation() {
                       }}
                     >
                       <div className="py-2">
-                        {category.subcategories.map((subcategory) => (
-                          <Link
-                            key={subcategory.id}
-                            href={`/products/${category.slug}/${subcategory.slug}`}
-                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors"
-                            onClick={() => {
-                              // Close dropdown when clicking a subcategory
-                              setOpenCategoryId(null);
-                            }}
-                          >
-                            {subcategory.name}
-                          </Link>
-                        ))}
+                        {category.subcategories.map((subcategory) => {
+                          const subcategoryImage = subcategory.image_url || subcategory.image || '/images/categories/placeholder.svg';
+                          return (
+                            <Link
+                              key={subcategory.id}
+                              href={`/products/${category.slug}/${subcategory.slug}`}
+                              className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors"
+                              onClick={() => {
+                                // Close dropdown when clicking a subcategory
+                                setOpenCategoryId(null);
+                              }}
+                            >
+                              <img
+                                src={subcategoryImage}
+                                alt={subcategory.name}
+                                className="w-10 h-10 object-cover rounded flex-shrink-0"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  if (target.src !== '/images/categories/placeholder.svg') {
+                                    target.src = '/images/categories/placeholder.svg';
+                                  }
+                                }}
+                              />
+                              <span className="flex-1">{subcategory.name}</span>
+                            </Link>
+                          );
+                        })}
                       </div>
                     </div>
                   )}

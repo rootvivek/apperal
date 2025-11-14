@@ -993,11 +993,26 @@ export default function CategoriesPage() {
                           <div className="p-4 text-center text-gray-500">Loading subcategories...</div>
                         ) : (subcategoriesList[category.id]?.length || 0) > 0 ? (
                           <div className="divide-y divide-gray-200">
-                            {subcategoriesList[category.id].map((subcat) => (
+                            {subcategoriesList[category.id].map((subcat) => {
+                              const subcategoryImage = subcat.image_url || subcat.image || '/images/categories/placeholder.svg';
+                              return (
                               <div key={subcat.id} className="p-4 flex items-center justify-between ml-12 bg-gray-50 hover:bg-gray-100">
-                                <div className="flex-1">
-                                  <h4 className="font-medium text-gray-800">{subcat.name}</h4>
-                                  <p className="text-sm text-gray-600">{subcat.description || 'No description'}</p>
+                                <div className="flex items-center gap-3 flex-1">
+                                  <img
+                                    src={subcategoryImage}
+                                    alt={subcat.name}
+                                    className="w-12 h-12 object-cover rounded flex-shrink-0"
+                                    onError={(e) => {
+                                      const target = e.target as HTMLImageElement;
+                                      if (target.src !== '/images/categories/placeholder.svg') {
+                                        target.src = '/images/categories/placeholder.svg';
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex-1">
+                                    <h4 className="font-medium text-gray-800">{subcat.name}</h4>
+                                    <p className="text-sm text-gray-600">{subcat.description || 'No description'}</p>
+                                  </div>
                                 </div>
                                 <div className="flex items-center space-x-2 ml-4" key={`subcat-actions-${subcat.id}-${refreshKey}`}>
                                   <button
@@ -1029,7 +1044,8 @@ export default function CategoriesPage() {
                                   </button>
                                 </div>
                               </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         ) : (
                           <div className="p-4 text-center text-gray-500 ml-12">

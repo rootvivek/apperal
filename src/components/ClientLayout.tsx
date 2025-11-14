@@ -25,6 +25,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   const isCheckoutPage = pathname === '/checkout';
   const isProductDetailPage = pathname?.startsWith('/product/');
   const isHomePage = pathname === '/';
+  const isAdminPage = pathname?.startsWith('/admin');
   const { isOpen, closeModal, redirectTo } = useLoginModal();
   
   // Fixed navbar height: 56px on mobile, 72px on desktop - matches navbar fixed height to prevent overlap
@@ -44,16 +45,16 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  // Show footer only on home page for mobile, or on all pages (except checkout/product detail) for desktop
-  const shouldShowFooter = !isCheckoutPage && !isProductDetailPage;
+  // Show footer only on home page for mobile, or on all pages (except checkout/product detail/admin) for desktop
+  const shouldShowFooter = !isCheckoutPage && !isProductDetailPage && !isAdminPage;
   const footerClassName = isHomePage ? '' : 'hidden md:block';
 
   return (
     <>
-      <ConditionalNavigation />
+      {!isAdminPage && <ConditionalNavigation />}
       <div className="relative">
-        {/* Fill padding area with navbar color to eliminate white space - only show on non-home pages */}
-        {!isHomePage && (
+        {/* Fill padding area with navbar color to eliminate white space - only show on non-home pages and non-admin pages */}
+        {!isHomePage && !isAdminPage && (
           <div 
             className="absolute top-0 left-0 right-0 bg-brand-500 pointer-events-none"
             style={{ height: `${navbarHeight}px` }}
@@ -61,7 +62,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
         )}
         <div 
           className="relative"
-          style={{ paddingTop: isHomePage ? '0' : `${navbarHeight}px` }} // No padding on home page, match navbar height on other pages
+          style={{ paddingTop: (isHomePage || isAdminPage) ? '0' : `${navbarHeight}px` }} // No padding on home page or admin pages, match navbar height on other pages
         >
           {children}
         </div>
