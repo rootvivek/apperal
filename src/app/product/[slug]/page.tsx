@@ -448,6 +448,20 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     }
   }, [slug, supabase]);
 
+  // Store category/subcategory slugs in sessionStorage for back button navigation
+  useEffect(() => {
+    if (categorySlug || subcategorySlug) {
+      if (typeof window !== 'undefined') {
+        if (categorySlug) {
+          sessionStorage.setItem('productCategorySlug', categorySlug);
+        }
+        if (subcategorySlug) {
+          sessionStorage.setItem('productSubcategorySlug', subcategorySlug);
+        }
+      }
+    }
+  }, [categorySlug, subcategorySlug]);
+
   const handleAddToCart = () => {
     if (!product) return;
     
@@ -654,7 +668,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         </nav>
 
         <div className="bg-white mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 lg:gap-6 overflow-visible">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-4 lg:gap-6 overflow-visible">
             {/* Product Images */}
             <div className="w-full overflow-visible">
             {/* Desktop: Thumbnails on Left, Main Image on Right */}
@@ -976,7 +990,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="md:hidden flex gap-2 overflow-x-auto pb-2 pt-2 mt-3 scrollbar-hide items-center px-1">
+              <div className="md:hidden flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 pt-2 mt-0.5 sm:mt-3 scrollbar-hide items-center px-1">
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
@@ -1009,18 +1023,18 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </div>
 
           {/* Product Info */}
-          <div className="space-y-6">
+          <div className="space-y-3 sm:space-y-6">
             <div>
               {/* Brand Name - Always shown before product name */}
               {(product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand) && (
                 <div className="mb-1">
-                  <span className="text-base sm:text-lg font-semibold text-gray-600 uppercase tracking-wide">
+                  <span className="text-sm sm:text-lg font-semibold text-gray-600 uppercase tracking-wide">
                     {product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand}
                   </span>
                 </div>
               )}
-              <h1 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 leading-tight">{product.name}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-4">
+              <h1 className="text-base sm:text-xl font-semibold text-gray-900 mb-4 leading-tight">{product.name}</h1>
+              <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-4">
                 <div className="flex items-baseline gap-3">
                   <span className="text-lg sm:text-xl font-semibold text-brand">₹{product.price.toFixed(2)}</span>
                   {product.original_price && product.original_price > product.price && (
@@ -1034,7 +1048,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </div>
               </div>
               {(productRating !== null && productRating !== undefined) && (
-                <div className="mt-3 flex items-center gap-2">
+                <div className="mt-3 flex items-center gap-1.5 sm:gap-2">
                   <span className="flex items-center text-yellow-500">
                     {'⭐'.repeat(Math.round(productRating))}
                   </span>
@@ -1047,31 +1061,31 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
             {/* Phone Cover Details */}
             {product.product_cover_details && (
-              <div className="bg-white rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2">Phone Cover Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white rounded-xl p-3 sm:p-6">
+                <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-5 pb-2">Phone Cover Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-3">
                   {product.product_cover_details.brand && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Brand:</span>
-                      <span className="text-gray-900 font-medium">{product.product_cover_details.brand}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Brand:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.brand}</span>
                     </div>
                   )}
                   {product.product_cover_details.compatible_model && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Compatible Model:</span>
-                      <span className="text-gray-900 font-medium">{product.product_cover_details.compatible_model}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Compatible Model:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.compatible_model}</span>
                     </div>
                   )}
                   {product.product_cover_details.type && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Type:</span>
-                      <span className="text-gray-900 font-medium">{product.product_cover_details.type}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Type:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.type}</span>
                     </div>
                   )}
                   {product.product_cover_details.color && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Color:</span>
-                      <span className="text-gray-900 font-medium">{product.product_cover_details.color}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Color:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.color}</span>
                     </div>
                   )}
                 </div>
@@ -1081,31 +1095,31 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
             {/* Accessories Details */}
             {product.product_accessories_details && (
-              <div className="bg-white rounded-xl p-6">
-                <h3 className="text-xl font-semibold text-gray-900 mb-5 pb-2">Accessories Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="bg-white rounded-xl p-3 sm:p-6">
+                <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-5 pb-2">Accessories Details</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-3">
                   {product.product_accessories_details.accessory_type && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Accessory Type:</span>
-                      <span className="text-gray-900 font-medium">{product.product_accessories_details.accessory_type}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Accessory Type:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.accessory_type}</span>
                     </div>
                   )}
                   {product.product_accessories_details.compatible_with && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Compatible With:</span>
-                      <span className="text-gray-900 font-medium">{product.product_accessories_details.compatible_with}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Compatible With:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.compatible_with}</span>
                     </div>
                   )}
                   {product.product_accessories_details.material && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Material:</span>
-                      <span className="text-gray-900 font-medium">{product.product_accessories_details.material}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Material:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.material}</span>
                     </div>
                   )}
                   {product.product_accessories_details.color && (
-                    <div className="flex items-center gap-3 p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[140px]">Color:</span>
-                      <span className="text-gray-900 font-medium">{product.product_accessories_details.color}</span>
+                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
+                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Color:</span>
+                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.color}</span>
                     </div>
                   )}
                 </div>
@@ -1113,7 +1127,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             )}
 
             {/* Size Selection and Actions */}
-            <div className="space-y-5">
+            <div className="space-y-3 sm:space-y-5">
               {/* Size Selection - Only show for apparel products - Chip buttons */}
               {product.product_apparel_details && (() => {
                 // Parse available sizes from comma-separated string
@@ -1126,10 +1140,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 
                 return (
                   <div>
-                    <label className="block text-base font-semibold text-gray-900 mb-3">
+                    <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-3">
                       Select Size <span className="text-red-500">*</span>
                     </label>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
                       {availableSizes.map((size) => (
                         <button
                           key={size}
@@ -1140,10 +1154,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                               localStorage.setItem(`selectedSize_${slug}`, size);
                             }
                           }}
-                          className={`px-4 py-2 rounded-lg font-semibold text-sm transition-all duration-200 ${
+                          className={`px-4 py-2 rounded font-semibold text-sm transition-all duration-200 ${
                             selectedSize === size
-                              ? 'bg-brand text-white shadow-lg scale-105'
-                              : 'bg-white text-gray-700 border border-gray-300 hover:border-brand hover:text-brand hover:shadow-md'
+                              ? 'bg-black text-white border border-gray-200 shadow-md'
+                              : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
                           }`}
                         >
                           {size}
@@ -1187,42 +1201,42 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
             {/* Product Details and Apparel Details - Combined in one frame */}
             <div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">Product Details</h3>
+              <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-2">Product Details</h3>
               <div className="space-y-1">
                 {product.product_apparel_details?.brand && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Brand:</span>
-                    <span className="text-gray-900">{product.product_apparel_details.brand}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
+                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.brand}</span>
                   </div>
                 )}
                 {product.product_apparel_details?.material && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Material:</span>
-                    <span className="text-gray-900">{product.product_apparel_details.material}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
+                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.material}</span>
                   </div>
                 )}
                 {product.product_apparel_details?.fit_type && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Fit Type:</span>
-                    <span className="text-gray-900">{product.product_apparel_details.fit_type}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Fit Type:</span>
+                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.fit_type}</span>
                   </div>
                 )}
                 {product.product_apparel_details?.color && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Color:</span>
-                    <span className="text-gray-900">{product.product_apparel_details.color}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
+                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.color}</span>
                   </div>
                 )}
                 {product.product_apparel_details?.size && (
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Size:</span>
-                    <span className="text-gray-900">{product.product_apparel_details.size}</span>
+                  <div className="flex items-center gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Size:</span>
+                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.size}</span>
                   </div>
                 )}
                 {product.description && (
-                  <div className="flex items-start gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[120px]">Description:</span>
-                    <span className="text-gray-900 leading-relaxed">{product.description}</span>
+                  <div className="flex items-start gap-1.5 sm:gap-3">
+                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Description:</span>
+                    <span className="text-gray-900 leading-relaxed text-xs sm:text-base">{product.description}</span>
                   </div>
                 )}
               </div>
@@ -1249,16 +1263,16 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         )}
 
         {/* Related Products Section */}
-        <div className="mt-12 mb-8">
-          <div className="text-center mb-10">
-            <h2 className="text-3xl font-bold text-gray-900 mb-3">Related Products</h2>
-            <p className="text-gray-600 text-lg">You might also like these products</p>
+        <div className="mt-6 mb-8">
+          <div className="text-center mb-6">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3">Related Products</h2>
+            <p className="text-gray-600 text-sm sm:text-lg">You might also like these products</p>
           </div>
           
           {relatedLoading ? (
             <div className="flex justify-center items-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-              <span className="ml-4 text-gray-600 text-lg">Loading related products...</span>
+              <span className="ml-4 text-gray-600 text-sm sm:text-lg">Loading related products...</span>
             </div>
           ) : relatedProducts.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
@@ -1274,7 +1288,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             </div>
           ) : (
             <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-              <p className="text-gray-500 text-lg">No related products found.</p>
+              <p className="text-gray-500 text-sm sm:text-lg">No related products found.</p>
             </div>
           )}
         </div>

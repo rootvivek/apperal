@@ -418,21 +418,7 @@ function ProfileContent() {
 
   return (
     <div className="min-h-screen bg-gray-50 pb-8">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-4"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Home
-          </Link>
-          <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-          <p className="mt-2 text-gray-600">View and edit your profile information</p>
-        </div>
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pt-1 pb-8">
 
         {/* Success Message */}
         {success && (
@@ -489,10 +475,17 @@ function ProfileContent() {
                 </label>
                 <input
                   type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   id="phone"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    // Only allow digits
+                    const numericValue = e.target.value.replace(/\D/g, '');
+                    setPhone(numericValue);
+                  }}
                   placeholder="Enter your phone number"
+                  maxLength={10}
                   className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
                 />
               </div>
@@ -632,10 +625,17 @@ function ProfileContent() {
                     </label>
                     <input
                       type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       required
                       value={addressForm.zip_code}
-                      onChange={(e) => setAddressForm({ ...addressForm, zip_code: e.target.value })}
+                      onChange={(e) => {
+                        // Only allow digits
+                        const numericValue = e.target.value.replace(/\D/g, '');
+                        setAddressForm({ ...addressForm, zip_code: numericValue });
+                      }}
                       placeholder="ZIP code"
+                      maxLength={6}
                       className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
                     />
                   </div>

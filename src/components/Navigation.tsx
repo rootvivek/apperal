@@ -46,6 +46,8 @@ export default function Navigation() {
   const [userFullName, setUserFullName] = useState<string | null>(null);
   const [currentCategoryName, setCurrentCategoryName] = useState<string | null>(null);
   const [currentSubcategoryName, setCurrentSubcategoryName] = useState<string | null>(null);
+  const [currentCategorySlug, setCurrentCategorySlug] = useState<string | null>(null);
+  const [currentSubcategorySlug, setCurrentSubcategorySlug] = useState<string | null>(null);
   const [isAllProductsPage, setIsAllProductsPage] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
@@ -101,12 +103,24 @@ export default function Navigation() {
   // Detect category/subcategory from pathname and fetch names
   useEffect(() => {
     const fetchCurrentCategoryInfo = async () => {
-      // Check if we're on the all products page (exact match or with trailing slash)
+      // Check if we're on the profile page
       const normalizedPath = pathname.replace(/\/$/, ''); // Remove trailing slash
+      if (normalizedPath === '/profile') {
+        setIsAllProductsPage(false);
+        setCurrentCategoryName('My Profile');
+        setCurrentSubcategoryName(null);
+        setCurrentCategorySlug(null);
+        setCurrentSubcategorySlug(null);
+        return;
+      }
+      
+      // Check if we're on the all products page (exact match or with trailing slash)
       if (normalizedPath === '/products') {
         setIsAllProductsPage(true);
         setCurrentCategoryName(null);
         setCurrentSubcategoryName(null);
+        setCurrentCategorySlug(null);
+        setCurrentSubcategorySlug(null);
         return;
       }
       
@@ -118,12 +132,18 @@ export default function Navigation() {
       if (!categoryMatch) {
         setCurrentCategoryName(null);
         setCurrentSubcategoryName(null);
+        setCurrentCategorySlug(null);
+        setCurrentSubcategorySlug(null);
         setIsAllProductsPage(false);
         return;
       }
 
       const categorySlug = decodeURIComponent(categoryMatch[1]);
       const subcategorySlug = categoryMatch[2] ? decodeURIComponent(categoryMatch[2]) : null;
+
+      // Store slugs
+      setCurrentCategorySlug(categorySlug);
+      setCurrentSubcategorySlug(subcategorySlug);
 
       try {
         // Try to find category from already loaded categories first
@@ -191,7 +211,50 @@ export default function Navigation() {
   }, [pathname, categories, supabase]);
 
   const handleBack = () => {
-    router.back();
+    // Check if we're on a product detail page
+    if (pathname.startsWith('/product/')) {
+      // Try to get referrer from sessionStorage (set when navigating to product)
+      const referrer = typeof window !== 'undefined' ? sessionStorage.getItem('productReferrer') : null;
+      
+      if (referrer && referrer.startsWith('/')) {
+        // Navigate to the referrer page
+        router.push(referrer);
+        sessionStorage.removeItem('productReferrer');
+        sessionStorage.removeItem('productCategorySlug');
+        sessionStorage.removeItem('productSubcategorySlug');
+        return;
+      }
+      
+      // Fallback: navigate to products page or category page if we have category info
+      // Check both state and sessionStorage for category slugs
+      const categorySlug = currentCategorySlug || (typeof window !== 'undefined' ? sessionStorage.getItem('productCategorySlug') : null);
+      const subcategorySlug = currentSubcategorySlug || (typeof window !== 'undefined' ? sessionStorage.getItem('productSubcategorySlug') : null);
+      
+      if (categorySlug) {
+        if (subcategorySlug) {
+          router.push(`/products/${categorySlug}/${subcategorySlug}`);
+        } else {
+          router.push(`/products/${categorySlug}`);
+        }
+        // Clean up sessionStorage
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('productCategorySlug');
+          sessionStorage.removeItem('productSubcategorySlug');
+        }
+      } else {
+        router.push('/products');
+      }
+      return;
+    }
+    
+    // For other pages, use browser back
+    // Check if there's history to go back to
+    if (typeof window !== 'undefined' && window.history.length > 1) {
+      router.back();
+    } else {
+      // No history, navigate to home
+      router.push('/');
+    }
   };
 
   const isCategoryPage = (pathname === '/products') || (pathname.startsWith('/products/') && pathname.split('/').length >= 3);
@@ -353,11 +416,11 @@ export default function Navigation() {
 
   return (
     <>
-      <nav className="bg-brand-500 fixed top-0 left-0 right-0 z-[100]" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, height: '72px', minHeight: '72px', maxHeight: '72px', display: 'flex', alignItems: 'center' }}>
+      <nav className="bg-brand-500 fixed top-0 left-0 right-0 z-[100] h-14 sm:h-[72px]" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center' }}>
         <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
           <div className="flex justify-between items-center relative h-full">
           {/* Left side: Back button + Category/Subcategory name OR Logo */}
-          {(isAllProductsPage || currentCategoryName || currentSubcategoryName) ? (
+          {pathname !== '/' ? (
             <>
               {/* Mobile: Back button + Name */}
               <div className="flex lg:hidden items-center space-x-1.5 sm:space-x-2">
@@ -367,28 +430,39 @@ export default function Navigation() {
                   className="text-white hover:text-brand-400 transition-colors p-1.5 sm:p-2"
                   aria-label="Go back"
                 >
-                  <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </button>
                 
-                {/* Category/Subcategory Name or All Products */}
+                {/* Page Name */}
                 <div className="flex items-center">
                   <span className="text-white text-sm sm:text-base font-medium truncate max-w-[200px] sm:max-w-none">
-                    {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName)}
+                    {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName || 'Back')}
                   </span>
                 </div>
               </div>
               
-              {/* Desktop: Logo (hidden on mobile when showing back button) */}
-              <Link href="/" className="hidden lg:flex items-center">
-                <img 
-                  src="/logo.png" 
-                  alt="Carts24" 
-                  className="h-8 sm:h-10 w-auto"
-                  style={{ maxWidth: '120px' }}
-                />
-              </Link>
+              {/* Desktop: Back button + Logo */}
+              <div className="hidden lg:flex items-center space-x-4">
+                <button
+                  onClick={handleBack}
+                  className="text-white hover:text-brand-400 transition-colors p-2"
+                  aria-label="Go back"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <Link href="/" className="flex items-center">
+                  <img 
+                    src="/logo.png" 
+                    alt="Carts24" 
+                    className="h-8 sm:h-10 w-auto"
+                    style={{ maxWidth: '120px' }}
+                  />
+                </Link>
+              </div>
             </>
           ) : (
             <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
@@ -489,7 +563,7 @@ export default function Navigation() {
 
           {/* Mobile Search Bar - Outside of hidden container */}
           {showMobileSearch && (
-            <div className="sm:hidden w-full flex items-center px-4 h-full" style={{ maxHeight: '72px', overflow: 'hidden' }}>
+            <div className="sm:hidden w-full flex items-center px-4 h-full" style={{ maxHeight: '56px', overflow: 'hidden' }}>
               <SearchBar variant="mobile" onClose={closeMobileSearch} />
             </div>
           )}
@@ -505,7 +579,7 @@ export default function Navigation() {
                 }}
                 className="sm:hidden text-white hover:text-brand-400 p-2"
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
               </button>
@@ -514,13 +588,13 @@ export default function Navigation() {
             {/* Wishlist Icon - Only show when user is logged in */}
             {isUserLoggedIn && (
               <Link href="/wishlist" className={`text-white hover:text-brand-400 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-                <WishlistIcon showCount={true} count={wishlistCount} />
+                <WishlistIcon showCount={true} count={wishlistCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
               </Link>
             )}
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
             <Link href="/cart" className={`text-white hover:text-brand-400 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-              <CartIcon showCount={true} count={cartCount} />
+              <CartIcon showCount={true} count={cartCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
             </Link>
             
             {/* Auth Section */}
@@ -564,7 +638,7 @@ export default function Navigation() {
                     }}
                     className="sm:hidden text-white hover:text-brand-400 p-2"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </button>
@@ -636,7 +710,7 @@ export default function Navigation() {
                     aria-label="Sign In"
                     suppressHydrationWarning
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </button>

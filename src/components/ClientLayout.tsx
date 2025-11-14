@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { usePathname } from 'next/navigation';
 import { LoginModalProvider, useLoginModal } from '@/contexts/LoginModalContext';
@@ -9,7 +9,7 @@ import LoginModal from '@/components/LoginModal';
 // Lazy load heavy components to improve initial load time
 const ConditionalNavigation = dynamic(() => import('@/components/ConditionalNavigation'), {
   ssr: true,
-  loading: () => <div className="h-16 bg-white" /> // Placeholder to prevent layout shift
+  loading: () => <div className="h-14 sm:h-[72px] bg-white" /> // Placeholder to prevent layout shift
 });
 
 const Footer = dynamic(() => import('@/components/Footer'), {
@@ -27,8 +27,17 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   const isHomePage = pathname === '/';
   const { isOpen, closeModal, redirectTo } = useLoginModal();
   
-  // Fixed navbar height: 72px - matches navbar fixed height to prevent overlap
-  const navbarHeight = 72;
+  // Fixed navbar height: 56px on mobile, 72px on desktop - matches navbar fixed height to prevent overlap
+  const [navbarHeight, setNavbarHeight] = useState(72);
+  
+  useEffect(() => {
+    const updateNavbarHeight = () => {
+      setNavbarHeight(window.innerWidth < 640 ? 56 : 72);
+    };
+    updateNavbarHeight();
+    window.addEventListener('resize', updateNavbarHeight);
+    return () => window.removeEventListener('resize', updateNavbarHeight);
+  }, []);
 
   // Scroll to top whenever pathname changes (page navigation)
   useEffect(() => {
@@ -52,7 +61,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
         )}
         <div 
           className="relative"
-          style={{ paddingTop: `${navbarHeight}px` }} // Match navbar height exactly
+          style={{ paddingTop: isHomePage ? '0' : `${navbarHeight}px` }} // No padding on home page, match navbar height on other pages
         >
           {children}
         </div>

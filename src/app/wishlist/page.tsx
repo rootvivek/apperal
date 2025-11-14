@@ -38,12 +38,12 @@ function WishlistContent() {
 
   if (wishlist.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-[1450px] mx-auto w-full px-0">
+      <div className="h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] bg-gray-50 flex items-center justify-center px-4 py-8 sm:py-12 overflow-y-auto">
+        <div className="max-w-[1450px] mx-auto w-full">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">❤️</div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Your wishlist is empty</h1>
-            <p className="text-lg text-gray-600 mb-8">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-4">Your wishlist is empty</h1>
+            <p className="text-base sm:text-lg text-gray-600 mb-8">
               Looks like you haven&apos;t added any items to your wishlist yet.
             </p>
             <Link 
@@ -62,7 +62,7 @@ function WishlistContent() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pt-1">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Wishlist</h1>
+          <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-2">My Wishlist</h1>
           <p className="text-gray-600">
             {`You have ${wishlist.length} item${wishlist.length === 1 ? '' : 's'} in your wishlist.`}
           </p>

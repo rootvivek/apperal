@@ -69,12 +69,12 @@ function CartContent() {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="max-w-[1450px] mx-auto w-full px-0">
+      <div className="h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] bg-gray-50 flex items-center justify-center px-4 py-8 sm:py-12 overflow-y-auto">
+        <div className="max-w-[1450px] mx-auto w-full">
           <div className="text-center">
             <div className="text-gray-400 text-6xl mb-4">🛒</div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
-            <p className="text-lg text-gray-600 mb-8">
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
+            <p className="text-base sm:text-lg text-gray-600 mb-8">
               Looks like you haven&apos;t added any items to your cart yet.
             </p>
             <Link
@@ -98,7 +98,7 @@ function CartContent() {
             <div className="bg-white rounded shadow-sm border">
               {/* Cart Heading */}
               <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Shopping Cart</h1>
+                <h1 className="text-lg sm:text-3xl font-bold text-gray-900">Shopping Cart</h1>
                 <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">{cartItems.length} item(s) in your cart</p>
               </div>
               <div className="border-b border-gray-200 md:hidden"></div>

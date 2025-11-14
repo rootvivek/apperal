@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect, useRef, memo, useMemo, useCallback } from 'react';
+import { usePathname } from 'next/navigation';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
@@ -41,6 +42,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const { openModal: openLoginModal } = useLoginModal();
+  const pathname = usePathname();
   const isWishlisted = isInWishlist(product.id);
   
   // State for image sliding functionality
@@ -297,8 +299,15 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
     };
   }, [variant, product.slug, product.id]);
   
+  const handleProductClick = useCallback(() => {
+    // Store current pathname as referrer when navigating to product page
+    if (typeof window !== 'undefined' && pathname) {
+      sessionStorage.setItem('productReferrer', pathname);
+    }
+  }, [pathname]);
+
   return (
-    <Link href={productUrl} className={`${cardClasses} relative z-0`}>
+    <Link href={productUrl} className={`${cardClasses} relative z-0`} onClick={handleProductClick}>
       {/* Product Badge */}
       {product.badge && variant !== 'image-only' && (
         <div className="absolute top-0 left-0 z-20 m-0">

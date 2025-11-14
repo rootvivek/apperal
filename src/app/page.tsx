@@ -190,7 +190,7 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white" style={{ touchAction: 'pan-x pan-y' }}>
+    <main className="min-h-screen bg-white pt-14 sm:pt-[72px]" style={{ touchAction: 'pan-x pan-y' }}>
       {/* Hero Carousel */}
       <HeroCarousel />
 
@@ -203,7 +203,7 @@ export default function Home() {
       <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white" style={{ touchAction: 'pan-x pan-y' }}>
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-2 sm:mb-4">
-            <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">All Products</h2>
+            <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">All Products</h2>
             <Link
               href="/products"
               className="text-sm text-brand hover:text-brand-600 font-medium"
@@ -237,7 +237,7 @@ export default function Home() {
           <section key={section.category.id} className={`pt-8 pb-16 sm:pt-8 sm:pb-4 ${bgColor}`} style={{ touchAction: 'pan-x pan-y' }}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between mb-2 sm:mb-4">
-                <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
+                <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
                 <Link
                   href={`/products/${section.category.slug}`}
                   className="text-sm text-brand hover:text-brand-600 font-medium"
