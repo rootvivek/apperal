@@ -57,7 +57,10 @@ export async function GET(request: NextRequest) {
         }))
       : [];
 
-    return NextResponse.json({ reviews: reviewsWithProfiles });
+    const response = NextResponse.json({ reviews: reviewsWithProfiles });
+    // Cache reviews for 5 minutes (reviews don't change frequently)
+    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    return response;
   } catch (error) {
     console.error('Error in GET /api/reviews:', error);
     return NextResponse.json(

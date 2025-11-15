@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import LoadingLogo from './LoadingLogo';
 
 interface ProductImage {
   id?: string;
@@ -349,7 +350,7 @@ export default function MultiImageUpload({
                     style={{ pointerEvents: 'auto', zIndex: 20 }}
                   >
                     {deletingImageId === image.id ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <LoadingLogo size="sm" inline text="" />
                     ) : (
                       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -394,7 +395,7 @@ export default function MultiImageUpload({
           >
             {uploading ? (
               <div className="space-y-4">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <LoadingLogo size="md" text="Loading images..." />
                 <div>
                   <p className="text-sm text-gray-600">Uploading images...</p>
                   {uploadingIndex !== null && (

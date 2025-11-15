@@ -1,7 +1,8 @@
 'use client';
 
-import Link from 'next/link';
 import { memo, useMemo } from 'react';
+import Card from './Card';
+import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 
 interface SubcategoryCardProps {
   subcategory: {
@@ -22,7 +23,7 @@ const SubcategoryCard = memo(function SubcategoryCard({
 }: SubcategoryCardProps) {
   // Memoize image URL to prevent recalculation
   const imageUrl = useMemo(
-    () => subcategory.image_url || '/images/categories/placeholder.svg',
+    () => subcategory.image_url || PLACEHOLDER_CATEGORY,
     [subcategory.image_url]
   );
 
@@ -32,80 +33,40 @@ const SubcategoryCard = memo(function SubcategoryCard({
     [categorySlug, subcategory.slug]
   );
   
-  // Mobile card style - constant since width is always the same
-  const mobileCardStyle = {
-    width: 'calc((100vw - 2rem) / 3 - 0.33rem)',
-    scrollSnapAlign: 'start' as const
-  };
+  // Mobile card width - constant since width is always the same
+  const mobileWidth = 'calc((100vw - 2rem) / 3 - 0.33rem)';
 
   // Mobile variant
   if (variant === 'mobile') {
     return (
-      <Link
+      <Card
         href={href}
-        className="flex-shrink-0 group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-200"
-        style={mobileCardStyle}
-      >
-        <div className="w-full aspect-[5/6] overflow-hidden relative">
-          <img
-            src={imageUrl}
-            alt={subcategory.name}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-            loading="lazy"
-            decoding="async"
-            width={400}
-            height={480}
-            onError={(e) => {
-              const target = e.target as HTMLImageElement;
-              if (target.src !== '/images/categories/placeholder.svg') {
-                target.src = '/images/categories/placeholder.svg';
-              }
-            }}
-          />
-          {/* Mobile: Overlay with title - using gradient instead of backdrop-blur for better performance */}
-          <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-gray-500/40 via-gray-500/35 to-gray-500/20 p-2">
-            <h3 
-              className="font-medium text-white line-clamp-1 group-hover:text-brand-300 transition-colors text-xs text-center" 
-              style={{ textShadow: '0 1px 2px rgba(0,0,0,0.5)' }}
-            >
-              {subcategory.name}
-            </h3>
-          </div>
-        </div>
-      </Link>
+        imageUrl={imageUrl}
+        title={subcategory.name}
+        variant="subcategory"
+        aspectRatio="5/6"
+        showOverlay={true}
+        overlayStyle="gradient"
+        titlePosition="overlay"
+        className="flex-shrink-0 rounded-[4px]"
+        mobileWidth={mobileWidth}
+      />
     );
   }
 
   // Desktop variant
   return (
-    <Link
+    <Card
       href={href}
-      className="group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-200"
-    >
-      <div className="aspect-[3/3.2] overflow-hidden relative">
-        <img
-          src={imageUrl}
-          alt={subcategory.name}
-          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
-          loading="lazy"
-          decoding="async"
-          width={400}
-          height={427}
-          onError={(e) => {
-            const target = e.target as HTMLImageElement;
-            if (target.src !== '/images/categories/placeholder.svg') {
-              target.src = '/images/categories/placeholder.svg';
-            }
-          }}
-        />
-        {/* Desktop: Overlay with title - using glass effect with backdrop-blur */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white/70 backdrop-blur-md border-t border-white/30 shadow-lg p-2 overflow-hidden">
-          <h3 className="font-normal text-gray-900 text-center group-hover:text-brand transition-colors text-base sm:text-lg block truncate whitespace-nowrap">
-            {subcategory.name}
-          </h3>
-        </div>
-      </div>
-    </Link>
+      imageUrl={imageUrl}
+      title={subcategory.name}
+      variant="subcategory"
+      aspectRatio="3/3.2"
+      showOverlay={true}
+      overlayStyle="glass"
+      titlePosition="overlay"
+      className="rounded-[4px]"
+    />
   );
 }, (prevProps, nextProps) => {
   // Custom comparison function for better memoization

@@ -14,8 +14,11 @@ async function deleteProductHandler(request: NextRequest, { userId: adminUserId 
     // Validate request body
     const validation = deleteProductSchema.safeParse(body);
     if (!validation.success) {
+      const errorMessage = process.env.NODE_ENV === 'production'
+        ? 'Invalid request data'
+        : `Invalid request data: ${validation.error.issues.map(i => i.message).join(', ')}`;
       return NextResponse.json(
-        { error: 'Invalid request data', details: validation.error.issues },
+        { error: errorMessage },
         { status: 400 }
       );
     }
@@ -185,5 +188,8 @@ async function deleteProductHandler(request: NextRequest, { userId: adminUserId 
   }
 }
 
-export const POST = withAdminAuth(deleteProductHandler);
+export const POST = withAdminAuth(deleteProductHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+  requireCSRF: true
+});
 

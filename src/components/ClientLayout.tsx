@@ -56,7 +56,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
         {/* Fill padding area with navbar color to eliminate white space - only show on non-home pages and non-admin pages */}
         {!isHomePage && !isAdminPage && (
           <div 
-            className="absolute top-0 left-0 right-0 bg-brand-500 pointer-events-none"
+            className="absolute top-0 left-0 right-0 bg-white pointer-events-none"
             style={{ height: `${navbarHeight}px` }}
           ></div>
         )}

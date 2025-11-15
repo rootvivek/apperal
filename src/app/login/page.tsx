@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import LoadingLogo from '@/components/LoadingLogo';
 
 function LoginPageContent() {
   const router = useRouter();
@@ -253,7 +254,7 @@ function LoginPageContent() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-gray-50 flex items-center justify-center">Loading...</div>}>
+    <Suspense fallback={<LoadingLogo fullScreen text="Loading..." />}>
       <LoginPageContent />
     </Suspense>
   );

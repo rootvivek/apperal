@@ -6,6 +6,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { getAuth, updateProfile } from 'firebase/auth';
+import EmptyState from '@/components/EmptyState';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface UserProfile {
   id: string;
@@ -402,14 +404,7 @@ function ProfileContent() {
   };
 
   if (authLoading || loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4736FE] mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading profile...</p>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading profile..." />;
   }
 
   if (!user) {
@@ -689,7 +684,12 @@ function ProfileContent() {
             {/* Addresses List */}
             <div className="p-6">
             {addresses.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No addresses saved yet. Add your first address above.</p>
+              <EmptyState
+                icon="📍"
+                title="No addresses saved yet"
+                description="Add your first address above"
+                variant="compact"
+              />
             ) : (
               <div className="space-y-4">
                 {addresses.map((address) => (
@@ -796,7 +796,7 @@ export default function ProfilePage() {
       fallback={
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#4736FE] mx-auto"></div>
+            <LoadingLogo size="md" text="Loading..." />
             <p className="mt-4 text-gray-600">Loading...</p>
           </div>
         </div>

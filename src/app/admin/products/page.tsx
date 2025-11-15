@@ -7,6 +7,7 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import { createClient } from '@/lib/supabase/client';
 import { deleteFolderContents } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface Product {
   id: string;
@@ -235,7 +236,7 @@ export default function ProductsPage() {
         <AdminLayout>
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <LoadingLogo size="md" text="Loading products..." />
               <p className="mt-4 text-gray-600">Loading products...</p>
             </div>
           </div>

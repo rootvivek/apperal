@@ -3,8 +3,9 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import ProductListing from '@/components/ProductListing';
+import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
-import { useState, useEffect, use } from 'react';
+import { useState, useEffect, use, useMemo } from 'react';
 
 interface Category {
   id: string;
@@ -58,18 +59,38 @@ export default function CategoryPage({ params }: CategoryPageProps) {
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>('all');
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  
+  // Client-side cache key (use useMemo to avoid recreating on every render)
+  const CACHE_KEY = useMemo(() => `category_${categorySlug}_data`, [categorySlug]);
+  const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
   useEffect(() => {
     fetchCategoryAndProducts();
   }, [categorySlug]);
 
-  const handleSubcategoryClick = (subcategoryName: string) => {
-    setSelectedSubcategory(subcategoryName);
-  };
 
   const fetchCategoryAndProducts = async () => {
     try {
       setLoading(true);
+      
+      // Check client-side cache first
+      if (typeof window !== 'undefined') {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            const { data, expires } = JSON.parse(cached);
+            if (expires && Date.now() < expires) {
+              setCategory(data.category);
+              setSubcategories(data.subcategories || []);
+              setProducts(data.products || []);
+              setLoading(false);
+              return;
+            }
+          } catch {
+            // Invalid cache, continue to fetch
+          }
+        }
+      }
       
       // Decode URL parameter
       const decodedCategory = decodeURIComponent(categorySlug);
@@ -98,43 +119,24 @@ export default function CategoryPage({ params }: CategoryPageProps) {
       }
 
       // Set category data
-      setCategory(result.category);
-
-      // Set subcategories from result if available (filter active only)
-      if (result.subcategories && result.subcategories.length > 0) {
-        const activeSubcategories = result.subcategories.filter(
-          (sub: any) => sub.is_active !== false
-        );
-        setSubcategories(activeSubcategories);
-      } else {
-        // Fetch subcategories separately if not in result (only active subcategories)
-        const { data: subcats } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('parent_category_id', result.category.id)
-          .eq('is_active', true);
-        setSubcategories(subcats || []);
+      const categoryData = result.category;
+      const subcategoriesData = result.subcategories?.filter((sub: any) => sub.is_active !== false) || [];
+      const productsData = result.products?.filter((prod: any) => prod.is_active !== false) || [];
+      
+      setCategory(categoryData);
+      setSubcategories(subcategoriesData);
+      setProducts(productsData);
+      
+      // Cache the results
+      if (typeof window !== 'undefined') {
+        const cacheData = {
+          category: categoryData,
+          subcategories: subcategoriesData,
+          products: productsData,
+        };
+        const expires = Date.now() + CACHE_TTL;
+        sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: cacheData, expires }));
       }
-
-      // Transform and set products
-      const transformedProducts = result.products?.map((product: any) => ({
-        id: product.id,
-        slug: product.slug,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: result.category.name,
-        subcategory: product.subcategory || '',
-        image_url: product.main_image_url,
-        stock_quantity: product.stock_quantity || 0,
-        is_active: true,
-        subcategories: product.subcategory ? [product.subcategory] : [],
-        created_at: product.created_at,
-        updated_at: product.created_at,
-        images: product.additional_images || []
-      })) || [];
-
-      setProducts(transformedProducts);
     } catch (error) {
       await fetchCategoryAndProductsFallback();
     } finally {
@@ -291,22 +293,32 @@ export default function CategoryPage({ params }: CategoryPageProps) {
 
       setCategory(categoryData);
       setProducts(transformedProducts);
+      
+      // Update cache with products
+      if (typeof window !== 'undefined' && categoryData) {
+        const cached = sessionStorage.getItem(CACHE_KEY);
+        if (cached) {
+          try {
+            const { data, expires } = JSON.parse(cached);
+            if (expires && Date.now() < expires) {
+              const updatedCache = {
+                ...data,
+                products: transformedProducts,
+              };
+              sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: updatedCache, expires }));
+            }
+          } catch {
+            // Ignore cache update errors
+          }
+        }
+      }
     } catch (error) {
       setProducts([]);
     }
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading category..." />;
   }
 
   if (!category) {
@@ -328,61 +340,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
     );
   }
 
-  const sidebarContent = (
-    <div className="w-full lg:w-64 flex-shrink-0 hidden lg:block">
-      <div className="bg-white rounded-lg shadow-sm p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Subcategories</h3>
-        <div className="space-y-2">
-          <button
-            onClick={() => handleSubcategoryClick('all')}
-            className={`w-full text-left px-3 py-2 rounded-md text-sm transition-colors ${
-              selectedSubcategory === 'all'
-                ? 'bg-blue-100 text-blue-700 font-medium'
-                : 'text-gray-600 hover:bg-gray-100'
-            }`}
-          >
-            All Products ({products.length})
-          </button>
-          {subcategories.map((subcategory) => {
-            const subcategoryProductCount = products.filter(
-              product => product.subcategory && 
-              product.subcategory.toLowerCase() === subcategory.name.toLowerCase()
-            ).length;
-            
-            const subcategoryImage = (subcategory as any).image_url || '/images/categories/placeholder.svg';
-            
-            return (
-              <button
-                key={subcategory.id}
-                onClick={() => handleSubcategoryClick(subcategory.name)}
-                className={`w-full flex items-center gap-3 text-left px-3 py-2 rounded-md text-sm transition-colors ${
-                  selectedSubcategory === subcategory.name
-                    ? 'bg-blue-100 text-blue-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <img
-                  src={subcategoryImage}
-                  alt={subcategory.name}
-                  className="w-10 h-10 object-cover rounded flex-shrink-0"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    if (target.src !== '/images/categories/placeholder.svg') {
-                      target.src = '/images/categories/placeholder.svg';
-                    }
-                  }}
-                />
-                <span className="flex-1">
-                  {subcategory.name} ({subcategoryProductCount})
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-
   return (
     <ProductListing
       products={products}
@@ -395,7 +352,6 @@ export default function CategoryPage({ params }: CategoryPageProps) {
         ? 'No products found in this category.'
         : `No products found in ${selectedSubcategory}.`
       }
-      sidebar={sidebarContent}
     />
   );
 }

@@ -5,6 +5,8 @@ import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 import { useAuth } from '@/contexts/AuthContext';
+import EmptyState from '@/components/EmptyState';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface Order {
   id: string;
@@ -67,7 +69,6 @@ function OrdersContent() {
       
       setOrders(paidOrders);
     } catch (error) {
-      console.error('Error fetching orders:', error);
     } finally {
       setOrdersLoading(false);
     }
@@ -130,7 +131,6 @@ function OrdersContent() {
       setProductSubcategories(subcategoryMap);
       setOrderItems(itemsWithImages);
     } catch (error) {
-      console.error('Error fetching order details:', error);
     }
     
     setShowOrderDetails(true);
@@ -193,7 +193,6 @@ function OrdersContent() {
       setCancellationReason('');
       alert('Order cancelled successfully!');
     } catch (error: any) {
-      console.error('Error cancelling order:', error);
       alert('Failed to cancel order: ' + (error.message || 'Unknown error'));
     } finally {
       setIsCancelling(false);
@@ -218,14 +217,7 @@ function OrdersContent() {
   };
 
   if (ordersLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your orders...</p>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading your orders..." />;
   }
 
   return (
@@ -346,20 +338,21 @@ function OrdersContent() {
               <div>
                 <h3 className="font-semibold mb-4 text-gray-900">Order Items</h3>
                 {orderItems.length === 0 ? (
-                  <p className="text-gray-600">No items found</p>
+                  <EmptyState
+                    title="No items found"
+                    variant="minimal"
+                  />
                 ) : (
                   <div className="space-y-3">
                     {orderItems.map((item) => (
                       <div key={item.id} className="border border-gray-200 rounded-lg p-4">
                         <div className="flex items-start space-x-4">
                           {item.product_image ? (
-                            <img
+                            <ImageWithFallback
                               src={item.product_image}
                               alt={item.product_name}
                               className="w-20 h-20 object-cover rounded-lg"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                              }}
+                              fallbackType="product"
                             />
                           ) : (
                             <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
@@ -435,16 +428,18 @@ function OrdersContent() {
 
       {/* Cancellation Modal */}
       {showCancelModal && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-w-full sm:max-w-sm md:max-w-md lg:max-w-lg">
-            <div className="p-6 border-b border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900">Cancel Order</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Order #{selectedOrder.order_number}
-              </p>
-            </div>
-            
-            <div className="p-6 space-y-4">
+        <Modal
+          isOpen={showCancelModal}
+          onClose={() => {
+            setShowCancelModal(false);
+            setSelectedOrder(null);
+            setCancellationReason('');
+          }}
+          title={`Cancel Order #${selectedOrder.order_number}`}
+          variant="simple"
+          size="lg"
+        >
+          <div className="space-y-4">
               <div>
                 <label htmlFor="cancellationReason" className="block text-sm font-medium text-gray-700 mb-2">
                   Reason for Cancellation <span className="text-red-500">*</span>
@@ -466,27 +461,31 @@ function OrdersContent() {
               </div>
             </div>
             
-            <div className="p-6 border-t border-gray-200 flex gap-3">
-              <button
+            <div className="flex gap-3 mt-6">
+              <Button
+                variant="secondary"
+                fullWidth
                 onClick={() => {
                   setShowCancelModal(false);
+                  setSelectedOrder(null);
                   setCancellationReason('');
                 }}
                 disabled={isCancelling}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
               >
                 Keep Order
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="danger"
+                fullWidth
                 onClick={handleCancelOrder}
                 disabled={isCancelling || !cancellationReason.trim()}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                loading={isCancelling}
               >
-                {isCancelling ? 'Cancelling...' : 'Confirm Cancellation'}
-              </button>
+                Confirm Cancellation
+              </Button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
     </div>
   );

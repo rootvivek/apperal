@@ -63,22 +63,17 @@ export default function SearchBar({ variant = 'desktop', onClose }: SearchBarPro
 
   if (variant === 'mobile') {
     return (
-      <div id="mobile-search-container" className="sm:hidden flex-1 flex items-center ml-2">
-        <form onSubmit={handleSearch} className="relative w-full" style={{ width: '100%' }}>
+      <div id="mobile-search-container" className="sm:hidden flex-1 flex items-center h-full pr-2">
+        <form onSubmit={handleSearch} className="relative w-full h-full" style={{ width: '100%', height: '100%' }}>
           <input
             type="text"
             placeholder="Search products..."
             value={searchQuery}
             onChange={handleInputChange}
-            className="w-full px-2 py-1.5 pl-6 pr-6 text-gray-700 bg-gray-100 border border-gray-300 rounded-[4px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-            style={{ width: '100%' }}
+            className="w-full h-full px-2 py-1.5 pl-3 pr-6 text-gray-700 bg-transparent rounded-[4px] focus:outline-none text-sm"
+            style={{ width: '100%', height: '100%' }}
             autoFocus
           />
-          <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-          </div>
           {onClose && (
             <button
               type="button"
@@ -103,10 +98,10 @@ export default function SearchBar({ variant = 'desktop', onClose }: SearchBarPro
           placeholder="Search products..."
           value={searchQuery}
           onChange={handleInputChange}
-          className="w-full py-2 pl-10 pr-4 text-gray-700 bg-gray-100 border border-gray-300 rounded-[4px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+          className="w-full py-2.5 pl-14 pr-4 text-gray-700 bg-gray-100 rounded-full focus:outline-none text-sm"
         />
         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
         </div>

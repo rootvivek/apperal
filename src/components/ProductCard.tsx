@@ -7,6 +7,7 @@ import { useWishlist } from '@/contexts/WishlistContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { Product } from '@/types/product';
+import ImageWithFallback from './ImageWithFallback';
 
 interface ProductCardProduct {
   id: string;
@@ -328,7 +329,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <img
+        <ImageWithFallback
           src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
           alt={product.name}
           className={`${imageClasses} transition-all duration-500`}
@@ -338,9 +339,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
           height={480}
           fetchPriority={variant === 'image-only' || currentImageIndex === 0 ? 'high' : 'low'}
           sizes={variant === 'image-only' ? '100vw' : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
-          onError={(e) => {
-            e.currentTarget.src = '/placeholder-product.jpg';
-          }}
+          fallbackType="product"
         />
         
         {/* Image dots indicator - show when multiple images */}

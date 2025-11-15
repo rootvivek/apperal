@@ -301,3 +301,30 @@ html body nav.bg-brand-500 {
   right: 0 !important;
   z-index: 100 !important;
 }
+
+/* Blinking cursor for search input */
+input[type="text"]:focus {
+  caret-color: #3b82f6; /* Blue cursor color */
+}
+
+/* Ensure cursor is visible and blinking */
+input[type="text"] {
+  caret-color: #3b82f6;
+}
+
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Custom blinking cursor indicator (if needed) */
+.search-cursor::after {
+  content: '|';
+  animation: blink 1s infinite;
+  color: #3b82f6;
+  font-weight: bold;
+}

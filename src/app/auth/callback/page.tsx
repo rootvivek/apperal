@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Suspense } from 'react';
+import LoadingLogo from '@/components/LoadingLogo';
 
 function AuthCallbackContent() {
   const router = useRouter();
@@ -175,7 +176,7 @@ function AuthCallbackContent() {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
       <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+        <LoadingLogo size="md" text="Authenticating..." />
         <p className="mt-4 text-gray-600">Completing authentication...</p>
       </div>
     </div>
@@ -187,7 +188,7 @@ export default function AuthCallback() {
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex flex-col justify-center items-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <LoadingLogo size="md" text="Authenticating..." />
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>

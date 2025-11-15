@@ -8,6 +8,7 @@ import { useLoginModal } from '@/contexts/LoginModalContext';
 import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface CheckoutFormData {
   email?: string;
@@ -100,7 +101,6 @@ function CheckoutContent() {
               .single();
             
             if (error || !product) {
-              console.error('Error fetching product for direct purchase:', error);
               setLoadingDirectProduct(false);
               return;
             }
@@ -140,11 +140,9 @@ function CheckoutContent() {
               size: params.size || null
             };
             
-            console.log('Setting direct purchase items (mount):', directItem);
             setDirectPurchaseItems([directItem]);
             setLoadingDirectProduct(false);
           } catch (error) {
-            console.error('Error in fetchDirectProduct (mount):', error);
             setLoadingDirectProduct(false);
           }
         };
@@ -213,7 +211,6 @@ function CheckoutContent() {
       setLoadingDirectProduct(true);
       setIsDirectPurchase(true);
       
-      console.log('Fetching direct purchase product (backup):', { productId, quantity, size });
       
       // Fetch product details directly from database
       const fetchDirectProduct = async () => {
@@ -226,7 +223,6 @@ function CheckoutContent() {
             .single();
           
           if (error || !product) {
-            console.error('Error fetching product for direct purchase:', error);
             setLoadingDirectProduct(false);
             return;
           }
@@ -266,11 +262,9 @@ function CheckoutContent() {
             size: size || null
           };
           
-          console.log('Setting direct purchase items:', directItem);
           setDirectPurchaseItems([directItem]);
           setLoadingDirectProduct(false);
         } catch (error) {
-          console.error('Error in fetchDirectProduct:', error);
           setLoadingDirectProduct(false);
         }
       };
@@ -437,7 +431,6 @@ function CheckoutContent() {
         zipCode: address?.zip_code || '' // Only from address, empty if removed
       }));
     } catch (error) {
-      console.error('Error fetching user data:', error);
     }
   };
 
@@ -519,7 +512,6 @@ function CheckoutContent() {
         setRazorpayLoaded(true);
       };
       script.onerror = () => {
-        console.error('Failed to load Razorpay script');
       };
       document.head.appendChild(script);
     };
@@ -582,7 +574,6 @@ function CheckoutContent() {
             }
           }
         } catch (error) {
-          console.error('Error fetching subcategory for product:', item.product_id, error);
         }
       }
       
@@ -642,14 +633,12 @@ function CheckoutContent() {
       immediateSize = params.get('size');
       immediateDirectPurchaseCheck = direct === 'true' && !!immediateProductId && !!immediateQuantity;
     } catch (e) {
-      console.error('Error checking URL params:', e);
     }
   }
   
   // Use useLayoutEffect to trigger fetch immediately when direct purchase is detected (runs synchronously)
   useEffect(() => {
     if (immediateDirectPurchaseCheck && !isDirectPurchase && !hasFetchedDirectProduct.current && immediateProductId && immediateQuantity) {
-      console.log('Direct purchase detected from URL, triggering immediate fetch');
       setIsDirectPurchase(true);
       setLoadingDirectProduct(true);
       setUrlParams({
@@ -689,16 +678,7 @@ function CheckoutContent() {
       ? 'Loading product details...' 
       : 'Loading checkout...';
     
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">
-            {loadingMessage}
-          </p>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text={loadingMessage} />;
   }
 
   // Check if cart is empty and not a direct purchase
@@ -768,70 +748,47 @@ function CheckoutContent() {
     );
   }
 
+  // Helper functions for validation
+  const getPhoneDigits = (phone: string): string => phone.replace(/\D/g, '');
+  const getZipDigits = (zip: string): string => zip.replace(/\D/g, '');
+  
+  const validatePhone = (phone: string): string | null => {
+    if (!phone?.trim()) return 'Phone number is required';
+    const digits = getPhoneDigits(phone);
+    if (digits.length === 0) return 'Phone number is required';
+    if (digits.length < 10) return `Phone number must be exactly 10 digits (currently ${digits.length} digits)`;
+    if (digits.length > 10) {
+      const last10 = digits.slice(-10);
+      if (last10.length === 10) {
+        setFormData(prev => ({ ...prev, phone: last10 }));
+        return null;
+      }
+      return 'Phone number must be exactly 10 digits';
+    }
+    return null;
+  };
+
+  const validateZipCode = (zip: string): string | null => {
+    if (!zip?.trim()) return 'Zip code is required';
+    const digits = getZipDigits(zip);
+    return digits.length !== 6 ? 'Zip code must be exactly 6 digits' : null;
+  };
+
   const validateForm = (): { isValid: boolean; errors: {[key: string]: string} } => {
     const newErrors: {[key: string]: string} = {};
     
-    // Validate name (fullName)
-    if (!formData.fullName || formData.fullName.trim() === '') {
-      newErrors.fullName = 'Name is required';
-    }
+    if (!formData.fullName?.trim()) newErrors.fullName = 'Name is required';
+    if (!formData.address?.trim()) newErrors.address = 'Address is required';
+    if (!formData.city?.trim()) newErrors.city = 'City is required';
+    if (!formData.state?.trim()) newErrors.state = 'State is required';
     
-    // Validate phone number - must be exactly 10 digits
-    if (!formData.phone || formData.phone.trim() === '') {
-      newErrors.phone = 'Phone number is required';
-    } else {
-      // Remove all non-digit characters for validation (including +91, spaces, dashes, etc.)
-      const phoneDigits = formData.phone.replace(/\D/g, '');
-      console.log('Phone validation:', { original: formData.phone, digits: phoneDigits, length: phoneDigits.length });
-      
-      if (phoneDigits.length === 0) {
-        newErrors.phone = 'Phone number is required';
-      } else if (phoneDigits.length < 10) {
-        newErrors.phone = `Phone number must be exactly 10 digits (currently ${phoneDigits.length} digits)`;
-      } else if (phoneDigits.length > 10) {
-        // If it has more than 10 digits, might have country code - try to extract last 10
-        const last10Digits = phoneDigits.slice(-10);
-        if (last10Digits.length === 10) {
-          // Auto-correct: use last 10 digits
-          setFormData(prev => ({
-            ...prev,
-            phone: last10Digits
-          }));
-        } else {
-        newErrors.phone = 'Phone number must be exactly 10 digits';
-        }
-      }
-    }
+    const phoneError = validatePhone(formData.phone);
+    if (phoneError) newErrors.phone = phoneError;
     
-    // Validate address
-    if (!formData.address || formData.address.trim() === '') {
-      newErrors.address = 'Address is required';
-    }
-    
-    // Validate city
-    if (!formData.city || formData.city.trim() === '') {
-      newErrors.city = 'City is required';
-    }
-    
-    // Validate state
-    if (!formData.state || formData.state.trim() === '') {
-      newErrors.state = 'State is required';
-    }
-    
-    // Validate zip code - must be exactly 6 digits
-    if (!formData.zipCode || formData.zipCode.trim() === '') {
-      newErrors.zipCode = 'Zip code is required';
-    } else {
-      // Remove all non-digit characters for validation
-      const zipDigits = formData.zipCode.replace(/\D/g, '');
-      if (zipDigits.length !== 6) {
-        newErrors.zipCode = 'Zip code must be exactly 6 digits';
-      }
-    }
+    const zipError = validateZipCode(formData.zipCode);
+    if (zipError) newErrors.zipCode = zipError;
     
     setErrors(newErrors);
-    
-    // Return validation result
     return {
       isValid: Object.keys(newErrors).length === 0,
       errors: newErrors
@@ -844,71 +801,46 @@ function CheckoutContent() {
       formData.address?.trim() &&
       formData.city?.trim() &&
       formData.state?.trim() &&
-      formData.zipCode?.trim() &&
-      formData.zipCode.replace(/\D/g, '').length === 6 &&
-      formData.phone?.trim() &&
-      formData.phone.replace(/\D/g, '').length === 10
+      getZipDigits(formData.zipCode).length === 6 &&
+      getPhoneDigits(formData.phone).length === 10
     );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('Form submitted!', { paymentMethod: formData.paymentMethod, isProcessing });
-    
     // Check if already processing
     if (isProcessing) {
-      console.log('Already processing, ignoring submit');
       return;
     }
     
     // Check if user is logged in - if not, show login modal
     if (!user) {
-      console.log('User not logged in, showing login modal');
       openLoginModal();
       return;
     }
     
-    // Check if address fields are complete (address, city, state, zipCode, fullName)
-    // Phone is validated separately in form validation, not part of address completion check
     const isAddressFieldsComplete = !!(
       formData.fullName?.trim() &&
       formData.address?.trim() &&
       formData.city?.trim() &&
       formData.state?.trim() &&
-      formData.zipCode?.trim() &&
-      formData.zipCode.replace(/\D/g, '').length === 6
+      getZipDigits(formData.zipCode).length === 6
     );
-    
-    console.log('Address fields complete:', isAddressFieldsComplete, {
-      fullName: formData.fullName?.trim(),
-      address: formData.address?.trim(),
-      city: formData.city?.trim(),
-      state: formData.state?.trim(),
-      zipCode: formData.zipCode?.trim(),
-      phone: formData.phone?.trim(),
-      phoneDigits: formData.phone?.replace(/\D/g, ''),
-      phoneLength: formData.phone?.replace(/\D/g, '').length
-    });
     
     // Only show address modal if address fields are incomplete
     // If a saved address is selected and fields are complete, proceed to form validation
     if (!isAddressFieldsComplete) {
-      console.log('Address incomplete, showing address modal');
       setShowAddressModal(true);
       return;
     }
     
     // Validate form before submission
     const validation = validateForm();
-    console.log('Form validation result:', validation);
     
     if (!validation.isValid) {
-      console.log('Form validation failed:', validation.errors);
-      
       // If phone or address fields have errors, open address modal
       if (validation.errors.phone || validation.errors.address || validation.errors.city || 
           validation.errors.state || validation.errors.zipCode || validation.errors.fullName) {
-        console.log('Opening address modal due to validation errors');
         setShowAddressModal(true);
       }
       
@@ -925,7 +857,6 @@ function CheckoutContent() {
       return;
     }
     
-    console.log('Form validation passed, proceeding with payment...');
     
     setIsProcessing(true);
     
@@ -992,7 +923,6 @@ function CheckoutContent() {
       
       // Handle payment based on payment method
       if (formData.paymentMethod !== 'cod') {
-        console.log('Processing payment with method:', formData.paymentMethod);
         // For Razorpay: Don't create order yet - wait for payment verification
         // Pass order data to Razorpay handler
         try {
@@ -1003,7 +933,6 @@ function CheckoutContent() {
           formData
         });
         } catch (error: any) {
-          console.error('Error in handleRazorpayPayment:', error);
           setPaymentError(error.message || 'Payment failed. Please try again.');
           setShowPaymentFailedModal(true);
           setIsProcessing(false);
@@ -1034,7 +963,6 @@ function CheckoutContent() {
       
       // Check for error first  
       if (orderError) {
-        console.error('Error creating order:', orderError);
         alert('Failed to place order. Please try again.');
         setIsProcessing(false);
         return;
@@ -1060,7 +988,6 @@ function CheckoutContent() {
         .insert(orderItems) as any;
       
       if (insertResult && insertResult.error) {
-        console.error('Error creating order items:', insertResult.error);
         alert(`Failed to create order items. Please contact support.`);
         setIsProcessing(false);
         return;
@@ -1080,11 +1007,9 @@ function CheckoutContent() {
         });
         
         if (!stockResponse.ok) {
-          console.warn('Stock update failed, but order was created:', await stockResponse.json());
           // Don't fail the order if stock update fails - log it for admin review
         }
       } catch (stockError) {
-        console.error('Error updating stock:', stockError);
         // Don't fail the order if stock update fails
       }
       
@@ -1097,7 +1022,6 @@ function CheckoutContent() {
       window.location.href = `/checkout/success?orderId=${createdOrder.id}&orderNumber=${orderNumber}`;
       
     } catch (error) {
-      console.error('Error placing order:', error);
       alert('An error occurred. Please try again.');
     } finally {
       setIsProcessing(false);
@@ -1133,7 +1057,6 @@ function CheckoutContent() {
   };
 
   const handlePaymentMethodChange = (method: 'cod' | 'upi' | 'debit_card') => {
-    console.log('Payment method changed to:', method);
     setFormData(prev => ({
       ...prev,
       paymentMethod: method
@@ -1143,18 +1066,15 @@ function CheckoutContent() {
     if (method !== 'cod' && !razorpayLoaded && typeof window !== 'undefined') {
       const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
       if (!existingScript) {
-        console.log('Loading Razorpay script proactively...');
         const script = document.createElement('script');
         script.src = 'https://checkout.razorpay.com/v1/checkout.js';
         script.async = true;
         script.defer = true;
         script.crossOrigin = 'anonymous';
         script.onload = () => {
-          console.log('Razorpay script loaded successfully');
           setRazorpayLoaded(true);
         };
         script.onerror = () => {
-          console.error('Failed to load Razorpay script');
         };
         document.head.appendChild(script);
       }
@@ -1171,20 +1091,17 @@ function CheckoutContent() {
       formData: CheckoutFormData;
     }
   ) => {
-    console.log('handleRazorpayPayment called', { orderNumber, paymentMethod: orderData.formData.paymentMethod });
     
     // Wait for Razorpay script to load with retries
     let retries = 0;
     const maxRetries = 10;
     
-    console.log('Waiting for Razorpay script to load...', { razorpayLoaded, hasRazorpay: !!(window as any).Razorpay });
     
     while (!(window as any).Razorpay && retries < maxRetries) {
       await new Promise(resolve => setTimeout(resolve, 500));
       retries++;
     }
     
-    console.log('After waiting loop:', { retries, hasRazorpay: !!(window as any).Razorpay });
 
     // Check if Razorpay is available after waiting
       if (!(window as any).Razorpay) {
@@ -1224,13 +1141,11 @@ function CheckoutContent() {
 
     // Final check if Razorpay is available
     if (!(window as any).Razorpay) {
-      console.error('Razorpay not available after all attempts');
       alert('Payment gateway failed to load. Please refresh the page and try again.');
       setIsProcessing(false);
       return;
     }
 
-    console.log('Razorpay is available, proceeding with payment...');
 
     try {
       // Verify user is logged in
@@ -1355,7 +1270,6 @@ function CheckoutContent() {
             const createdOrderId = result.order?.id;
 
             if (!createdOrderId) {
-              console.error('Order creation failed - no order ID returned:', result);
               throw new Error('Order creation failed after payment. Please contact support with your payment ID.');
             }
 
@@ -1367,7 +1281,6 @@ function CheckoutContent() {
             // Redirect to success page
             window.location.href = `/checkout/success?orderId=${createdOrderId}&orderNumber=${orderNumber}`;
           } catch (error: any) {
-            console.error('Payment verification error:', error);
             setPaymentError(error.message || 'Payment verification failed. Please contact support.');
             setShowPaymentFailedModal(true);
             setIsProcessing(false);
@@ -1391,16 +1304,13 @@ function CheckoutContent() {
 
       // Add error handler for Razorpay payment failures
       (options as any).onError = function(error: any) {
-        console.error('Razorpay payment error:', error);
         setPaymentError(error.error?.description || error.error?.reason || 'Payment failed. Please try again.');
         setShowPaymentFailedModal(true);
         setIsProcessing(false);
       };
 
-      console.log('Opening Razorpay checkout...', { orderId: razorpayOrder.id, amount: razorpayOrder.amount });
       const razorpay = new (window as any).Razorpay(options);
       razorpay.open();
-      console.log('Razorpay checkout opened');
     } catch (error: any) {
       setPaymentError(error.message || 'Payment failed. Please try again.');
       setShowPaymentFailedModal(true);
@@ -1431,7 +1341,7 @@ function CheckoutContent() {
                     if (shouldShowDirectPurchase && (loadingDirectProduct || isWaitingForDirectProduct)) {
                       return (
                         <div className="text-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                          <LoadingLogo size="sm" text="" />
                           <p className="text-gray-500">Loading product...</p>
                         </div>
                       );
@@ -1737,7 +1647,6 @@ function CheckoutContent() {
                   type="submit"
                   disabled={isProcessing}
                   onClick={(e) => {
-                    console.log('Desktop button clicked', { isProcessing, paymentMethod: formData.paymentMethod });
                   }}
                   className={`w-full py-3 px-6 rounded-md font-medium transition-colors ${
                     isProcessing
@@ -1771,7 +1680,6 @@ function CheckoutContent() {
             form="checkout-form"
             disabled={isProcessing}
             onClick={(e) => {
-              console.log('Mobile button clicked', { isProcessing, paymentMethod: formData.paymentMethod });
             }}
             className={`w-full py-4 px-6 rounded-md font-medium transition-colors text-base ${
               isProcessing
@@ -2120,50 +2028,56 @@ function CheckoutContent() {
       )}
 
       {/* Payment Failed Modal */}
-      {showPaymentFailedModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
-            <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
-              <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-            <h3 className="text-xl font-semibold text-gray-900 text-center mb-2">
-              Payment Failed
-            </h3>
-            <p className="text-gray-600 text-center mb-6">
-              {paymentError || 'Your payment could not be processed. Please try again.'}
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setShowPaymentFailedModal(false);
-                  setPaymentError('');
-                  setIsProcessing(false);
-                }}
-                className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors font-medium"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setShowPaymentFailedModal(false);
-                  setPaymentError('');
-                  setIsProcessing(false);
-                  // Scroll to payment section
-                  const paymentSection = document.querySelector('[name="paymentMethod"]');
-                  if (paymentSection) {
-                    paymentSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  }
-                }}
-                className="flex-1 px-4 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors font-medium"
-              >
-                Try Again
-              </button>
-            </div>
-          </div>
+      <Modal
+        isOpen={showPaymentFailedModal}
+        onClose={() => {
+          setShowPaymentFailedModal(false);
+          setPaymentError('');
+          setIsProcessing(false);
+        }}
+        title="Payment Failed"
+        variant="simple"
+        size="md"
+      >
+        <div className="flex items-center justify-center w-12 h-12 mx-auto mb-4 bg-red-100 rounded-full">
+          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </div>
-      )}
+        <p className="text-gray-600 text-center mb-6">
+          {paymentError || 'Your payment could not be processed. Please try again.'}
+        </p>
+        <div className="flex gap-3">
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => {
+              setShowPaymentFailedModal(false);
+              setPaymentError('');
+              setIsProcessing(false);
+            }}
+          >
+            Close
+          </Button>
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={() => {
+              setShowPaymentFailedModal(false);
+              setPaymentError('');
+              setIsProcessing(false);
+              // Scroll to payment section
+              const paymentSection = document.querySelector('[name="paymentMethod"]');
+              if (paymentSection) {
+                paymentSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }}
+            className="bg-[#4736FE] hover:bg-[#3a2dd4]"
+          >
+            Try Again
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -2173,7 +2087,7 @@ export default function CheckoutPage() {
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <LoadingLogo size="md" text="" />
           <p className="text-gray-600">Loading checkout...</p>
         </div>
       </div>

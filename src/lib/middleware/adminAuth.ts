@@ -3,7 +3,10 @@ import { createServerClient } from '@/lib/supabase/server';
 import { createServerAuthClient } from '@/lib/supabase/server-auth';
 
 // Admin phone number - must match AdminGuard
-const ADMIN_PHONE = process.env.ADMIN_PHONE || '8881765192';
+const ADMIN_PHONE = process.env.ADMIN_PHONE;
+if (!ADMIN_PHONE) {
+  throw new Error('ADMIN_PHONE environment variable is required');
+}
 
 /**
  * Middleware to verify if the authenticated user is an admin
@@ -20,6 +23,12 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
                         request.headers.get('x-admin-user-id') ||
                         request.headers.get('X-Admin-User-Id');
     if (headerUserId) {
+      // Validate user ID format before using it
+      const isValidFormat = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(headerUserId) ||
+                           /^[a-zA-Z0-9]{20,28}$/.test(headerUserId);
+      if (!isValidFormat) {
+        return { isAdmin: false, error: 'Invalid user ID format' };
+      }
       userId = headerUserId;
     }
     
@@ -117,8 +126,8 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
     const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
     const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
 
-    const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
-                   normalizedUserPhone.endsWith(normalizedAdminPhone);
+    // Only exact match - remove endsWith for security
+    const isAdmin = normalizedUserPhone === normalizedAdminPhone;
 
     return { isAdmin, userId };
   } catch (error: any) {
@@ -127,18 +136,52 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
 }
 
 /**
- * Wrapper function for admin API routes
+ * Wrapper function for admin API routes with rate limiting and CSRF protection
  * Usage: export const POST = withAdminAuth(async (request, { userId }) => { ... })
+ * Options: { rateLimit?: { windowMs: number; maxRequests: number } | false, requireCSRF?: boolean }
  */
 export function withAdminAuth(
-  handler: (request: NextRequest, context: { userId: string }) => Promise<NextResponse>
+  handler: (request: NextRequest, context: { userId: string }) => Promise<NextResponse>,
+  options?: { 
+    rateLimit?: { windowMs: number; maxRequests: number } | false;
+    requireCSRF?: boolean;
+  }
 ) {
   return async (request: NextRequest) => {
+    // Apply rate limiting if specified (default: 60 requests per minute)
+    if (options?.rateLimit !== false) {
+      const { rateLimit } = await import('@/lib/middleware/rateLimit');
+      const rateLimitOptions = options?.rateLimit || { windowMs: 60000, maxRequests: 60 };
+      const rateLimitResult = rateLimit(rateLimitOptions)(request);
+      if (rateLimitResult && !rateLimitResult.allowed) {
+        return NextResponse.json(
+          { error: 'Too many requests. Please try again later.' },
+          { status: 429, headers: { 'Retry-After': '60' } }
+        );
+      }
+    }
+
+    // Apply CSRF protection for state-changing operations if specified
+    if (options?.requireCSRF !== false && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      const { verifyCSRFToken } = await import('@/lib/middleware/csrf');
+      if (!verifyCSRFToken(request)) {
+        return NextResponse.json(
+          { error: 'Invalid CSRF token' },
+          { status: 403 }
+        );
+      }
+    }
+
     const verification = await verifyAdmin(request);
     
     if (!verification.isAdmin || !verification.userId) {
+      // Generic error message in production
+      const errorMessage = process.env.NODE_ENV === 'production'
+        ? 'Forbidden: Admin access required'
+        : verification.error || 'Forbidden: Admin access required';
+      
       return NextResponse.json(
-        { error: verification.error || 'Forbidden: Admin access required' },
+        { error: errorMessage },
         { status: 403 }
       );
     }

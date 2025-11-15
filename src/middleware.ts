@@ -27,8 +27,15 @@ export function middleware(request: NextRequest) {
     response.headers.set('Cache-Control', 'public, max-age=31536000, stale-while-revalidate=604800');
   }
   // Cache API routes that fetch public data (5 minutes with 1 hour revalidation)
-  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/orders') && !pathname.startsWith('/api/auth')) {
-    response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+  else if (pathname.startsWith('/api/') && !pathname.startsWith('/api/admin') && !pathname.startsWith('/api/orders') && !pathname.startsWith('/api/auth') && !pathname.startsWith('/api/razorpay')) {
+    // Different cache durations for different API types
+    if (pathname.startsWith('/api/reviews')) {
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
+    } else if (pathname.startsWith('/api/wishlist')) {
+      response.headers.set('Cache-Control', 'private, max-age=30, stale-while-revalidate=60');
+    } else {
+      response.headers.set('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=3600');
+    }
   }
   // Default cache for pages (5 minutes with 1 hour revalidation)
   else if (!pathname.startsWith('/admin') && !pathname.startsWith('/api')) {
@@ -36,9 +43,11 @@ export function middleware(request: NextRequest) {
   }
   
   // Content Security Policy (adjust based on your needs)
+  // Note: 'unsafe-inline' is required for Razorpay and some third-party scripts
+  // 'unsafe-eval' removed for better security - if Firebase requires it, consider using nonces
   const csp = [
     "default-src 'self'",
-    "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://apis.google.com https://www.google-analytics.com", // Allow Razorpay, Firebase, and Google reCAPTCHA scripts
+    "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://apis.google.com https://www.google-analytics.com", // Allow Razorpay, Firebase, and Google reCAPTCHA scripts (unsafe-inline required for Razorpay)
     "script-src-elem 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://apis.google.com https://www.google-analytics.com", // Explicitly allow Razorpay, Firebase, and Google reCAPTCHA script elements
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase styles
     "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase style elements

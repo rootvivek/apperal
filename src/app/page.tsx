@@ -6,7 +6,9 @@ import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
 import HeroCarousel from '@/components/HeroCarousel';
 import HomePageSkeleton from '@/components/HomePageSkeleton';
+import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
+import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
 
 interface Product {
   id: string;
@@ -47,6 +49,10 @@ interface CategoryWithProducts {
   products: Product[];
 }
 
+// Client-side cache constants (defined outside component to avoid scope issues)
+const HOMEPAGE_CACHE_KEY = 'homepage_data';
+const HOMEPAGE_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export default function Home() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
   const [categorySections, setCategorySections] = useState<CategoryWithProducts[]>([]);
@@ -72,7 +78,6 @@ export default function Home() {
         .limit(8);
 
       if (allProductsError) {
-        console.error('All products error:', allProductsError);
       }
 
       // Fetch categories and subcategories in parallel
@@ -91,11 +96,9 @@ export default function Home() {
       ]);
 
       if (categoriesResult.error) {
-        console.error('Categories error:', categoriesResult.error);
       }
 
       if (subcategoriesResult.error) {
-        console.error('Subcategories error:', subcategoriesResult.error);
       }
 
       // Attach subcategories to their parent categories
@@ -122,7 +125,6 @@ export default function Home() {
             .limit(8);
 
           if (categoryProductsError) {
-            console.error(`Error fetching products for ${category.name}:`, categoryProductsError);
           }
 
           categorySectionsData.push({
@@ -153,8 +155,18 @@ export default function Home() {
       setCategorySections(transformedCategorySections);
       setCategories(categoriesData || []);
       setDataFetched(true);
+      
+      // Cache the results immediately after setting state
+      if (typeof window !== 'undefined') {
+        const cacheData = {
+          allProducts: transformedAllProducts,
+          categorySections: transformedCategorySections,
+          categories: categoriesData || [],
+        };
+        const expires = Date.now() + HOMEPAGE_CACHE_TTL;
+        sessionStorage.setItem(HOMEPAGE_CACHE_KEY, JSON.stringify({ data: cacheData, expires }));
+      }
     } catch (error) {
-      console.error('Fallback error:', error);
       setAllProducts([]);
       setCategorySections([]);
       setCategories([]);
@@ -164,19 +176,41 @@ export default function Home() {
   // Memoize fetchData to prevent recreation on every render
   const fetchData = useCallback(async () => {
     if (dataFetched) return; // Prevent duplicate calls
+    
+    // Check client-side cache first
+    if (typeof window !== 'undefined') {
+      const cached = sessionStorage.getItem(HOMEPAGE_CACHE_KEY);
+      if (cached) {
+        try {
+          const { data, expires } = JSON.parse(cached);
+          if (expires && Date.now() < expires) {
+            setAllProducts(data.allProducts || []);
+            setCategorySections(data.categorySections || []);
+            setCategories(data.categories || []);
+            setDataFetched(true);
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Invalid cache, continue to fetch
+        }
+      }
+    }
+    
     try {
       setLoading(true);
       // Directly use fallback method since RPC function doesn't exist
       await fetchDataFallback();
+      
+      // Note: Cache is set in fetchDataFallback after state is updated
     } catch (error) {
-      console.error('Error fetching data:', error);
       setAllProducts([]);
       setCategorySections([]);
       setCategories([]);
     } finally {
       setLoading(false);
     }
-  }, [dataFetched, fetchDataFallback]); // Include fetchDataFallback
+  }, [dataFetched, fetchDataFallback, allProducts, categorySections, categories]); // Include fetchDataFallback
 
   useEffect(() => {
     // Only fetch data if not already fetched (prevents refetch on refresh)
@@ -186,7 +220,7 @@ export default function Home() {
   }, [dataFetched, fetchData]);
 
   if (loading) {
-    return <HomePageSkeleton />;
+    return <LoadingLogo fullScreen text="Loading products..." />;
   }
 
   return (
@@ -212,7 +246,7 @@ export default function Home() {
             </Link>
           </div>
           {allProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" style={{ touchAction: 'pan-x pan-y' }}>
+            <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP}`} style={{ touchAction: 'pan-x pan-y' }}>
               {allProducts.map((product) => (
                 <ProductCard key={product.id} product={product as any} />
               ))}
@@ -246,7 +280,7 @@ export default function Home() {
                 </Link>
               </div>
               {section.products.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2" style={{ touchAction: 'pan-x pan-y' }}>
+                <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP}`} style={{ touchAction: 'pan-x pan-y' }}>
                   {section.products.slice(0, 6).map((product) => (
                     <ProductCard key={product.id} product={product as any} />
                   ))}

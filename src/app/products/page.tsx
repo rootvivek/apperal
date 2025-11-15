@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProductListing from '@/components/ProductListing';
+import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -103,16 +104,7 @@ export default function ProductsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading products...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading products..." />;
   }
 
   return (

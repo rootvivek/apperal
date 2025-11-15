@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,6 +11,40 @@ import { createClient } from '@/lib/supabase/client';
 import CartIcon from './CartIcon';
 import WishlistIcon from './WishlistIcon';
 import SearchBar from './SearchBar';
+
+// Constants
+const NAVBAR_PADDING = "px-4 sm:px-6 md:px-8 lg:px-10";
+const BACK_ARROW_PATH = "M10 19l-7-7m0 0l7-7m-7 7h18";
+const USER_ICON_PATH = "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z";
+const CHEVRON_DOWN_PATH = "M19 9l-7 7-7-7";
+const SEARCH_ICON_PATH = "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z";
+const ORDERS_ICON_PATH = "M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z";
+const SIGN_OUT_ICON_PATH = "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1";
+
+// Helper Components
+const BackArrowIcon = ({ className = "w-4 h-4 sm:w-6 sm:h-6" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={BACK_ARROW_PATH} />
+  </svg>
+);
+
+const UserIcon = ({ className = "w-5 h-5" }: { className?: string }) => (
+  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={USER_ICON_PATH} />
+  </svg>
+);
+
+const ChevronDownIcon = ({ className = "w-4 h-4", rotated = false }: { className?: string; rotated?: boolean }) => (
+  <svg className={`${className} ${rotated ? 'rotate-180' : ''} transition-transform`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={CHEVRON_DOWN_PATH} />
+  </svg>
+);
+
+const Logo = ({ className = "h-8 sm:h-10 w-auto", maxWidth = "120px" }: { className?: string; maxWidth?: string }) => (
+  <Link href="/" className="flex items-center">
+    <img src="/logo.png" alt="Carts24" className={className} style={{ maxWidth }} />
+  </Link>
+);
 
 interface Category {
   id: string;
@@ -31,6 +64,10 @@ interface Subcategory {
   image_url: string;
   parent_category_id: string;
 }
+
+// Client-side cache constants (defined outside component to avoid scope issues)
+const NAVIGATION_CACHE_KEY = 'navigation_categories';
+const NAVIGATION_CACHE_TTL = 10 * 60 * 1000; // 10 minutes (categories change less frequently)
 
 export default function Navigation() {
   const { user, signOut, signingOut } = useAuth();
@@ -341,9 +378,28 @@ export default function Navigation() {
   }, [showMobileSearch, showUserDropdown]);
 
   const fetchCategories = async () => {
+    if (dataFetched) return; // Prevent duplicate calls
+    
+      // Check client-side cache first
+      if (typeof window !== 'undefined') {
+        const cached = sessionStorage.getItem(NAVIGATION_CACHE_KEY);
+        if (cached) {
+          try {
+            const { data, expires } = JSON.parse(cached);
+            if (expires && Date.now() < expires) {
+              setCategories(data);
+              setDataFetched(true);
+              setCategoriesLoading(false);
+              return;
+            }
+          } catch {
+            // Invalid cache, continue to fetch
+          }
+        }
+      }
+    
     try {
       setCategoriesLoading(true);
-      
       // Skip RPC call and use optimized parallel queries directly
       // This prevents timeout delays from waiting for non-existent RPC function
       await fetchCategoriesFallback();
@@ -393,6 +449,13 @@ export default function Navigation() {
 
       setCategories(categoriesWithSubcategories);
       setDataFetched(true);
+      
+      // Cache the results
+      if (typeof window !== 'undefined') {
+        const cacheData = categoriesWithSubcategories;
+        const expires = Date.now() + NAVIGATION_CACHE_TTL;
+        sessionStorage.setItem(NAVIGATION_CACHE_KEY, JSON.stringify({ data: cacheData, expires }));
+      }
     } catch (error) {
       console.error('Fallback error:', error);
       setCategories([]);
@@ -414,72 +477,57 @@ export default function Navigation() {
     return categories.filter(category => !category.parent_category_id);
   };
 
+  const containerClassName = showMobileSearch 
+    ? `w-full ${NAVBAR_PADDING}` 
+    : `max-w-[1450px] mx-auto w-full ${NAVBAR_PADDING}`;
+
   return (
-    <>
-      <nav className="bg-brand-500 fixed top-0 left-0 right-0 z-[100] h-14 sm:h-[72px]" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center' }}>
-        <div className={showMobileSearch ? "w-full" : "max-w-[1450px] mx-auto w-full px-2 sm:px-4 md:px-6 lg:px-8"}>
+    <nav className="bg-white fixed top-0 left-0 right-0 z-[100] h-14 sm:h-[72px] border-b border-gray-200 flex items-center">
+      <div className={containerClassName}>
           <div className="flex justify-between items-center relative h-full">
-          {/* Left side: Back button + Category/Subcategory name OR Logo */}
-          {pathname !== '/' ? (
-            <>
-              {/* Mobile: Back button + Name */}
-              <div className="flex lg:hidden items-center space-x-1.5 sm:space-x-2">
-                {/* Back Button */}
-                <button
-                  onClick={handleBack}
-                  className="text-white hover:text-brand-400 transition-colors p-1.5 sm:p-2"
-                  aria-label="Go back"
-                >
-                  <svg className="w-4 h-4 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                
-                {/* Page Name */}
-                <div className="flex items-center">
-                  <span className="text-white text-sm sm:text-base font-medium truncate max-w-[200px] sm:max-w-none">
-                    {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName || 'Back')}
-                  </span>
-                </div>
-              </div>
-              
-              {/* Desktop: Back button + Logo */}
-              <div className="hidden lg:flex items-center space-x-4">
-                <button
-                  onClick={handleBack}
-                  className="text-white hover:text-brand-400 transition-colors p-2"
-                  aria-label="Go back"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <Link href="/" className="flex items-center">
-                  <img 
-                    src="/logo.png" 
-                    alt="Carts24" 
-                    className="h-8 sm:h-10 w-auto"
-                    style={{ maxWidth: '120px' }}
-                  />
-                </Link>
-              </div>
-            </>
+          {showMobileSearch ? (
+            <div className="flex items-center h-full">
+              <button
+                onClick={closeMobileSearch}
+                className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2 flex-shrink-0"
+                aria-label="Close search"
+              >
+                <BackArrowIcon />
+              </button>
+            </div>
           ) : (
-            <Link href="/" className={`flex items-center ${showMobileSearch ? 'hidden' : 'flex'}`}>
-              <img 
-                src="/logo.png" 
-                alt="Carts24" 
-                className="h-8 sm:h-10 w-auto"
-                style={{ maxWidth: '120px' }}
-              />
-            </Link>
+            <>
+              {/* Left side: Back button + Category/Subcategory name OR Logo */}
+              {pathname !== '/' ? (
+                <>
+                  <div className="flex lg:hidden items-center gap-2 sm:gap-3">
+                    <button
+                      onClick={handleBack}
+                      className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2"
+                      aria-label="Go back"
+                    >
+                      <BackArrowIcon />
+                    </button>
+                    <Logo className="h-6 sm:h-8 w-auto" maxWidth="100px" />
+                    <span className="text-gray-900 text-sm sm:text-base font-medium truncate max-w-[120px] sm:max-w-[200px]">
+                      {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName || 'Back')}
+                    </span>
+                  </div>
+                  
+                  <div className="hidden lg:flex items-center gap-4">
+                    <Logo />
+                  </div>
+                </>
+              ) : (
+                <Logo />
+              )}
+            </>
           )}
 
-          {/* Categories Navigation - Hidden on mobile and category pages, visible on larger screens */}
-          {!isCategoryPage && (
-            <div className={`hidden lg:flex items-center space-x-4 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
+          {/* Categories Navigation - Hidden on mobile, always visible on larger screens */}
+          <div className={`hidden lg:flex items-center space-x-4 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {categoriesLoading ? (
-              <div className="text-white text-sm opacity-70 w-0 h-0"></div>
+              <div className="text-gray-900 text-sm opacity-70 w-0 h-0"></div>
             ) : (
               categories.map((category) => (
                 <div 
@@ -506,13 +554,11 @@ export default function Navigation() {
                 >
                   <Link
                     href={`/products/${category.slug}`}
-                    className="text-white hover:text-brand-400 text-base font-normal transition-colors flex items-center"
+                    className="text-gray-900 hover:text-brand-500 text-base font-normal transition-colors flex items-center"
                   >
                     {category.name}
                     {category.subcategories && category.subcategories.length > 0 && (
-                      <svg className={`ml-0.5 w-4 h-4 transition-transform ${openCategoryId === category.id ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
+                      <ChevronDownIcon className="ml-0.5 w-4 h-4" rotated={openCategoryId === category.id} />
                     )}
                   </Link>
                   
@@ -570,91 +616,72 @@ export default function Navigation() {
               ))
             )}
             </div>
-          )}
 
           {/* Search Bar - Hidden on mobile, visible on larger screens */}
           {!showMobileSearch && <SearchBar variant="desktop" />}
 
           {/* Mobile Search Bar - Outside of hidden container */}
           {showMobileSearch && (
-            <div className="sm:hidden w-full flex items-center px-4 h-full" style={{ maxHeight: '56px', overflow: 'hidden' }}>
+            <div className="sm:hidden w-full flex items-center h-full">
               <SearchBar variant="mobile" onClose={closeMobileSearch} />
             </div>
           )}
 
-          {/* Right side icons */}
           <div className={`flex items-center space-x-1 sm:space-x-2 ${showMobileSearch ? 'hidden' : 'flex'}`}>
             {/* Mobile Search Icon */}
             {!showMobileSearch && (
               <button 
-                onClick={() => {
-                  // Handle mobile search icon click
-                  openMobileSearch();
-                }}
-                className="sm:hidden text-white hover:text-brand-400 p-2"
+                onClick={openMobileSearch}
+                className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
               >
                 <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={SEARCH_ICON_PATH} />
                 </svg>
               </button>
             )}
 
             {/* Wishlist Icon - Only show when user is logged in */}
             {isUserLoggedIn && (
-              <Link href="/wishlist" className={`text-white hover:text-brand-400 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
-                <WishlistIcon showCount={true} count={wishlistCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
-              </Link>
+            <Link href="/wishlist" className={`text-gray-500 hover:text-brand-500 nav-wishlist-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+              <WishlistIcon showCount={true} count={wishlistCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+            </Link>
             )}
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
-            <Link href="/cart" className={`text-white hover:text-brand-400 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
+            <Link href="/cart" className={`text-gray-500 hover:text-brand-500 nav-cart-link flex items-center justify-center h-full p-2 ${showMobileSearch ? 'invisible' : 'visible'}`}>
               <CartIcon showCount={true} count={cartCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
             </Link>
             
-            {/* Auth Section */}
-            <div className={`flex items-center space-x-1 sm:space-x-2 ml-1 sm:ml-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`} suppressHydrationWarning>
+            <div className={`flex items-center space-x-1 sm:space-x-2 h-full ${showMobileSearch ? 'invisible' : 'visible'}`} suppressHydrationWarning>
               {isUserLoggedIn ? (
                 <div 
                   id="user-dropdown" 
                   className="relative flex items-center h-full"
                 >
-                  {/* Desktop: User name/icon button */}
-                    <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setShowUserDropdown(!showUserDropdown);
-                    }}
-                    className="hidden sm:flex items-center space-x-1 text-white hover:text-brand-400 transition-colors cursor-pointer"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                      <span className="text-sm sm:text-base">
-                      {userFullName || 'Hi, User'}
-                    </span>
-                    <svg 
-                      className={`w-4 h-4 transition-transform ${showUserDropdown ? 'rotate-180' : ''}`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </button>
-                  
-                  {/* Mobile: User icon button */}
                   <button
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
                       setShowUserDropdown(!showUserDropdown);
                     }}
-                    className="sm:hidden text-white hover:text-brand-400 p-2"
+                    className="hidden sm:flex items-center space-x-1 text-gray-500 hover:text-brand-500 transition-colors cursor-pointer"
                   >
-                    <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                    <UserIcon />
+                    <span className="text-sm sm:text-base text-gray-900">
+                      {userFullName || 'Hi, User'}
+                    </span>
+                    <ChevronDownIcon rotated={showUserDropdown} />
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowUserDropdown(!showUserDropdown);
+                    }}
+                    className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
+                  >
+                    <UserIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
                   </button>
                   
                   {/* Dropdown Menu */}
@@ -670,9 +697,7 @@ export default function Navigation() {
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
+                            <UserIcon className="w-4 h-4" />
                             <span>View Profile</span>
                           </div>
                         </Link>
@@ -682,10 +707,10 @@ export default function Navigation() {
                           className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-brand-500 transition-colors cursor-pointer"
                         >
                           <div className="flex items-center space-x-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                          </svg>
-                          <span>Orders</span>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ORDERS_ICON_PATH} />
+                            </svg>
+                            <span>Orders</span>
                           </div>
                         </Link>
                         <div className="border-t border-gray-200 my-1"></div>
@@ -701,7 +726,7 @@ export default function Navigation() {
                         >
                           <div className="flex items-center space-x-1.5">
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={SIGN_OUT_ICON_PATH} />
                             </svg>
                             <span suppressHydrationWarning>{signingOut ? 'Signing out...' : 'Sign Out'}</span>
                           </div>
@@ -712,32 +737,20 @@ export default function Navigation() {
                 </div>
               ) : (
                 <>
-                  {/* Mobile: User Icon */}
                   <button
                     type="button"
-                    onClick={() => {
-                      if (isMounted) {
-                        openLoginModal();
-                      }
-                    }}
-                    className="sm:hidden text-white hover:text-brand-400 p-2"
+                    onClick={() => isMounted && openLoginModal()}
+                    className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
                     aria-label="Sign In"
                     suppressHydrationWarning
                   >
-                    <svg className="w-[18px] h-[18px] sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
+                    <UserIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
                   </button>
                   
-                  {/* Desktop: Sign In button */}
                   <div className="hidden sm:flex items-center" suppressHydrationWarning>
                     <button
                       type="button"
-                      onClick={() => {
-                        if (isMounted) {
-                          openLoginModal();
-                        }
-                      }}
+                      onClick={() => isMounted && openLoginModal()}
                       className="bg-white text-brand-500 px-3 sm:px-4 py-1 sm:py-2 rounded-md text-sm sm:text-base font-normal hover:bg-brand-50 transition-colors"
                     >
                       Sign In
@@ -750,7 +763,5 @@ export default function Navigation() {
           </div>
         </div>
       </nav>
-
-    </>
   );
 }

@@ -5,7 +5,9 @@ import { useSearchParams } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import DashboardCard from '@/components/DashboardCard';
+import EmptyState from '@/components/EmptyState';
 import DataTable from '@/components/DataTable';
+import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
 
 interface User {
@@ -690,9 +692,10 @@ function AdminDashboardContent() {
                   
                   if (filteredOrders.length === 0) {
                     return (
-                      <div className="text-center py-12">
-                        <p className="text-gray-600">No orders found</p>
-                      </div>
+                      <EmptyState
+                        title="No orders found"
+                        variant="compact"
+                      />
                     );
                   }
 
@@ -1018,7 +1021,10 @@ function AdminDashboardContent() {
                 <div>
                   <h3 className="font-semibold mb-2">Shopping Cart</h3>
                   {userCartItems.length === 0 ? (
-                    <p className="text-gray-600">Cart is empty</p>
+                    <EmptyState
+                      title="Cart is empty"
+                      variant="minimal"
+                    />
                   ) : (
                     <div className="space-y-2">
                       {userCartItems.map((item: any) => (
@@ -1162,7 +1168,10 @@ function AdminDashboardContent() {
               <div>
                 <h3 className="font-semibold mb-4">Order Items</h3>
                 {orderItems.length === 0 ? (
-                  <p className="text-gray-600">No items found</p>
+                  <EmptyState
+                    title="No items found"
+                    variant="minimal"
+                  />
                 ) : (
                   <div className="space-y-3">
                     {orderItems.map((item) => (
@@ -1230,14 +1239,7 @@ function AdminDashboardContent() {
 export default function AdminDashboard() {
   return (
     <AdminGuard>
-      <Suspense fallback={
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      }>
+      <Suspense fallback={<LoadingLogo fullScreen text="Loading..." />}>
         <AdminDashboardContent />
       </Suspense>
     </AdminGuard>

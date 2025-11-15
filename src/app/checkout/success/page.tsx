@@ -5,6 +5,7 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface OrderItem {
   id: string;
@@ -141,7 +142,7 @@ function CheckoutSuccessContent() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <LoadingLogo size="md" text="Verifying payment..." />
         </div>
       </div>
     );
@@ -341,7 +342,7 @@ export default function CheckoutSuccessPage() {
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <LoadingLogo size="md" text="Verifying payment..." />
           <p className="mt-4 text-gray-600">Loading...</p>
         </div>
       </div>

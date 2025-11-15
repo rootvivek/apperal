@@ -31,14 +31,23 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     const { data: users, error: usersError } = await query;
     
     if (usersError) {
+      const errorMessage = process.env.NODE_ENV === 'production'
+        ? 'Failed to fetch users'
+        : `Failed to fetch users: ${usersError.message}`;
       return NextResponse.json(
-        { error: 'Failed to fetch users', details: usersError.message },
+        { error: errorMessage },
         { status: 500 }
       );
     }
 
     // Admin phone number - must match AdminGuard
-    const ADMIN_PHONE = process.env.ADMIN_PHONE || '8881765192';
+    const ADMIN_PHONE = process.env.ADMIN_PHONE;
+    if (!ADMIN_PHONE) {
+      return NextResponse.json(
+        { error: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
 
     // Fetch order counts for each user and check admin status
     const usersWithOrderCounts = await Promise.all(
@@ -49,12 +58,11 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
           
-          // Check if user is admin based on phone number
+          // Check if user is admin based on phone number - only exact match
           const userPhone = user.phone || '';
           const normalizedUserPhone = userPhone.replace(/\D/g, '');
           const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-          const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
-                         normalizedUserPhone.endsWith(normalizedAdminPhone);
+          const isAdmin = normalizedUserPhone === normalizedAdminPhone;
           
           return {
             ...user,
@@ -80,13 +88,16 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
 
     return NextResponse.json({ users: usersWithOrderCounts });
   } catch (error: any) {
+    const errorMessage = process.env.NODE_ENV === 'production'
+      ? 'Internal server error'
+      : `Internal server error: ${error.message}`;
     return NextResponse.json(
-      { error: 'Internal server error', details: error.message },
+      { error: errorMessage },
       { status: 500 }
     );
   }
 }
 
-export const GET = withAdminAuth(handler);
-export const POST = withAdminAuth(handler);
+export const GET = withAdminAuth(handler, { rateLimit: { windowMs: 60000, maxRequests: 60 } });
+export const POST = withAdminAuth(handler, { rateLimit: { windowMs: 60000, maxRequests: 60 }, requireCSRF: true });
 

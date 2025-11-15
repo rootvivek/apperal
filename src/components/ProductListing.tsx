@@ -1,7 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import ProductCard from './ProductCard';
+import EmptyState from './EmptyState';
+import FilterSortBar, { type FilterOption as FilterSortBarOption } from './FilterSortBar';
+import { CATEGORY_GRID_CLASSES_ALT } from '@/utils/layoutUtils';
 import type { ReactNode } from 'react';
 
 interface Product {
@@ -38,6 +41,9 @@ interface FilterOption {
   slug?: string;
 }
 
+// Re-export FilterOption for backward compatibility
+export type { FilterOption };
+
 interface ProductListingProps {
   products: Product[];
   filterOptions?: FilterOption[];
@@ -62,56 +68,20 @@ export default function ProductListing({
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedFilter, setSelectedFilter] = useState<string>(initialFilter);
   const [sortBy, setSortBy] = useState<string>('featured');
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const [showSortDropdown, setShowSortDropdown] = useState(false);
-  
-  // Use refs to track previous values and prevent unnecessary updates
-  const prevProductsRef = useRef<Product[]>([]);
-  const prevFilterRef = useRef<string>('');
-  const prevSortByRef = useRef<string>('');
-  const prevFilterTypeRef = useRef<string>('');
 
-  // Update selectedFilter when initialFilter changes (for external control)
+  // Update selectedFilter when initialFilter changes
   useEffect(() => {
-    if (initialFilter !== selectedFilter) {
-      setSelectedFilter(initialFilter);
-    }
-  }, [initialFilter, selectedFilter]);
+    setSelectedFilter(initialFilter);
+  }, [initialFilter]);
 
   // Filter and sort products
   useEffect(() => {
-    // Check if products actually changed (by comparing length and IDs)
-    const productsChanged = 
-      products.length !== prevProductsRef.current.length ||
-      (products.length > 0 && products.some((p, i) => p.id !== prevProductsRef.current[i]?.id));
-    
-    const filterChanged = selectedFilter !== prevFilterRef.current;
-    const sortChanged = sortBy !== prevSortByRef.current;
-    const filterTypeChanged = filterType !== prevFilterTypeRef.current;
-    
-    // Only process if something actually changed
-    if (!productsChanged && !filterChanged && !sortChanged && !filterTypeChanged) {
-      return;
-    }
-    
-    // Update refs BEFORE processing to prevent re-triggering
-    prevProductsRef.current = products;
-    prevFilterRef.current = selectedFilter;
-    prevSortByRef.current = sortBy;
-    prevFilterTypeRef.current = filterType;
-
     if (!products || products.length === 0) {
-      // Only update if filteredProducts is not already empty
-      setFilteredProducts(prev => {
-        if (prev.length === 0) {
-          return prev; // Already empty, no need to update
-        }
-        return []; // Update to empty
-      });
+      setFilteredProducts([]);
       return;
     }
 
-    let filtered = [...products];
+    let filtered = products;
 
     // Apply filter
     if (filterType !== 'none' && selectedFilter !== 'all') {
@@ -126,10 +96,8 @@ export default function ProductListing({
               ? product.category
               : product.category?.name || '';
             return categoryName.toLowerCase() === selectedOption.name.toLowerCase();
-          } else if (filterType === 'subcategory') {
-            return product.subcategory?.toLowerCase() === selectedOption.name.toLowerCase();
           }
-          return false;
+          return product.subcategory?.toLowerCase() === selectedOption.name.toLowerCase();
         });
       }
     }
@@ -137,246 +105,50 @@ export default function ProductListing({
     // Sort products
     const sorted = [...filtered].sort((a, b) => {
       switch (sortBy) {
-        case 'price-low':
-          return a.price - b.price;
-        case 'price-high':
-          return b.price - a.price;
-        case 'newest':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-        case 'oldest':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        case 'featured':
-        default:
-          return 0; // Keep original order
+        case 'price-low': return a.price - b.price;
+        case 'price-high': return b.price - a.price;
+        case 'newest': return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        case 'oldest': return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        default: return 0;
       }
     });
 
-    // Only update state if the result actually changed
-    setFilteredProducts(prev => {
-      const resultChanged = 
-        sorted.length !== prev.length ||
-        sorted.some((p, i) => p.id !== prev[i]?.id);
-      
-      return resultChanged ? sorted : prev;
-    });
+    setFilteredProducts(sorted);
   }, [selectedFilter, sortBy, products, filterOptions, filterType]);
 
   // Notify parent of filter change
   useEffect(() => {
-    if (onFilterChange) {
-      onFilterChange(selectedFilter);
-    }
+    onFilterChange?.(selectedFilter);
   }, [selectedFilter, onFilterChange]);
 
-  const getFilterButtonText = () => {
-    if (selectedFilter === 'all') {
-      return `Filter (${products.length})`;
-    }
-    const selectedOption = filterOptions.find(
-      opt => opt.slug === selectedFilter || opt.name === selectedFilter
-    );
-    return selectedOption?.name || selectedFilter;
-  };
-
   const getFilterOptionCount = (option: FilterOption) => {
-    if (filterType === 'category') {
-      return products.filter(product => {
+    return products.filter(product => {
+      if (filterType === 'category') {
         const categoryName = typeof product.category === 'string'
           ? product.category
           : product.category?.name || '';
         return categoryName.toLowerCase() === option.name.toLowerCase();
-      }).length;
-    } else if (filterType === 'subcategory') {
-      return products.filter(product => 
-        product.subcategory?.toLowerCase() === option.name.toLowerCase()
-      ).length;
-    }
-    return 0;
+      }
+      return product.subcategory?.toLowerCase() === option.name.toLowerCase();
+    }).length;
   };
 
-  // Render filter and sort buttons (reusable component)
-  const renderFilterSortButtons = (isDesktop: boolean = false) => (
-    <div className={`flex items-center ${isDesktop ? 'justify-start gap-4' : 'justify-between gap-1'}`}>
-      {/* Filter Button */}
-      {showFilter && filterType !== 'none' ? (
-        <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
-          <button
-            onClick={() => {
-              setShowFilterDropdown(!showFilterDropdown);
-              setShowSortDropdown(false);
-            }}
-            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 ${isDesktop ? 'py-2.5' : 'py-3.5'} text-sm bg-white hover:bg-gray-50 font-medium`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filter By</span>
-            <svg className={`w-4 h-4 transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+  const filterSortBarOptions: FilterSortBarOption[] = filterOptions.map(opt => ({
+    id: opt.id,
+    name: opt.name,
+    slug: opt.slug,
+  }));
 
-          {showFilterDropdown && (
-            <>
-              <div
-                className="fixed inset-0 z-30"
-                onClick={() => setShowFilterDropdown(false)}
-              ></div>
-              <div className={`absolute ${isDesktop ? 'top-full left-0 mt-2' : 'bottom-full left-0 mb-2'} w-full bg-white border border-gray-200 rounded-md shadow-lg z-50 max-h-64 overflow-y-auto`}>
-                <div className="py-2">
-                  <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="filter"
-                      value="all"
-                      checked={selectedFilter === 'all'}
-                      onChange={(e) => {
-                        setSelectedFilter(e.target.value);
-                        setShowFilterDropdown(false);
-                      }}
-                      className="mr-3"
-                    />
-                    <span className="text-sm">All Products ({products.length})</span>
-                  </label>
-                  {filterOptions.map((option) => {
-                    const count = getFilterOptionCount(option);
-                    return (
-                      <label key={option.id} className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="filter"
-                          value={option.slug || option.name}
-                          checked={selectedFilter === (option.slug || option.name)}
-                          onChange={(e) => {
-                            setSelectedFilter(e.target.value);
-                            setShowFilterDropdown(false);
-                          }}
-                          className="mr-3"
-                        />
-                        <span className="text-sm">{option.name} ({count})</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      ) : (
-        <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
-          <button
-            disabled
-            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 py-2.5 text-sm bg-gray-100 text-gray-400 font-medium cursor-not-allowed`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-            </svg>
-            <span>Filter</span>
-          </button>
-        </div>
-      )}
-
-      {/* Sort Button */}
-      <div className={`${isDesktop ? 'w-auto' : 'flex-1'} relative`}>
-        <button
-          onClick={() => {
-            setShowSortDropdown(!showSortDropdown);
-            setShowFilterDropdown(false);
-          }}
-            className={`${isDesktop ? 'px-4' : 'w-full'} flex items-center justify-center gap-2 border border-gray-300 rounded-md px-3 ${isDesktop ? 'py-2.5' : 'py-3.5'} text-sm bg-white hover:bg-gray-50 font-medium`}
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12" />
-          </svg>
-          <span>Sort By</span>
-          <svg className={`w-4 h-4 transition-transform ${showSortDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {showSortDropdown && (
-          <>
-            <div
-              className="fixed inset-0 z-30"
-              onClick={() => setShowSortDropdown(false)}
-            ></div>
-            <div className={`absolute ${isDesktop ? 'top-full right-0 mt-2' : 'bottom-full right-0 mb-2'} w-full bg-white border border-gray-200 rounded-md shadow-lg z-50`}>
-              <div className="py-2">
-                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sort"
-                    value="featured"
-                    checked={sortBy === 'featured'}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setShowSortDropdown(false);
-                    }}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">Featured</span>
-                </label>
-                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sort"
-                    value="price-low"
-                    checked={sortBy === 'price-low'}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setShowSortDropdown(false);
-                    }}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">Price: Low to High</span>
-                </label>
-                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sort"
-                    value="price-high"
-                    checked={sortBy === 'price-high'}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setShowSortDropdown(false);
-                    }}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">Price: High to Low</span>
-                </label>
-                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sort"
-                    value="newest"
-                    checked={sortBy === 'newest'}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setShowSortDropdown(false);
-                    }}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">Newest</span>
-                </label>
-                <label className="flex items-center px-4 py-2 hover:bg-gray-50 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="sort"
-                    value="oldest"
-                    checked={sortBy === 'oldest'}
-                    onChange={(e) => {
-                      setSortBy(e.target.value);
-                      setShowSortDropdown(false);
-                    }}
-                    className="mr-3"
-                  />
-                  <span className="text-sm">Oldest</span>
-                </label>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+  const hasFilterSidebar = showFilter && filterType !== 'none';
+  const productsGrid = filteredProducts.length > 0 ? (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2 px-2 lg:px-0">
+      {filteredProducts.map((product) => (
+        <ProductCard key={product.id} product={product as any} />
+      ))}
+    </div>
+  ) : (
+    <div className="text-center py-12">
+      <p className="text-gray-600 text-lg">{emptyMessage}</p>
     </div>
   );
 
@@ -384,58 +156,172 @@ export default function ProductListing({
     <>
       {/* Products Grid */}
       <div className="min-h-screen bg-gray-50">
-        <div className="max-w-[1450px] mx-auto w-full px-2 pt-0 pb-8 !mt-0">
-          {/* Desktop: Filter and Sort at Top */}
-          <div className="hidden md:block mb-6">
-            <div className="bg-white border-b border-gray-200 py-4">
-              <div className="max-w-[1450px] mx-auto w-full px-4 md:px-6 lg:px-8">
-                {renderFilterSortButtons(true)}
-              </div>
-            </div>
-          </div>
-
-          {sidebar ? (
-            <div className="flex flex-col lg:flex-row gap-8">
-              {/* Sidebar */}
-              {sidebar}
-              
-              {/* Products Grid */}
-              <div className="flex-1">
-                {filteredProducts.length > 0 ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
-                    {filteredProducts.map((product) => (
-                      <ProductCard key={product.id} product={product as any} />
-                    ))}
+        <div className="w-full pt-0 pb-8 !mt-0">
+          <div className="flex flex-col lg:flex-row gap-2 lg:gap-3">
+            {/* Desktop: Sticky Left Sidebar for Filters */}
+            {showFilter && filterType !== 'none' && (
+              <div className="hidden lg:block w-64 flex-shrink-0">
+                <div className="sticky top-[72px] bg-white border border-gray-200 p-4 h-[calc(100vh-72px)] overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter By</h3>
+                  <div className="space-y-2">
+                    <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="filter"
+                        value="all"
+                        checked={selectedFilter === 'all'}
+                        onChange={(e) => {
+                          setSelectedFilter(e.target.value);
+                        }}
+                        className="mr-3"
+                      />
+                      <span className="text-sm text-gray-700">All Products ({products.length})</span>
+                    </label>
+                    {filterOptions.map((option) => {
+                      const count = getFilterOptionCount(option);
+                      return (
+                        <label key={option.id} className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="filter"
+                            value={option.slug || option.name}
+                            checked={selectedFilter === (option.slug || option.name)}
+                            onChange={(e) => {
+                              setSelectedFilter(e.target.value);
+                            }}
+                            className="mr-3"
+                          />
+                          <span className="text-sm text-gray-700">{option.name} ({count})</span>
+                        </label>
+                      );
+                    })}
                   </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <p className="text-gray-600 text-lg">{emptyMessage}</p>
+                  
+                  {/* Sort Options */}
+                  <div className="mt-6 pt-6 border-t border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Sort By</h3>
+                    <div className="space-y-2">
+                      <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sort"
+                          value="featured"
+                          checked={sortBy === 'featured'}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="mr-3"
+                        />
+                        <span className="text-sm text-gray-700">Featured</span>
+                      </label>
+                      <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sort"
+                          value="price-low"
+                          checked={sortBy === 'price-low'}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="mr-3"
+                        />
+                        <span className="text-sm text-gray-700">Price: Low to High</span>
+                      </label>
+                      <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sort"
+                          value="price-high"
+                          checked={sortBy === 'price-high'}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="mr-3"
+                        />
+                        <span className="text-sm text-gray-700">Price: High to Low</span>
+                      </label>
+                      <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sort"
+                          value="newest"
+                          checked={sortBy === 'newest'}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="mr-3"
+                        />
+                        <span className="text-sm text-gray-700">Newest</span>
+                      </label>
+                      <label className="flex items-center px-3 py-2 rounded-md hover:bg-gray-50 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="sort"
+                          value="oldest"
+                          checked={sortBy === 'oldest'}
+                          onChange={(e) => setSortBy(e.target.value)}
+                          className="mr-3"
+                        />
+                        <span className="text-sm text-gray-700">Oldest</span>
+                      </label>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <>
-              {filteredProducts.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-1.5 sm:gap-2">
-                  {filteredProducts.map((product) => (
-                    <ProductCard key={product.id} product={product as any} />
-                  ))}
                 </div>
-              ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-600 text-lg">{emptyMessage}</p>
+              </div>
+            )}
+
+            {/* Main Content Area */}
+            <div className="flex-1 pt-2 lg:pr-2 lg:pl-0">
+              {/* Desktop: Filter and Sort at Top (when no filter sidebar) */}
+              {!hasFilterSidebar && (
+                <div className="hidden md:block mb-6">
+                  <div className="bg-white border-b border-gray-200 py-4">
+                    <div className="w-full px-4 md:px-6 lg:px-8">
+                      <FilterSortBar
+                        variant="desktop"
+                        showFilter={hasFilterSidebar}
+                        filterOptions={filterSortBarOptions}
+                        selectedFilter={selectedFilter}
+                        onFilterChange={setSelectedFilter}
+                        getFilterOptionCount={getFilterOptionCount}
+                        totalProductsCount={products.length}
+                        selectedSort={sortBy}
+                        onSortChange={setSortBy}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
-            </>
-          )}
+
+              {sidebar ? (
+                <div className="flex flex-col lg:flex-row gap-8">
+                  {sidebar}
+                  <div className="flex-1">
+                    {filteredProducts.length > 0 ? (
+                      <div className={CATEGORY_GRID_CLASSES_ALT}>
+                        {filteredProducts.map((product) => (
+                          <ProductCard key={product.id} product={product as any} />
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState title={emptyMessage} variant="compact" />
+                    )}
+                  </div>
+                </div>
+              ) : (
+                productsGrid
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Mobile: Sticky Bottom Bar - Filter and Sort */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-        <div className="max-w-[1450px] mx-auto w-full px-2 py-3">
-          {renderFilterSortButtons(false)}
+        <div className="w-full px-2 py-3">
+          <FilterSortBar
+            variant="mobile"
+            showFilter={hasFilterSidebar}
+            filterOptions={filterSortBarOptions}
+            selectedFilter={selectedFilter}
+            onFilterChange={setSelectedFilter}
+            getFilterOptionCount={getFilterOptionCount}
+            totalProductsCount={products.length}
+            selectedSort={sortBy}
+            onSortChange={setSortBy}
+          />
         </div>
       </div>
 

@@ -7,6 +7,7 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
 import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
+import { toNullIfEmpty, toEmptyIfEmpty } from '@/utils/formUtils';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ProductImage {

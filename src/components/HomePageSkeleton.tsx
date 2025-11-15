@@ -1,5 +1,8 @@
 'use client';
 
+import { PRODUCT_GRID_CLASSES } from '@/utils/layoutUtils';
+import LoadingLogo from './LoadingLogo';
+
 export default function HomePageSkeleton() {
   return (
     <main className="min-h-screen bg-white pt-14 sm:pt-[72px]">
@@ -36,7 +39,7 @@ export default function HomePageSkeleton() {
       <div className="w-full h-[50vh] bg-gray-200 animate-pulse">
         <div className="h-full flex items-center justify-center">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <LoadingLogo size="md" text="" />
             <p className="mt-4 text-gray-600">Loading featured products...</p>
           </div>
         </div>
@@ -48,7 +51,7 @@ export default function HomePageSkeleton() {
           <div className="text-center mb-12">
             <div className="h-8 w-40 bg-gray-200 animate-pulse rounded mx-auto"></div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+          <div className={PRODUCT_GRID_CLASSES}>
             {[...Array(12)].map((_, index) => (
               <div key={index} className="bg-white rounded-lg overflow-hidden">
                 <div className="aspect-[4/5] bg-gray-200 animate-pulse"></div>
@@ -69,7 +72,7 @@ export default function HomePageSkeleton() {
             <div className="text-center mb-12">
               <div className="h-8 w-48 bg-gray-200 animate-pulse rounded mx-auto"></div>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+            <div className={PRODUCT_GRID_CLASSES}>
               {[...Array(6)].map((_, index) => (
                 <div key={index} className="bg-white rounded-lg overflow-hidden">
                   <div className="aspect-[4/5] bg-gray-200 animate-pulse"></div>

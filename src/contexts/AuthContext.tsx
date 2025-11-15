@@ -314,7 +314,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       }
 
       // Clear any existing reCAPTCHA
-      container.innerHTML = '';
+      // Clear container safely
+      while (container.firstChild) {
+        container.removeChild(container.firstChild);
+      }
 
       // Clear existing verifier if any
       if (recaptchaVerifier) {

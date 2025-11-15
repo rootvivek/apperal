@@ -2,6 +2,7 @@
 
 import { notFound } from 'next/navigation';
 import ProductListing from '@/components/ProductListing';
+import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, use } from 'react';
 
@@ -61,6 +62,7 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   const [category, setCategory] = useState<Category | null>(null);
   const [subcategory, setSubcategory] = useState<Subcategory | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
 
@@ -87,23 +89,49 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
       // Set category and subcategory data
       setCategory(result.category);
       setSubcategory(result.subcategory);
+      
+      // Fetch all subcategories for this category for the filter sidebar
+      const { data: subcategoriesData } = await supabase
+        .from('subcategories')
+        .select('*')
+        .eq('parent_category_id', result.category.id)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      setSubcategories(subcategoriesData || []);
 
-      // Transform and set products
-      const transformedProducts = result.products?.map((product: any) => ({
-        id: product.id,
-        slug: product.slug,
-        name: product.name,
-        description: product.description || '',
-        price: product.price,
-        category: result.category.name,
-        subcategory: result.subcategory.name,
-        image_url: product.main_image_url,
-        stock_quantity: 0,
-        is_active: true,
-        created_at: product.created_at,
-        updated_at: product.created_at,
-        images: product.additional_images || []
-      })) || [];
+      // Fetch ALL products from the parent category (not just current subcategory)
+      // This allows filtering between subcategories
+      const { data: allCategoryProducts } = await supabase.rpc('get_category_products', {
+        category_slug_param: decodedCategory
+      });
+
+      // Transform and set products - use all category products if available, otherwise fallback to subcategory products
+      const productsToUse = allCategoryProducts?.products || result.products || [];
+      const transformedProducts = productsToUse.map((product: any) => {
+        // Get subcategory name from the product or from subcategories lookup
+        let subcategoryName = product.subcategory || '';
+        if (!subcategoryName && product.subcategory_id && subcategoriesData) {
+          const subcat = subcategoriesData.find((sc: any) => sc.id === product.subcategory_id);
+          subcategoryName = subcat?.name || '';
+        }
+        
+        return {
+          id: product.id,
+          slug: product.slug,
+          name: product.name,
+          description: product.description || '',
+          price: product.price,
+          category: result.category.name,
+          subcategory: subcategoryName || result.subcategory.name,
+          image_url: product.main_image_url || product.image_url,
+          stock_quantity: product.stock_quantity || 0,
+          is_active: product.is_active !== false,
+          created_at: product.created_at,
+          updated_at: product.updated_at || product.created_at,
+          images: product.additional_images || product.images || []
+        };
+      });
 
       setProducts(transformedProducts);
     } catch (error) {
@@ -168,36 +196,81 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
 
       setCategory(fallbackCategory);
       setSubcategory(fallbackSubcategory);
+      
+      // Fetch all subcategories for this category for the filter sidebar
+      const { data: subcategoriesData } = await supabase
+        .from('subcategories')
+        .select('*')
+        .eq('parent_category_id', fallbackCategory.id)
+        .eq('is_active', true)
+        .order('name', { ascending: true });
+      
+      setSubcategories(subcategoriesData || []);
 
-      // Fetch products for this subcategory - try UUID relationship first, fallback to legacy string
-      let productsData = null;
+      // Fetch ALL products from the parent category (not just current subcategory)
+      // This allows filtering between subcategories
+      let productsData: any[] = [];
       let productsError = null;
       
-      // Try UUID relationship first (subcategory_id) - for real subcategories from database
-      if (fallbackSubcategory.id && !fallbackSubcategory.id.startsWith('fallback-')) {
-        const { data, error } = await supabase
+      // Get all subcategory IDs for this category
+      const subcategoryIds = subcategoriesData?.map((sub: any) => sub.id) || [];
+      
+      // Fetch products from category (UUID relationship)
+      const { data: categoryProducts, error: categoryProductsError } = await supabase
+        .from('products')
+        .select('*, product_images (id, image_url, alt_text, display_order)')
+        .eq('category_id', fallbackCategory.id)
+        .eq('is_active', true);
+      
+      if (!categoryProductsError && categoryProducts) {
+        productsData = [...productsData, ...categoryProducts];
+      }
+      
+      // Fetch products from all subcategories (UUID relationship)
+      if (subcategoryIds.length > 0) {
+        const { data: subcategoryProducts, error: subcategoryError } = await supabase
           .from('products')
           .select('*, product_images (id, image_url, alt_text, display_order)')
-          .eq('subcategory_id', fallbackSubcategory.id)
+          .in('subcategory_id', subcategoryIds)
           .eq('is_active', true);
         
-        if (!error && data) {
-          productsData = data;
-        } else {
-          productsError = error;
+        if (!subcategoryError && subcategoryProducts) {
+          // Combine and remove duplicates by product ID
+          const existingIds = new Set(productsData.map((p: any) => p.id));
+          const newProducts = subcategoryProducts.filter((p: any) => !existingIds.has(p.id));
+          productsData = [...productsData, ...newProducts];
         }
       }
       
-      // If UUID query failed or returned no results, try legacy string field
-      if (!productsData || productsData.length === 0) {
-        const subcategoryNameToSearch = fallbackSubcategory.name;
-        const { data, error } = await supabase
+      // If no products found with UUID relationship, try legacy string fields
+      if (productsData.length === 0) {
+        const subcategoryNames = subcategoriesData?.map((sub: any) => sub.name) || [];
+        
+        // Fetch products from category (legacy)
+        const { data: legacyCategoryProducts, error: legacyCategoryError } = await supabase
           .from('products')
           .select('*, product_images (id, image_url, alt_text, display_order)')
-          .eq('subcategory', subcategoryNameToSearch)
+          .eq('category', fallbackCategory.name)
           .eq('is_active', true);
-        productsData = data;
-        productsError = error;
+        
+        if (!legacyCategoryError && legacyCategoryProducts) {
+          productsData = [...productsData, ...legacyCategoryProducts];
+        }
+        
+        // Fetch products from subcategories (legacy)
+        if (subcategoryNames.length > 0) {
+          const { data: legacySubcategoryProducts, error: legacySubcategoryError } = await supabase
+            .from('products')
+            .select('*, product_images (id, image_url, alt_text, display_order)')
+            .in('subcategory', subcategoryNames)
+            .eq('is_active', true);
+          
+          if (!legacySubcategoryError && legacySubcategoryProducts) {
+            const existingIds = new Set(productsData.map((p: any) => p.id));
+            const newProducts = legacySubcategoryProducts.filter((p: any) => !existingIds.has(p.id));
+            productsData = [...productsData, ...newProducts];
+          }
+        }
       }
 
       if (productsError) {
@@ -210,9 +283,34 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
         return;
       }
 
+      // Get subcategory names map for UUID-based products
+      const productSubcategoryIds = Array.from(new Set(
+        productsData
+          .filter((p: any) => p.subcategory_id)
+          .map((p: any) => p.subcategory_id)
+      ));
+      
+      let subcategoryNameMap: { [key: string]: string } = {};
+      if (productSubcategoryIds.length > 0) {
+        const { data: subcats } = await supabase
+          .from('subcategories')
+          .select('id, name')
+          .in('id', productSubcategoryIds);
+        if (subcats) {
+          subcategoryNameMap = Object.fromEntries(
+            subcats.map((sc: any) => [sc.id, sc.name])
+          );
+        }
+      }
+
       // Transform products
       const transformedProducts = productsData.map((product: any) => {
-        const subcategoryName = fallbackSubcategory.name || product.subcategory || '';
+        // Get subcategory name - prefer legacy string, fallback to UUID lookup
+        let subcategoryName = product.subcategory || '';
+        if (!subcategoryName && product.subcategory_id) {
+          subcategoryName = subcategoryNameMap[product.subcategory_id] || '';
+        }
+        
         return {
           id: product.id,
           slug: product.slug,
@@ -242,27 +340,27 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   }, [categorySlug, subcategorySlug]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading subcategory..." />;
   }
 
   if (!category || !subcategory) {
     notFound();
   }
 
+  // Transform subcategories for filter options
+  const filterOptions = subcategories.map((subcat) => ({
+    id: subcat.id,
+    name: subcat.name,
+    slug: subcat.slug
+  }));
+
   return (
     <ProductListing
       products={products}
-      filterType="none"
-      showFilter={false}
+      filterOptions={filterOptions}
+      filterType="subcategory"
+      initialFilter={subcategory?.slug || 'all'}
+      showFilter={true}
       emptyMessage="No products found."
     />
   );

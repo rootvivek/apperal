@@ -4,13 +4,17 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface AdminGuardProps {
   children: React.ReactNode;
 }
 
 // Admin phone number - only this user can access admin panel
-const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE || '8881765192';
+const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
+if (!ADMIN_PHONE) {
+  console.error('NEXT_PUBLIC_ADMIN_PHONE environment variable is required');
+}
 
 export default function AdminGuard({ children }: AdminGuardProps) {
   const { user, loading } = useAuth();
@@ -57,9 +61,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
         const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
 
-        // Strict matching - must be exact match or end with admin phone
-        const hasAdminAccess = normalizedUserPhone === normalizedAdminPhone || 
-                               normalizedUserPhone.endsWith(normalizedAdminPhone);
+        // Strict matching - only exact match for security
+        const hasAdminAccess = ADMIN_PHONE && normalizedUserPhone === normalizedAdminPhone;
 
         if (!hasAdminAccess) {
           setAccessDenied(true);
@@ -80,14 +83,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   // Show loading while checking
   if (loading || isChecking) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+      return <LoadingLogo fullScreen text="Loading..." />;
   }
 
   // If no user, don't render anything (will redirect)

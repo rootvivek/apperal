@@ -6,6 +6,8 @@ import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
+import EmptyState from '@/components/EmptyState';
+import LoadingLogo from '@/components/LoadingLogo';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
@@ -57,33 +59,21 @@ function CartContent() {
   // Only show loading if user is logged in AND cart is loading
   // Guest users don't need to wait for cart loading since it's from localStorage
   if (cartLoading && user && !authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading cart...</p>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading cart..." />;
   }
 
   if (cartItems.length === 0) {
     return (
       <div className="h-[calc(100vh-64px)] sm:h-[calc(100vh-72px)] bg-gray-50 flex items-center justify-center px-4 py-8 sm:py-12 overflow-y-auto">
         <div className="max-w-[1450px] mx-auto w-full">
-          <div className="text-center">
-            <div className="text-gray-400 text-6xl mb-4">🛒</div>
-            <h1 className="text-xl sm:text-3xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
-            <p className="text-base sm:text-lg text-gray-600 mb-8">
-              Looks like you haven&apos;t added any items to your cart yet.
-            </p>
-            <Link
-              href="/products"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-sm sm:text-base font-medium rounded text-white bg-brand hover:bg-brand-600"
-            >
-              Start Shopping
-            </Link>
-          </div>
+          <EmptyState
+            icon="🛒"
+            title="Your cart is empty"
+            description="Looks like you haven't added any items to your cart yet."
+            actionLabel="Start Shopping"
+            actionHref="/products"
+            variant="default"
+          />
         </div>
       </div>
     );

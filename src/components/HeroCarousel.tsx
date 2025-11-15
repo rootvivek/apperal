@@ -7,6 +7,7 @@ import 'swiper/css';
 import 'swiper/css/pagination';
 import ProductCard from './ProductCard';
 import { createClient } from '@/lib/supabase/client';
+import LoadingLogo from './LoadingLogo';
 
 interface Product {
   id: string;
@@ -73,7 +74,7 @@ export default function HeroCarousel() {
     return (
       <div className="w-full h-[50vh] md:h-[70vh] flex items-center justify-center bg-white mb-0 pb-0 sm:pb-0">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <LoadingLogo size="md" text="Loading carousel..." />
           <p className="mt-4 text-gray-600">Loading featured products...</p>
         </div>
       </div>

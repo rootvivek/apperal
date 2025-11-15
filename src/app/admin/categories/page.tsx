@@ -4,7 +4,11 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import ImageUpload from '@/components/ImageUpload';
+import EmptyState from '@/components/EmptyState';
+import ImageWithFallback from '@/components/ImageWithFallback';
+import Modal from '@/components/Modal';
 import DataTable from '@/components/DataTable';
+import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase, deleteImageFromSupabase, deleteFolderContents } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
@@ -745,16 +749,20 @@ export default function CategoriesPage() {
           )}
 
           {showEditModal && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-                  <h2 className="text-xl font-bold">
-                    {editingCategory ? 'Edit Category' : isCreatingSubcategory ? 'Add New Subcategory' : 'Add New Category'}
-                  </h2>
-                  <button onClick={() => { setShowEditModal(false); resetForm(); setIsCreatingSubcategory(false); setParentCategoryId(null); }} className="text-2xl">✕</button>
-                </div>
-                
-                <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <Modal
+              isOpen={showEditModal}
+              onClose={() => {
+                setShowEditModal(false);
+                resetForm();
+                setIsCreatingSubcategory(false);
+                setParentCategoryId(null);
+              }}
+              title={editingCategory ? 'Edit Category' : isCreatingSubcategory ? 'Add New Subcategory' : 'Add New Category'}
+              variant="simple"
+              size="xl"
+              className="max-h-[90vh] overflow-y-auto"
+            >
+              <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         Category Name *
@@ -857,9 +865,8 @@ export default function CategoriesPage() {
                       {editLoading ? 'Saving...' : editingCategory ? 'Update Category' : 'Create Category'}
                     </button>
                   </div>
-                </form>
-              </div>
-            </div>
+              </form>
+            </Modal>
           )}
 
           {/* Accordion View */}
@@ -896,7 +903,10 @@ export default function CategoriesPage() {
               {loading ? (
                 <div className="text-center py-8 text-gray-500">Loading categories...</div>
               ) : filteredCategories.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">No categories found</div>
+                <EmptyState
+                  title="No categories found"
+                  variant="compact"
+                />
               ) : (
                 filteredCategories.map((category) => (
                   <div key={category.id} className="border border-gray-200 rounded-lg overflow-hidden">
@@ -994,20 +1004,15 @@ export default function CategoriesPage() {
                         ) : (subcategoriesList[category.id]?.length || 0) > 0 ? (
                           <div className="divide-y divide-gray-200">
                             {subcategoriesList[category.id].map((subcat) => {
-                              const subcategoryImage = subcat.image_url || '/images/categories/placeholder.svg';
+                              const subcategoryImage = subcat.image_url || PLACEHOLDER_CATEGORY;
                               return (
                               <div key={subcat.id} className="p-4 flex items-center justify-between ml-12 bg-gray-50 hover:bg-gray-100">
                                 <div className="flex items-center gap-3 flex-1">
-                                  <img
+                                  <ImageWithFallback
                                     src={subcategoryImage}
                                     alt={subcat.name}
                                     className="w-12 h-12 object-cover rounded flex-shrink-0"
-                                    onError={(e) => {
-                                      const target = e.target as HTMLImageElement;
-                                      if (target.src !== '/images/categories/placeholder.svg') {
-                                        target.src = '/images/categories/placeholder.svg';
-                                      }
-                                    }}
+                                    fallbackType="category"
                                   />
                                   <div className="flex-1">
                                     <h4 className="font-medium text-gray-800">{subcat.name}</h4>

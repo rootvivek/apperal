@@ -8,7 +8,9 @@ import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
 import { deleteImageFromSupabase } from '@/utils/imageUpload';
 import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
+import { toNullIfEmpty, toEmptyIfEmpty } from '@/utils/formUtils';
 import { useAuth } from '@/contexts/AuthContext';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface ProductImage {
   id?: string;
@@ -539,19 +541,6 @@ export default function EditProductPage() {
     return { isValid: Object.keys(errors).length === 0, errors };
   };
 
-  // Helper function to convert empty strings to null for database
-  const toNullIfEmpty = (value: string | undefined | null): string | null => {
-    if (!value || typeof value !== 'string') return null;
-    const trimmed = value.trim();
-    return trimmed === '' ? null : trimmed;
-  };
-
-  // Helper function to convert empty strings to empty string for database (for optional fields with NOT NULL constraints)
-  const toEmptyIfEmpty = (value: string | undefined | null): string => {
-    if (!value || typeof value !== 'string') return '';
-    const trimmed = value.trim();
-    return trimmed === '' ? '' : trimmed;
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -903,7 +892,7 @@ export default function EditProductPage() {
         <AdminLayout>
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <LoadingLogo size="md" text="Loading product..." />
               <p className="mt-4 text-gray-600">Loading product...</p>
             </div>
           </div>

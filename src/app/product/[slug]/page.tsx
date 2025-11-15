@@ -3,6 +3,10 @@
 import { useState, useEffect, useRef, use } from 'react';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import EmptyState from '@/components/EmptyState';
+import ImageWithFallback from '@/components/ImageWithFallback';
+import { PLACEHOLDER_PRODUCT } from '@/utils/imageUtils';
+import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWishlist } from '@/contexts/WishlistContext';
@@ -11,6 +15,7 @@ import { createClient } from '@/lib/supabase/client';
 import CartIcon from '@/components/CartIcon';
 import ProductCard from '@/components/ProductCard';
 import ProductReviews from '@/components/ProductReviews';
+import LoadingLogo from '@/components/LoadingLogo';
 
 interface ProductCardProduct {
   id: string;
@@ -98,6 +103,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const [isAddedToCart, setIsAddedToCart] = useState(false);
   const [showZoomPreview, setShowZoomPreview] = useState(false);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isSharing, setIsSharing] = useState(false);
   const [imageContainerSize, setImageContainerSize] = useState({ width: 0, height: 0 });
   const [zoomPreviewPosition, setZoomPreviewPosition] = useState({ left: 0, top: 0 });
@@ -572,14 +579,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading product...</p>
-        </div>
-      </div>
-    );
+    return <LoadingLogo fullScreen text="Loading product..." />;
   }
 
   if (error || !product) {
@@ -675,7 +675,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <div className="hidden md:flex gap-4 overflow-visible">
               {/* Thumbnail Gallery - Left (Desktop only) */}
               {product.images && product.images.length > 1 && (
-                <div className="flex flex-col gap-2 flex-shrink-0">
+                <div className="flex flex-col gap-2 flex-shrink-0 max-h-[600px] overflow-y-auto pr-1">
                   {product.images.map((image, index) => (
                     <button
                       key={image.id}
@@ -688,7 +688,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                       style={{ boxSizing: 'border-box' }}
                     >
                       <div className="w-full h-full overflow-hidden rounded">
-                        <img
+                        <ImageWithFallback
                           src={image.image_url}
                           alt={image.alt_text || `${product.name} ${index + 1}`}
                           className="h-full w-full object-contain"
@@ -696,9 +696,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                           decoding="async"
                           width={80}
                           height={80}
-                          onError={(e) => {
-                            e.currentTarget.src = '/placeholder-product.jpg';
-                          }}
+                          fallbackType="product"
                         />
                       </div>
                     </button>
@@ -712,6 +710,29 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             <div 
               ref={imageContainerRef}
               className="aspect-square rounded bg-white cursor-default md:cursor-crosshair relative w-full max-w-full overflow-hidden"
+              onTouchStart={(e) => {
+                setTouchStart(e.targetTouches[0].clientX);
+              }}
+              onTouchMove={(e) => {
+                setTouchEnd(e.targetTouches[0].clientX);
+              }}
+              onTouchEnd={() => {
+                if (!touchStart || !touchEnd) return;
+                
+                const distance = touchStart - touchEnd;
+                const isLeftSwipe = distance > 50;
+                const isRightSwipe = distance < -50;
+                
+                if (isLeftSwipe && product.images && selectedImage < product.images.length - 1) {
+                  setSelectedImage(selectedImage + 1);
+                }
+                if (isRightSwipe && selectedImage > 0) {
+                  setSelectedImage(selectedImage - 1);
+                }
+                
+                setTouchStart(null);
+                setTouchEnd(null);
+              }}
               onMouseEnter={() => {
                 setShowZoomPreview(true);
                 if (imageContainerRef.current) {
@@ -817,10 +838,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </button>
               </div>
 
-              <img
+              <ImageWithFallback
                 src={product.images && product.images.length > 0 
                   ? product.images[selectedImage].image_url 
-                  : product.image_url || '/placeholder-product.jpg'}
+                  : product.image_url || PLACEHOLDER_PRODUCT}
                 alt={product.name}
                 className="h-full w-full object-cover"
                 loading="eager"
@@ -828,9 +849,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 width={800}
                 height={800}
                 fetchPriority="high"
-                onError={(e) => {
-                  e.currentTarget.src = '/placeholder-product.jpg';
-                }}
+                fallbackType="product"
               />
               
               {/* Magnifying Glass Overlay */}
@@ -844,19 +863,17 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   }}
                 >
                   <div className="w-full h-full rounded-full overflow-hidden">
-                    <img
+                    <ImageWithFallback
                       src={product.images && product.images.length > 0 
                         ? product.images[selectedImage].image_url 
-                        : product.image_url || '/placeholder-product.jpg'}
+                        : product.image_url || PLACEHOLDER_PRODUCT}
                       alt={product.name}
                       className="w-full h-full object-cover"
                       style={{
                         transform: `scale(3)`,
                         transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
                       }}
-                      onError={(e) => {
-                        e.currentTarget.src = '/placeholder-product.jpg';
-                      }}
+                      fallbackType="product"
                     />
                   </div>
                 </div>
@@ -875,19 +892,17 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   top: `${zoomPreviewPosition.top}px`
                 }}
               >
-                <img
+                <ImageWithFallback
                   src={product.images && product.images.length > 0 
                     ? product.images[selectedImage].image_url 
-                    : product.image_url || '/placeholder-product.jpg'}
+                    : product.image_url || PLACEHOLDER_PRODUCT}
                   alt={product.name}
                   className="w-full h-full object-contain"
                   style={{
                     transform: `scale(3)`,
                     transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
                   }}
-                  onError={(e) => {
-                    e.currentTarget.src = '/placeholder-product.jpg';
-                  }}
+                  fallbackType="product"
                 />
               </div>
             )}
@@ -899,7 +914,30 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               {/* Main Image */}
               <div 
                 ref={imageContainerRef}
-                className="aspect-square rounded bg-white cursor-default w-full max-w-full overflow-hidden"
+                className="aspect-square rounded bg-white cursor-default w-full max-w-full overflow-hidden relative"
+                onTouchStart={(e) => {
+                  setTouchStart(e.targetTouches[0].clientX);
+                }}
+                onTouchMove={(e) => {
+                  setTouchEnd(e.targetTouches[0].clientX);
+                }}
+                onTouchEnd={() => {
+                  if (!touchStart || !touchEnd) return;
+                  
+                  const distance = touchStart - touchEnd;
+                  const isLeftSwipe = distance > 50;
+                  const isRightSwipe = distance < -50;
+                  
+                  if (isLeftSwipe && product.images && selectedImage < product.images.length - 1) {
+                    setSelectedImage(selectedImage + 1);
+                  }
+                  if (isRightSwipe && selectedImage > 0) {
+                    setSelectedImage(selectedImage - 1);
+                  }
+                  
+                  setTouchStart(null);
+                  setTouchEnd(null);
+                }}
               >
                 {/* Product Badge - Top Left Corner */}
                 {product.badge && (() => {
@@ -970,10 +1008,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   </button>
                 </div>
 
-                <img
+                <ImageWithFallback
                   src={product.images && product.images.length > 0 
                     ? product.images[selectedImage].image_url 
-                    : product.image_url || '/placeholder-product.jpg'}
+                    : product.image_url || PLACEHOLDER_PRODUCT}
                   alt={product.name}
                   className="h-full w-full object-cover"
                   loading="eager"
@@ -981,16 +1019,17 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   width={800}
                   height={800}
                   fetchPriority="high"
-                  onError={(e) => {
-                    e.currentTarget.src = '/placeholder-product.jpg';
-                  }}
+                  fallbackType="product"
                 />
               </div>
             </div>
             
             {/* Thumbnail Gallery - Bottom (Mobile only) */}
             {product.images && product.images.length > 1 && (
-              <div className="md:hidden flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 pt-2 mt-0.5 sm:mt-3 scrollbar-hide items-center px-1">
+              <div 
+                className="md:hidden flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 pt-2 mt-0.5 sm:mt-3 scrollbar-hide items-center px-1"
+                style={{ touchAction: 'pan-x pan-y' }}
+              >
                 {product.images.map((image, index) => (
                   <button
                     key={image.id}
@@ -1003,7 +1042,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                     style={{ boxSizing: 'border-box' }}
                   >
                     <div className="w-full h-full overflow-hidden rounded">
-                      <img
+                      <ImageWithFallback
                         src={image.image_url}
                         alt={image.alt_text || `${product.name} ${index + 1}`}
                         className="h-full w-full object-cover"
@@ -1011,9 +1050,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                         decoding="async"
                         width={80}
                         height={80}
-                        onError={(e) => {
-                          e.currentTarget.src = '/placeholder-product.jpg';
-                        }}
+                        fallbackType="product"
                       />
                     </div>
                   </button>
@@ -1057,77 +1094,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   </span>
                 </div>
               )}
-            </div>
 
-            {/* Phone Cover Details */}
-            {product.product_cover_details && (
-              <div className="bg-white rounded-xl p-3 sm:p-6">
-                <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-5 pb-2">Phone Cover Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-3">
-                  {product.product_cover_details.brand && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Brand:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.brand}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details.compatible_model && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Compatible Model:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.compatible_model}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details.type && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Type:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.type}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details.color && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Color:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_cover_details.color}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-
-            {/* Accessories Details */}
-            {product.product_accessories_details && (
-              <div className="bg-white rounded-xl p-3 sm:p-6">
-                <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-5 pb-2">Accessories Details</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 sm:gap-3">
-                  {product.product_accessories_details.accessory_type && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Accessory Type:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.accessory_type}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details.compatible_with && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Compatible With:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.compatible_with}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details.material && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Material:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.material}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details.color && (
-                    <div className="flex items-center gap-1.5 sm:gap-3 p-2 sm:p-3 bg-white rounded-lg shadow-sm">
-                      <span className="font-semibold text-gray-700 min-w-[100px] sm:min-w-[140px] text-xs sm:text-base">Color:</span>
-                      <span className="text-gray-900 font-medium text-xs sm:text-base">{product.product_accessories_details.color}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Size Selection and Actions */}
-            <div className="space-y-3 sm:space-y-5">
+            {/* Size Selection and Actions - Moved after price */}
+            <div className="space-y-3 sm:space-y-5 mt-4">
               {/* Size Selection - Only show for apparel products - Chip buttons */}
               {product.product_apparel_details && (() => {
                 // Parse available sizes from comma-separated string
@@ -1198,49 +1167,108 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </div>
               )}
             </div>
-
-            {/* Product Details and Apparel Details - Combined in one frame */}
-            <div>
-              <h3 className="text-base sm:text-xl font-semibold text-gray-900 mb-2">Product Details</h3>
-              <div className="space-y-1">
-                {product.product_apparel_details?.brand && (
-                  <div className="flex items-center gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
-                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.brand}</span>
-                  </div>
-                )}
-                {product.product_apparel_details?.material && (
-                  <div className="flex items-center gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
-                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.material}</span>
-                  </div>
-                )}
-                {product.product_apparel_details?.fit_type && (
-                  <div className="flex items-center gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Fit Type:</span>
-                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.fit_type}</span>
-                  </div>
-                )}
-                {product.product_apparel_details?.color && (
-                  <div className="flex items-center gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
-                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.color}</span>
-                  </div>
-                )}
-                {product.product_apparel_details?.size && (
-                  <div className="flex items-center gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Size:</span>
-                    <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.size}</span>
-                  </div>
-                )}
-                {product.description && (
-                  <div className="flex items-start gap-1.5 sm:gap-3">
-                    <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Description:</span>
-                    <span className="text-gray-900 leading-relaxed text-xs sm:text-base">{product.description}</span>
-                  </div>
-                )}
-              </div>
             </div>
+
+            {/* Combined Details - All product details in one section */}
+            {(product.product_cover_details || product.product_accessories_details || product.product_apparel_details || product.description) && (
+              <div>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Product Details</h3>
+                <div className="space-y-1">
+                  {/* Phone Cover Details */}
+                  {product.product_cover_details?.brand && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.brand}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details?.compatible_model && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Compatible Model:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.compatible_model}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details?.type && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Type:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.type}</span>
+                    </div>
+                  )}
+                  {product.product_cover_details?.color && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.color}</span>
+                    </div>
+                  )}
+
+                  {/* Accessories Details */}
+                  {product.product_accessories_details?.accessory_type && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Accessory Type:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.accessory_type}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details?.compatible_with && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Compatible With:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.compatible_with}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details?.material && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.material}</span>
+                    </div>
+                  )}
+                  {product.product_accessories_details?.color && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.color}</span>
+                    </div>
+                  )}
+
+                  {/* Apparel Details */}
+                  {product.product_apparel_details?.brand && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.brand}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details?.material && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.material}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details?.fit_type && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Fit Type:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.fit_type}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details?.color && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.color}</span>
+                    </div>
+                  )}
+                  {product.product_apparel_details?.size && (
+                    <div className="flex items-center gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Size:</span>
+                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.size}</span>
+                    </div>
+                  )}
+                  
+                  {/* Description */}
+                  {product.description && (
+                    <div className="flex items-start gap-1.5 sm:gap-3">
+                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Description:</span>
+                      <span className="text-gray-900 leading-relaxed text-xs sm:text-base">{product.description}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
         </div>
@@ -1262,20 +1290,19 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           />
         )}
 
-        {/* Related Products Section */}
-        <div className="mt-6 mb-8">
-          <div className="text-center mb-6">
+        {/* Related Products Section - Edge to Edge */}
+        <div className="mt-6 mb-8 -mx-1 sm:-mx-2 md:-mx-4 lg:-mx-6">
+          <div className="text-center mb-6 px-1 sm:px-2 md:px-4 lg:px-6">
             <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3">Related Products</h2>
             <p className="text-gray-600 text-sm sm:text-lg">You might also like these products</p>
           </div>
           
           {relatedLoading ? (
             <div className="flex justify-center items-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
-              <span className="ml-4 text-gray-600 text-sm sm:text-lg">Loading related products...</span>
+              <LoadingLogo size="md" text="Loading related products..." />
             </div>
           ) : relatedProducts.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2">
+            <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP} px-1 sm:px-2 md:px-4 lg:px-6`}>
               {relatedProducts.map((relatedProduct: any) => (
                 <ProductCard 
                   key={relatedProduct.id} 
@@ -1287,16 +1314,21 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-white rounded-xl border border-gray-200">
-              <p className="text-gray-500 text-sm sm:text-lg">No related products found.</p>
+            <div className="px-1 sm:px-2 md:px-4 lg:px-6">
+              <EmptyState
+                icon="📦"
+                title="No related products found"
+                variant="compact"
+                className="bg-white rounded-xl border border-gray-200"
+              />
             </div>
           )}
         </div>
       </div>
 
       {/* Sticky Buttons - Mobile Only */}
-      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-50 sm:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0 }}>
-        <div className="px-3 py-4 flex gap-2">
+      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-50 sm:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="px-3 pt-2 pb-1 flex gap-2" style={{ paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}>
           <button
             onClick={handleAddToCart}
             disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}

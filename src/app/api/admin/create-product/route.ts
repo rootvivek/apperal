@@ -93,5 +93,8 @@ async function createProductHandler(request: NextRequest, { userId: adminUserId 
   }
 }
 
-export const POST = withAdminAuth(createProductHandler);
+export const POST = withAdminAuth(createProductHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+  requireCSRF: true
+});
 
