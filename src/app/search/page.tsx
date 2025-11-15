@@ -97,31 +97,42 @@ function SearchPageContent() {
       setError(null);
       const searchPattern = createSearchPattern(searchQuery);
 
-      const [categoriesResult, subcategoriesResult, productsResult] = await Promise.all([
-        supabase
-          .from('categories')
-          .select('id, name, slug, description, image_url')
-          .eq('is_active', true)
-          .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
-          .order('name', { ascending: true })
-          .limit(10),
-        
-        supabase
-          .from('subcategories')
-          .select('id, name, slug, description, image_url, parent_category_id, categories!inner(slug)')
-          .eq('is_active', true)
-          .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
-          .order('name', { ascending: true })
-          .limit(10),
-        
-        supabase
-          .from('products')
-          .select('*, product_images (id, image_url, alt_text, display_order)')
-          .eq('is_active', true)
-          .or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`)
-          .order('created_at', { ascending: false })
-          .limit(50)
-      ]);
+      // Execute searches sequentially to better handle errors in production
+      const categoriesResult = await supabase
+        .from('categories')
+        .select('id, name, slug, description, image_url')
+        .eq('is_active', true)
+        .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
+        .order('name', { ascending: true })
+        .limit(10);
+      
+      // Search subcategories - use left join instead of inner join for better compatibility
+      const subcategoriesResult = await supabase
+        .from('subcategories')
+        .select('id, name, slug, description, image_url, parent_category_id, categories(slug)')
+        .eq('is_active', true)
+        .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
+        .order('name', { ascending: true })
+        .limit(10);
+      
+      const productsResult = await supabase
+        .from('products')
+        .select('*, product_images (id, image_url, alt_text, display_order)')
+        .eq('is_active', true)
+        .or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      // Log errors for debugging in production
+      if (categoriesResult.error) {
+        console.error('Categories search error:', categoriesResult.error);
+      }
+      if (subcategoriesResult.error) {
+        console.error('Subcategories search error:', subcategoriesResult.error);
+      }
+      if (productsResult.error) {
+        console.error('Products search error:', productsResult.error);
+      }
 
       handleSearchResult(categoriesResult, setCategories);
       handleSearchResult(subcategoriesResult, (data) => {
@@ -138,13 +149,13 @@ function SearchPageContent() {
         })));
       }, 'Failed to search products');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Search error:', error);
-      setError('Failed to search. Please try again.');
+      setError(error?.message || 'Failed to search. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [handleSearchResult]);
+  }, [supabase, handleSearchResult]);
 
   useEffect(() => {
     const trimmedQuery = query.trim();
