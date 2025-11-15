@@ -3,10 +3,8 @@ import { createServerClient } from '@/lib/supabase/server';
 import { createServerAuthClient } from '@/lib/supabase/server-auth';
 
 // Admin phone number - must match AdminGuard
+// Check at runtime instead of module load to avoid build-time errors
 const ADMIN_PHONE = process.env.ADMIN_PHONE;
-if (!ADMIN_PHONE) {
-  throw new Error('ADMIN_PHONE environment variable is required');
-}
 
 /**
  * Middleware to verify if the authenticated user is an admin
@@ -122,6 +120,10 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
     }
 
     // Check if phone number matches admin phone
+    if (!ADMIN_PHONE) {
+      return { isAdmin: false, error: 'Admin phone not configured' };
+    }
+
     const userPhone = profile.phone || '';
     const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
     const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');

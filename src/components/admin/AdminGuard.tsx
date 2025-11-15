@@ -57,12 +57,19 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         }
 
         // Check if phone number matches admin phone
+        if (!ADMIN_PHONE) {
+          setAccessDenied(true);
+          setIsAdmin(false);
+          setIsChecking(false);
+          return;
+        }
+
         const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
         const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
         const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
 
         // Strict matching - only exact match for security
-        const hasAdminAccess = ADMIN_PHONE && normalizedUserPhone === normalizedAdminPhone;
+        const hasAdminAccess = normalizedUserPhone === normalizedAdminPhone;
 
         if (!hasAdminAccess) {
           setAccessDenied(true);

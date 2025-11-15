@@ -9,6 +9,8 @@ import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 import LoadingLogo from '@/components/LoadingLogo';
+import Modal from '@/components/Modal';
+import Button from '@/components/Button';
 
 interface CheckoutFormData {
   email?: string;
