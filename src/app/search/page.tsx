@@ -89,7 +89,7 @@ function SearchPageContent() {
     } else {
       setter(result.data || []);
     }
-  }, []);
+  }, [setError]);
 
   const searchAll = useCallback(async (searchQuery: string) => {
     try {

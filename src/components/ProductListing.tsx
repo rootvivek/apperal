@@ -309,8 +309,8 @@ export default function ProductListing({
       </div>
 
       {/* Mobile: Sticky Bottom Bar - Filter and Sort */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40">
-        <div className="w-full px-2 py-3">
+      <div className="md:hidden fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-40" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        <div className="px-3 pt-2 pb-1" style={{ paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}>
           <FilterSortBar
             variant="mobile"
             showFilter={hasFilterSidebar}

@@ -30,7 +30,7 @@ const aspectRatioClasses = {
   custom: '',
 };
 
-const baseCardClasses = 'group bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 overflow-hidden block';
+const baseCardClasses = 'group bg-white shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 overflow-hidden block';
 const baseImageClasses = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-300';
 
 const Card = memo(function Card({
@@ -56,8 +56,10 @@ const Card = memo(function Card({
   // Determine aspect ratio class
   const aspectClass = aspectRatioClasses[aspectRatio];
 
-  // Card classes
-  const cardClasses = `${baseCardClasses} ${className}`;
+  // Card classes - add default rounded-lg if no rounded class in className
+  const hasRoundedClass = className.includes('rounded');
+  const defaultRounded = hasRoundedClass ? '' : 'rounded-lg';
+  const cardClasses = `${baseCardClasses} ${defaultRounded} ${className}`;
 
   // Image container classes
   const imageContainerClasses = `${aspectClass} relative bg-gray-100 overflow-hidden ${aspectRatio === 'custom' ? '' : 'w-full'}`;

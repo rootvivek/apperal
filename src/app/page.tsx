@@ -229,12 +229,12 @@ export default function Home() {
       <HeroCarousel />
 
       {/* Categories Section - Show after carousel */}
-      <section className="pt-8 pb-0 sm:pt-8 sm:pb-4 bg-white mb-0 sm:mb-1 h-auto" style={{ touchAction: 'pan-x pan-y' }}>
+      <section className="pt-3 pb-3 sm:pt-8 sm:pb-4 bg-white h-auto" style={{ touchAction: 'pan-x pan-y' }}>
         <CategoryGrid categories={categories} />
       </section>
 
       {/* All Products Section */}
-      <section className="pt-8 pb-2 sm:pt-8 sm:pb-4 bg-white" style={{ touchAction: 'pan-x pan-y' }}>
+      <section className="pt-3 pb-3 sm:pt-8 sm:pb-4 bg-white" style={{ touchAction: 'pan-x pan-y' }}>
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-2 sm:mb-4">
             <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">All Products</h2>
@@ -268,7 +268,7 @@ export default function Home() {
         const bgColor = 'bg-white';
         
         return (
-          <section key={section.category.id} className={`pt-8 pb-16 sm:pt-8 sm:pb-4 ${bgColor}`} style={{ touchAction: 'pan-x pan-y' }}>
+          <section key={section.category.id} className={`pt-3 pb-3 sm:pt-8 sm:pb-4 ${bgColor}`} style={{ touchAction: 'pan-x pan-y' }}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between mb-2 sm:mb-4">
                 <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
