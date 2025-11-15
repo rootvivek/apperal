@@ -12,8 +12,9 @@ interface AdminGuardProps {
 
 // Admin phone number - only this user can access admin panel
 const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
-if (!ADMIN_PHONE) {
-  console.error('NEXT_PUBLIC_ADMIN_PHONE environment variable is required');
+// Only log warning in development - production will handle gracefully
+if (!ADMIN_PHONE && process.env.NODE_ENV === 'development') {
+  console.warn('NEXT_PUBLIC_ADMIN_PHONE environment variable is not set. Admin access will be denied.');
 }
 
 export default function AdminGuard({ children }: AdminGuardProps) {

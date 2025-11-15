@@ -629,9 +629,11 @@ export default function CategoriesPage() {
 
   const toggleCategoryStatus = async (categoryId: string, currentStatus: boolean, isSubcategory: boolean = false) => {
     try {
+      setError(null);
       const newStatus = !currentStatus;
       const tableName = isSubcategory ? 'subcategories' : 'categories';
       
+      // Direct Supabase update - RLS will allow if user is admin
       const { error } = await supabase
         .from(tableName)
         .update({ is_active: newStatus })
@@ -674,53 +676,12 @@ export default function CategoriesPage() {
         });
       }
       
-      // If it's a subcategory, we need to refresh the subcategories list
-      if (isSubcategory) {
-        // Find and refresh the parent category's subcategories
-        const parentId = Object.keys(subcategoriesList).find(key => 
-          subcategoriesList[key].some(sub => sub.id === categoryId)
-        );
-        if (parentId) {
-          const { data: refreshedSubcats } = await supabase
-            .from('subcategories')
-            .select('*')
-            .eq('parent_category_id', parentId)
-            .order('name', { ascending: true });
-          
-          if (refreshedSubcats) {
-            const subcategoriesWithActive = refreshedSubcats.map((subcat: any) => ({
-              ...subcat,
-              is_active: subcat.is_active !== undefined ? subcat.is_active : true
-            }));
-            setSubcategoriesList(prev => ({
-              ...prev,
-              [parentId]: subcategoriesWithActive
-            }));
-          }
-        }
-      } else {
-        // Refresh the specific category from database to ensure sync
-        const { data: refreshedCat } = await supabase
-          .from('categories')
-          .select('*')
-          .eq('id', categoryId)
-          .single();
-        
-        if (refreshedCat) {
-          const categoryWithActive = {
-            ...refreshedCat,
-            is_active: refreshedCat.is_active !== undefined ? refreshedCat.is_active : true
-          };
-          setCategories(prev => 
-            prev.map(cat => cat.id === categoryId ? categoryWithActive : cat)
-          );
-        }
-      }
-      
       // Force re-render by updating refresh key
       setRefreshKey(prev => prev + 1);
     } catch (err: any) {
-      setError(err?.message || 'Failed to update status');
+      const errorMessage = err.message || 'Failed to update status';
+      setError(errorMessage);
+      console.error('Error toggling status:', err);
     }
   };
 

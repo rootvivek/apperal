@@ -169,38 +169,22 @@ export default function ProductsPage() {
   const toggleProductStatus = async (productId: string, currentStatus: boolean) => {
     try {
       setError(null);
+      const newStatus = !currentStatus;
       
-      // Use API route to toggle product status (bypasses RLS)
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Add user ID header for admin authentication
-      if (user?.id) {
-        headers['X-User-Id'] = user.id;
+      // Direct Supabase update - RLS will allow if user is admin
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: newStatus })
+        .eq('id', productId);
+
+      if (error) {
+        throw error;
       }
 
-      const toggleResponse = await fetch('/api/admin/toggle-product-status', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          productId,
-          isActive: !currentStatus
-        })
-      });
-
-      const responseData = await toggleResponse.json();
-
-      if (!toggleResponse.ok) {
-        throw new Error(responseData.error || 'Failed to update product status');
-      }
-
-      // Only update local state if API confirms success
-      if (responseData.success) {
-        setProducts(products.map(p => 
-          p.id === productId ? { ...p, is_active: !currentStatus } : p
-        ));
-      }
+      // Update local state
+      setProducts(products.map(p => 
+        p.id === productId ? { ...p, is_active: newStatus } : p
+      ));
     } catch (err: any) {
       setError(err.message);
       console.error('Error toggling product status:', err);
