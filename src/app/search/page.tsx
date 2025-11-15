@@ -97,57 +97,130 @@ function SearchPageContent() {
       setError(null);
       const searchPattern = createSearchPattern(searchQuery);
 
-      // Execute searches sequentially to better handle errors in production
-      const categoriesResult = await supabase
-        .from('categories')
-        .select('id, name, slug, description, image_url')
-        .eq('is_active', true)
-        .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
-        .order('name', { ascending: true })
-        .limit(10);
-      
-      // Search subcategories - use left join instead of inner join for better compatibility
-      const subcategoriesResult = await supabase
-        .from('subcategories')
-        .select('id, name, slug, description, image_url, parent_category_id, categories(slug)')
-        .eq('is_active', true)
-        .or(`name.ilike.${searchPattern},slug.ilike.${searchPattern},description.ilike.${searchPattern}`)
-        .order('name', { ascending: true })
-        .limit(10);
-      
-      const productsResult = await supabase
-        .from('products')
-        .select('*, product_images (id, image_url, alt_text, display_order)')
-        .eq('is_active', true)
-        .or(`name.ilike.${searchPattern},description.ilike.${searchPattern}`)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      // Search categories - use separate queries and combine for better reliability
+      const [categoriesByName, categoriesBySlug, categoriesByDesc] = await Promise.all([
+        supabase
+          .from('categories')
+          .select('id, name, slug, description, image_url')
+          .eq('is_active', true)
+          .ilike('name', searchPattern)
+          .limit(10),
+        supabase
+          .from('categories')
+          .select('id, name, slug, description, image_url')
+          .eq('is_active', true)
+          .ilike('slug', searchPattern)
+          .limit(10),
+        supabase
+          .from('categories')
+          .select('id, name, slug, description, image_url')
+          .eq('is_active', true)
+          .ilike('description', searchPattern)
+          .limit(10)
+      ]);
 
-      // Log errors for debugging in production
-      if (categoriesResult.error) {
-        console.error('Categories search error:', categoriesResult.error);
+      // Combine and deduplicate categories
+      const allCategories = [
+        ...(categoriesByName.data || []),
+        ...(categoriesBySlug.data || []),
+        ...(categoriesByDesc.data || [])
+      ];
+      const uniqueCategories = Array.from(
+        new Map(allCategories.map(cat => [cat.id, cat])).values()
+      ).slice(0, 10);
+
+      // Search subcategories
+      const [subcategoriesByName, subcategoriesBySlug, subcategoriesByDesc] = await Promise.all([
+        supabase
+          .from('subcategories')
+          .select('id, name, slug, description, image_url, parent_category_id, categories(slug)')
+          .eq('is_active', true)
+          .ilike('name', searchPattern)
+          .limit(10),
+        supabase
+          .from('subcategories')
+          .select('id, name, slug, description, image_url, parent_category_id, categories(slug)')
+          .eq('is_active', true)
+          .ilike('slug', searchPattern)
+          .limit(10),
+        supabase
+          .from('subcategories')
+          .select('id, name, slug, description, image_url, parent_category_id, categories(slug)')
+          .eq('is_active', true)
+          .ilike('description', searchPattern)
+          .limit(10)
+      ]);
+
+      // Combine and deduplicate subcategories
+      const allSubcategories = [
+        ...(subcategoriesByName.data || []),
+        ...(subcategoriesBySlug.data || []),
+        ...(subcategoriesByDesc.data || [])
+      ];
+      const uniqueSubcategories = Array.from(
+        new Map(allSubcategories.map(sub => [sub.id, sub])).values()
+      ).slice(0, 10);
+
+      // Search products
+      const [productsByName, productsByDesc] = await Promise.all([
+        supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('is_active', true)
+          .ilike('name', searchPattern)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('products')
+          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .eq('is_active', true)
+          .ilike('description', searchPattern)
+          .order('created_at', { ascending: false })
+          .limit(50)
+      ]);
+
+      // Combine and deduplicate products
+      const allProducts = [
+        ...(productsByName.data || []),
+        ...(productsByDesc.data || [])
+      ];
+      const uniqueProducts = Array.from(
+        new Map(allProducts.map(prod => [prod.id, prod])).values()
+      ).slice(0, 50);
+
+      // Log errors for debugging
+      if (categoriesByName.error || categoriesBySlug.error || categoriesByDesc.error) {
+        console.error('Categories search errors:', {
+          name: categoriesByName.error,
+          slug: categoriesBySlug.error,
+          desc: categoriesByDesc.error
+        });
       }
-      if (subcategoriesResult.error) {
-        console.error('Subcategories search error:', subcategoriesResult.error);
+      if (subcategoriesByName.error || subcategoriesBySlug.error || subcategoriesByDesc.error) {
+        console.error('Subcategories search errors:', {
+          name: subcategoriesByName.error,
+          slug: subcategoriesBySlug.error,
+          desc: subcategoriesByDesc.error
+        });
       }
-      if (productsResult.error) {
-        console.error('Products search error:', productsResult.error);
+      if (productsByName.error || productsByDesc.error) {
+        console.error('Products search errors:', {
+          name: productsByName.error,
+          desc: productsByDesc.error
+        });
       }
 
-      handleSearchResult(categoriesResult, setCategories);
-      handleSearchResult(subcategoriesResult, (data) => {
-        setSubcategories(data.map((sub: any) => ({
-          ...sub,
-          category_slug: sub.categories?.slug || ''
-        })));
-      });
-      handleSearchResult(productsResult, (data) => {
-        setProducts(data.map((product: any) => ({
-          ...product,
-          subcategories: product.subcategory ? [product.subcategory] : [],
-          images: product.product_images || []
-        })));
-      }, 'Failed to search products');
+      // Set results
+      setCategories(uniqueCategories);
+      setSubcategories(uniqueSubcategories.map((sub: any) => ({
+        ...sub,
+        category_slug: sub.categories?.slug || ''
+      })));
+      setProducts(uniqueProducts.map((product: any) => ({
+        ...product,
+        subcategories: product.subcategory ? [product.subcategory] : [],
+        images: product.product_images || []
+      })));
 
     } catch (error: any) {
       console.error('Search error:', error);
@@ -155,7 +228,7 @@ function SearchPageContent() {
     } finally {
       setLoading(false);
     }
-  }, [supabase, handleSearchResult]);
+  }, [supabase]);
 
   useEffect(() => {
     const trimmedQuery = query.trim();
