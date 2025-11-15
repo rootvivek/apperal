@@ -171,13 +171,14 @@ export default function ProductsPage() {
       setError(null);
       const newStatus = !currentStatus;
       
-      // Check if user is authenticated
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      // Check if user is authenticated (use user from auth context)
+      if (!user) {
         throw new Error('You must be logged in to perform this action');
       }
       
-      // Direct Supabase update - RLS will allow if user is admin
+      // Direct Supabase update - RLS policies automatically allow admins full access
+      // Admins: Full access (via "Admins have full access" policy)
+      // Users: Blocked (no update permission)
       const { error } = await supabase
         .from('products')
         .update({ is_active: newStatus })
@@ -187,7 +188,7 @@ export default function ProductsPage() {
         console.error('Toggle product status error:', error);
         // Provide more helpful error message
         if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-          throw new Error('Permission denied. Please ensure RLS policies are set up correctly and you are logged in as an admin.');
+          throw new Error('Permission denied. Please ensure RLS policies are set up correctly. Run admin-rls-policies.sql in your Supabase SQL Editor.');
         }
         throw error;
       }

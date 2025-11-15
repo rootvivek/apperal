@@ -20,7 +20,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { name: 'Orders', href: '/admin/orders', icon: '📦' },
     { name: 'Users', href: '/admin/users', icon: '👥' },
     { name: 'Activity Logs', href: '/admin/logs', icon: '📋' },
-    { name: 'Settings', href: '/admin/settings', icon: '⚙️' },
   ];
 
   return (

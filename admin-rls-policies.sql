@@ -1,7 +1,27 @@
 -- =============================================
--- Admin RLS Policies
--- This allows authenticated admin users to perform all operations
--- Admin is determined by phone number matching admin phone
+-- Simple Admin RLS Policies
+-- 
+-- USER ROLES EXPLANATION:
+-- 
+-- 1. AUTHENTICATED USERS (Regular Users)
+--    - Any logged-in user with valid session
+--    - Can only VIEW active items (read-only)
+--    - Cannot edit, delete, or see inactive items
+-- 
+-- 2. ADMIN USERS (Special Authenticated Users)
+--    - Authenticated users whose phone matches admin phone
+--    - Full access: view, edit, delete, insert (everything)
+--    - Can see both active and inactive items
+--    - Determined by check_admin_by_phone() function
+-- 
+-- 3. SERVICE ROLE (System/Bypass - NOT used here)
+--    - Server-side only, bypasses ALL RLS
+--    - Used in API routes (/api/admin/*)
+--    - Never used in client-side code
+-- 
+-- RULES:
+-- - Admins: Full access (view, edit, delete, insert - everything)
+-- - Users: Can only view active items
 -- 
 -- IMPORTANT: You MUST run this SQL file in your Supabase SQL Editor
 -- for the status toggle buttons to work in the admin panel!
@@ -63,108 +83,98 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- =============================================
--- CATEGORIES: Admin policies
+-- CATEGORIES: Simple policies
 -- =============================================
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Admins can manage categories" ON categories;
+DROP POLICY IF EXISTS "Admins can view all categories" ON categories;
+DROP POLICY IF EXISTS "Admins have full access to categories" ON categories;
 DROP POLICY IF EXISTS "Anyone can view active categories" ON categories;
+DROP POLICY IF EXISTS "Users can view active categories" ON categories;
 
--- Allow anyone to view active categories
-CREATE POLICY "Anyone can view active categories"
+-- Users: Can view active categories only
+CREATE POLICY "Users can view active categories"
 ON categories
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with categories (including inactive ones)
-CREATE POLICY "Admins can manage categories"
+-- Admins: Full access (view, edit, delete, insert - everything)
+CREATE POLICY "Admins have full access to categories"
 ON categories
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
 
--- Allow admins to view inactive categories too
-CREATE POLICY "Admins can view all categories"
-ON categories
-FOR SELECT
-TO authenticated
-USING (check_admin_by_phone());
-
 -- =============================================
--- SUBCATEGORIES: Admin policies
+-- SUBCATEGORIES: Simple policies
 -- =============================================
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Admins can manage subcategories" ON subcategories;
+DROP POLICY IF EXISTS "Admins can view all subcategories" ON subcategories;
+DROP POLICY IF EXISTS "Admins have full access to subcategories" ON subcategories;
 DROP POLICY IF EXISTS "Anyone can view active subcategories" ON subcategories;
+DROP POLICY IF EXISTS "Users can view active subcategories" ON subcategories;
 
--- Allow anyone to view active subcategories
-CREATE POLICY "Anyone can view active subcategories"
+-- Users: Can view active subcategories only
+CREATE POLICY "Users can view active subcategories"
 ON subcategories
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with subcategories (including inactive ones)
-CREATE POLICY "Admins can manage subcategories"
+-- Admins: Full access (view, edit, delete, insert - everything)
+CREATE POLICY "Admins have full access to subcategories"
 ON subcategories
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
 
--- Allow admins to view inactive subcategories too
-CREATE POLICY "Admins can view all subcategories"
-ON subcategories
-FOR SELECT
-TO authenticated
-USING (check_admin_by_phone());
-
 -- =============================================
--- PRODUCTS: Admin policies
+-- PRODUCTS: Simple policies
 -- =============================================
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Admins can manage products" ON products;
+DROP POLICY IF EXISTS "Admins can view all products" ON products;
+DROP POLICY IF EXISTS "Admins have full access to products" ON products;
 DROP POLICY IF EXISTS "Anyone can view active products" ON products;
+DROP POLICY IF EXISTS "Users can view active products" ON products;
 
--- Allow anyone to view active products
-CREATE POLICY "Anyone can view active products"
+-- Users: Can view active products only
+CREATE POLICY "Users can view active products"
 ON products
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with products (including inactive ones)
-CREATE POLICY "Admins can manage products"
+-- Admins: Full access (view, edit, delete, insert - everything)
+CREATE POLICY "Admins have full access to products"
 ON products
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
 
--- Allow admins to view inactive products too
-CREATE POLICY "Admins can view all products"
-ON products
-FOR SELECT
-TO authenticated
-USING (check_admin_by_phone());
-
 -- =============================================
--- PRODUCT_IMAGES: Admin policies
+-- PRODUCT_IMAGES: Simple policies
 -- =============================================
 
 -- Drop existing policies if any
 DROP POLICY IF EXISTS "Admins can manage product_images" ON product_images;
+DROP POLICY IF EXISTS "Admins have full access to product_images" ON product_images;
 DROP POLICY IF EXISTS "Anyone can view product_images" ON product_images;
+DROP POLICY IF EXISTS "Users can view product_images" ON product_images;
 
--- Allow anyone to view product images
-CREATE POLICY "Anyone can view product_images"
+-- Users: Can view product images
+CREATE POLICY "Users can view product_images"
 ON product_images
 FOR SELECT
 USING (true);
 
--- Allow admins to do everything with product images
-CREATE POLICY "Admins can manage product_images"
+-- Admins: Full access (view, edit, delete, insert - everything)
+CREATE POLICY "Admins have full access to product_images"
 ON product_images
 FOR ALL
 TO authenticated
