@@ -1,17 +1,12 @@
 [build]
   command = "npm run build"
+  # Netlify Next.js plugin will handle the publish directory automatically
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
 
-# Enable Next.js standalone output
-[next]
-  standalone = true
-
-# Handle Next.js rewrite rules
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+# Netlify Next.js plugin - handles routing, serverless functions, and image optimization
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 

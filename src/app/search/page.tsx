@@ -188,26 +188,44 @@ function SearchPageContent() {
         new Map(allProducts.map(prod => [prod.id, prod])).values()
       ).slice(0, 50);
 
-      // Log errors for debugging
+      // Log errors for debugging and handle RLS/permission errors
       if (categoriesByName.error || categoriesBySlug.error || categoriesByDesc.error) {
+        const error = categoriesByName.error || categoriesBySlug.error || categoriesByDesc.error;
         console.error('Categories search errors:', {
           name: categoriesByName.error,
           slug: categoriesBySlug.error,
           desc: categoriesByDesc.error
         });
+        // If RLS error, show helpful message
+        if (error?.code === '42501' || error?.message?.includes('permission') || error?.message?.includes('policy')) {
+          setError('Search failed: Permission denied. Please ensure RLS policies are set up correctly.');
+          return;
+        }
       }
       if (subcategoriesByName.error || subcategoriesBySlug.error || subcategoriesByDesc.error) {
+        const error = subcategoriesByName.error || subcategoriesBySlug.error || subcategoriesByDesc.error;
         console.error('Subcategories search errors:', {
           name: subcategoriesByName.error,
           slug: subcategoriesBySlug.error,
           desc: subcategoriesByDesc.error
         });
+        // If RLS error, show helpful message
+        if (error?.code === '42501' || error?.message?.includes('permission') || error?.message?.includes('policy')) {
+          setError('Search failed: Permission denied. Please ensure RLS policies are set up correctly.');
+          return;
+        }
       }
       if (productsByName.error || productsByDesc.error) {
+        const error = productsByName.error || productsByDesc.error;
         console.error('Products search errors:', {
           name: productsByName.error,
           desc: productsByDesc.error
         });
+        // If RLS error, show helpful message
+        if (error?.code === '42501' || error?.message?.includes('permission') || error?.message?.includes('policy')) {
+          setError('Search failed: Permission denied. Please ensure RLS policies are set up correctly.');
+          return;
+        }
       }
 
       // Set results

@@ -2,7 +2,8 @@
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  // Remove standalone output for Netlify - use Netlify Next.js plugin instead
+  // output: 'standalone',
   // Enable source maps for better debugging (only in development)
   productionBrowserSourceMaps: false, // Set to true if you need source maps in production
   // Compiler options

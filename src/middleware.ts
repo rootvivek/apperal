@@ -64,10 +64,10 @@ export function middleware(request: NextRequest) {
   if (process.env.NODE_ENV === 'production') {
     const protocol = request.headers.get('x-forwarded-proto') || 'http';
     if (protocol !== 'https') {
-      return NextResponse.redirect(
-        `https://${request.headers.get('host')}${request.nextUrl.pathname}`,
-        301
-      );
+      // Preserve query parameters and hash in redirect
+      const url = request.nextUrl.clone();
+      url.protocol = 'https:';
+      return NextResponse.redirect(url, 301);
     }
   }
 
