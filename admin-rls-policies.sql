@@ -2,6 +2,16 @@
 -- Admin RLS Policies
 -- This allows authenticated admin users to perform all operations
 -- Admin is determined by phone number matching admin phone
+-- 
+-- IMPORTANT: You MUST run this SQL file in your Supabase SQL Editor
+-- for the status toggle buttons to work in the admin panel!
+-- 
+-- Steps:
+-- 1. Go to your Supabase Dashboard
+-- 2. Navigate to SQL Editor
+-- 3. Copy and paste the entire contents of this file
+-- 4. Click "Run" to execute
+-- 5. Verify the policies were created (the SELECT query at the end will show them)
 -- =============================================
 
 -- Create a config table to store admin phone (one-time setup)
@@ -66,13 +76,20 @@ ON categories
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with categories
+-- Allow admins to do everything with categories (including inactive ones)
 CREATE POLICY "Admins can manage categories"
 ON categories
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+-- Allow admins to view inactive categories too
+CREATE POLICY "Admins can view all categories"
+ON categories
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- SUBCATEGORIES: Admin policies
@@ -88,13 +105,20 @@ ON subcategories
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with subcategories
+-- Allow admins to do everything with subcategories (including inactive ones)
 CREATE POLICY "Admins can manage subcategories"
 ON subcategories
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+-- Allow admins to view inactive subcategories too
+CREATE POLICY "Admins can view all subcategories"
+ON subcategories
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- PRODUCTS: Admin policies
@@ -110,13 +134,20 @@ ON products
 FOR SELECT
 USING (is_active = true);
 
--- Allow admins to do everything with products
+-- Allow admins to do everything with products (including inactive ones)
 CREATE POLICY "Admins can manage products"
 ON products
 FOR ALL
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+-- Allow admins to view inactive products too
+CREATE POLICY "Admins can view all products"
+ON products
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- PRODUCT_IMAGES: Admin policies
