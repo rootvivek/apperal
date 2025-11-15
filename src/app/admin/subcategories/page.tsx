@@ -16,6 +16,7 @@ interface Subcategory {
   description: string;
   image_url: string | null;
   parent_category_id: string;
+  is_active?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -81,8 +82,7 @@ export default function SubcategoriesPage() {
       let query = supabase
         .from('subcategories')
         .select('*')
-        // Filter out inactive items (in case of soft delete via is_active)
-        .eq('is_active', true)
+        // Don't filter by is_active - admins should see all subcategories
         .order('name', { ascending: true });
 
       // Filter by parent category if one is selected
@@ -96,7 +96,6 @@ export default function SubcategoriesPage() {
       
       setSubcategories(data || []);
     } catch (err: any) {
-      console.error('Error fetching:', err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -115,7 +114,7 @@ export default function SubcategoriesPage() {
       
       setCategories(data || []);
     } catch (err: any) {
-      console.error('Error fetching categories:', err);
+      // Error handled silently
     }
   };
 
@@ -147,7 +146,6 @@ export default function SubcategoriesPage() {
         if (!fetchError && existingData?.image_url) {
           // Step 2: Delete existing image from storage
           await deleteImageFromSupabase(existingData.image_url, 'subcategory-images');
-          console.log('Deleted existing image from database:', existingData.image_url);
         }
       } else if (tempSubcategoryId) {
         subcategoryUuid = tempSubcategoryId;
@@ -213,7 +211,7 @@ export default function SubcategoriesPage() {
           method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
           body: JSON.stringify({
             subcategoryId: editingSubcategory.id,
@@ -237,7 +235,7 @@ export default function SubcategoriesPage() {
           method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
           body: JSON.stringify(subcategoryData),
         });
@@ -269,6 +267,55 @@ export default function SubcategoriesPage() {
     setShowEditModal(true);
   };
 
+  const toggleSubcategoryStatus = async (subcategoryId: string, currentStatus: boolean | null | undefined) => {
+    try {
+      setError(null);
+      const actualCurrentStatus = currentStatus ?? true;
+      const newStatus = !actualCurrentStatus;
+      
+      if (!user) {
+        const errorMsg = 'You must be logged in to perform this action';
+        setError(errorMsg);
+        alert(errorMsg);
+        return;
+      }
+      
+      const response = await fetch('/api/admin/toggle-category-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({
+          categoryId: subcategoryId,
+          isActive: newStatus,
+          isSubcategory: true,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = result.error || 'Failed to update status';
+        setError(errorMessage);
+        alert(errorMessage);
+        return;
+      }
+
+      if (result.subcategory && result.subcategory.is_active === newStatus) {
+        setSubcategories(subcategories.map(sub => 
+          sub.id === subcategoryId ? { ...sub, is_active: result.subcategory.is_active } : sub
+        ));
+      } else {
+        throw new Error('Status update verification failed');
+      }
+    } catch (err: any) {
+      const errorMessage = err.message || 'Failed to update status';
+      setError(errorMessage);
+      alert(errorMessage);
+    }
+  };
+
   const handleDelete = async (subcategoryId: string) => {
     if (!confirm('Are you sure you want to delete this subcategory? This will also delete all products under it and their images.')) return;
 
@@ -285,7 +332,7 @@ export default function SubcategoriesPage() {
         method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
         body: JSON.stringify({ subcategoryId }),
       });
@@ -536,6 +583,24 @@ export default function SubcategoriesPage() {
                   return category?.name || value;
                 }},
                 { key: 'created_at', label: 'Created', sortable: true, render: (value: string) => formatDate(value) },
+                { 
+                  key: 'is_active', 
+                  label: 'Status', 
+                  sortable: true, 
+                  render: (value: boolean | undefined, row: Subcategory) => (
+                    <button
+                      onClick={() => toggleSubcategoryStatus(row.id, value ?? true)}
+                      className={`px-3 py-1 text-sm rounded font-medium transition-colors ${
+                        value === false
+                          ? 'bg-red-100 text-red-800 hover:bg-red-200'
+                          : 'bg-green-100 text-green-800 hover:bg-green-200'
+                      }`}
+                      disabled={!!deleting}
+                    >
+                      {value === false ? 'Inactive' : 'Active'}
+                    </button>
+                  )
+                },
                 { key: 'id', label: 'Actions', sortable: false, render: (value: string, row: Subcategory) => (
                   <div className="flex space-x-2">
                     <button onClick={() => handleEdit(row)} className="text-blue-600 hover:text-blue-900 text-sm font-medium" disabled={!!deleting}>

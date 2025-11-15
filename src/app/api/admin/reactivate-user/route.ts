@@ -110,5 +110,6 @@ async function reactivateUserHandler(request: NextRequest, { userId: adminUserId
 }
 
 // Export with admin authentication wrapper
-export const POST = withAdminAuth(reactivateUserHandler);
-
+export const POST = withAdminAuth(reactivateUserHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});

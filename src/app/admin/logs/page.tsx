@@ -68,7 +68,6 @@ export default function AdminLogsPage() {
 
       setLogs(logsWithNames);
     } catch (err: any) {
-      console.error('Error fetching admin logs:', err);
       setError(err.message || 'Failed to load admin logs');
     } finally {
       setLoading(false);

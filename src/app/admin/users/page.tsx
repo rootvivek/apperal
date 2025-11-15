@@ -81,14 +81,12 @@ export default function UsersPage() {
 
       if (!response.ok) {
         const errorMessage = result.error || result.details || 'Failed to fetch users';
-        console.error('API Error:', { status: response.status, error: result });
         throw new Error(errorMessage);
       }
       
       setUsers(result.users || []);
       setError(null);
     } catch (error: any) {
-      console.error('Error fetching users:', error);
       setUsers([]);
       setError(error?.message || 'Failed to fetch users. Please check your database permissions (RLS policies).');
     } finally {
@@ -151,7 +149,7 @@ export default function UsersPage() {
         setUserWishlistItems([]);
       }
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      // Error handled silently
     }
     
     setShowUserDetails(true);
@@ -202,7 +200,6 @@ export default function UsersPage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error: any) {
-      console.error('Error deleting user:', error);
       setError(error?.message || 'Failed to delete user. Please try again.');
     } finally {
       setDeletingUserId(null);
@@ -256,7 +253,6 @@ export default function UsersPage() {
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error: any) {
-      console.error('Error reactivating user:', error);
       setError(error?.message || 'Failed to reactivate user. Please try again.');
     } finally {
       setReactivatingUserId(null);
@@ -516,7 +512,6 @@ export default function UsersPage() {
                               // Refresh users
                               await fetchUsers();
                             } catch (err) {
-                              console.error('Error toggling user status', err);
                               alert((err as any)?.message || 'Failed to update user status');
                             } finally {
                               setTogglingUserId(null);

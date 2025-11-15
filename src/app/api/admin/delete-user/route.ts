@@ -145,5 +145,6 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
 }
 
 // Export with admin authentication wrapper
-export const POST = withAdminAuth(deleteUserHandler);
-
+export const POST = withAdminAuth(deleteUserHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});

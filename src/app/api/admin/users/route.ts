@@ -58,11 +58,13 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
           
-          // Check if user is admin based on phone number - only exact match
+          // Check if user is admin based on phone number (last 10 digits)
           const userPhone = user.phone || '';
           const normalizedUserPhone = userPhone.replace(/\D/g, '');
           const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-          const isAdmin = normalizedUserPhone === normalizedAdminPhone;
+          const userLast10 = normalizedUserPhone.slice(-10);
+          const adminLast10 = normalizedAdminPhone.slice(-10);
+          const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
           
           return {
             ...user,
@@ -70,12 +72,13 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
             isAdmin
           };
         } catch (err) {
-          // Check admin status even if order count fails
+          // Check admin status even if order count fails (last 10 digits)
           const userPhone = user.phone || '';
           const normalizedUserPhone = userPhone.replace(/\D/g, '');
           const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-          const isAdmin = normalizedUserPhone === normalizedAdminPhone || 
-                         normalizedUserPhone.endsWith(normalizedAdminPhone);
+          const userLast10 = normalizedUserPhone.slice(-10);
+          const adminLast10 = normalizedAdminPhone.slice(-10);
+          const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
           
           return {
             ...user,
@@ -99,5 +102,4 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
 }
 
 export const GET = withAdminAuth(handler, { rateLimit: { windowMs: 60000, maxRequests: 60 } });
-export const POST = withAdminAuth(handler, { rateLimit: { windowMs: 60000, maxRequests: 60 }, requireCSRF: true });
-
+export const POST = withAdminAuth(handler, { rateLimit: { windowMs: 60000, maxRequests: 60 } });

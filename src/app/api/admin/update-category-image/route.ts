@@ -59,5 +59,6 @@ async function updateCategoryImageHandler(request: NextRequest, { userId: adminU
   }
 }
 
-export const POST = withAdminAuth(updateCategoryImageHandler);
-
+export const POST = withAdminAuth(updateCategoryImageHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

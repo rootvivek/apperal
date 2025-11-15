@@ -173,5 +173,6 @@ async function updateProductHandler(request: NextRequest, { userId: adminUserId 
   }
 }
 
-export const POST = withAdminAuth(updateProductHandler);
-
+export const POST = withAdminAuth(updateProductHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

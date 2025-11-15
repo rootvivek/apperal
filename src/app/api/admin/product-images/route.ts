@@ -64,5 +64,6 @@ async function insertProductImagesHandler(request: NextRequest, { userId: adminU
   }
 }
 
-export const POST = withAdminAuth(insertProductImagesHandler);
-
+export const POST = withAdminAuth(insertProductImagesHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

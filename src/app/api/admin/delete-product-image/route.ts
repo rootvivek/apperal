@@ -80,5 +80,6 @@ async function deleteProductImageHandler(request: NextRequest, { userId: adminUs
   }
 }
 
-export const POST = withAdminAuth(deleteProductImageHandler);
-
+export const POST = withAdminAuth(deleteProductImageHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

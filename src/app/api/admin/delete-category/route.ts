@@ -330,5 +330,6 @@ async function deleteCategoryHandler(request: NextRequest, { userId: adminUserId
   }
 }
 
-export const POST = withAdminAuth(deleteCategoryHandler);
-
+export const POST = withAdminAuth(deleteCategoryHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});

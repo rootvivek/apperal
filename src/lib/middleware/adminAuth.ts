@@ -86,16 +86,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
     }
     
     if (!userId) {
-      // Log available headers for debugging (in development only)
-      if (process.env.NODE_ENV === 'development') {
-        const allHeaders: Record<string, string> = {};
-        request.headers.forEach((value, key) => {
-          if (key.toLowerCase().includes('user') || key.toLowerCase().includes('admin') || key.toLowerCase().includes('auth')) {
-            allHeaders[key] = value;
-          }
-        });
-      }
-      return { isAdmin: false, error: 'Unauthorized - No valid session found. Please ensure you are logged in and the user ID is being sent in the request headers.' };
+      return { isAdmin: false, error: 'Unauthorized - No valid session found' };
     }
 
     // Use service role client to verify admin status (has access to user_profiles)
@@ -125,11 +116,11 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
     }
 
     const userPhone = profile.phone || '';
-    const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
+    const normalizedUserPhone = userPhone.replace(/\D/g, '');
     const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-
-    // Only exact match - remove endsWith for security
-    const isAdmin = normalizedUserPhone === normalizedAdminPhone;
+    const userLast10 = normalizedUserPhone.slice(-10);
+    const adminLast10 = normalizedAdminPhone.slice(-10);
+    const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
 
     return { isAdmin, userId };
   } catch (error: any) {
@@ -138,15 +129,14 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
 }
 
 /**
- * Wrapper function for admin API routes with rate limiting and CSRF protection
+ * Wrapper function for admin API routes with rate limiting
  * Usage: export const POST = withAdminAuth(async (request, { userId }) => { ... })
- * Options: { rateLimit?: { windowMs: number; maxRequests: number } | false, requireCSRF?: boolean }
+ * Options: { rateLimit?: { windowMs: number; maxRequests: number } | false }
  */
 export function withAdminAuth(
   handler: (request: NextRequest, context: { userId: string }) => Promise<NextResponse>,
   options?: { 
     rateLimit?: { windowMs: number; maxRequests: number } | false;
-    requireCSRF?: boolean;
   }
 ) {
   return async (request: NextRequest) => {
@@ -163,16 +153,6 @@ export function withAdminAuth(
       }
     }
 
-    // Apply CSRF protection for state-changing operations if specified
-    if (options?.requireCSRF !== false && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
-      const { verifyCSRFToken } = await import('@/lib/middleware/csrf');
-      if (!verifyCSRFToken(request)) {
-        return NextResponse.json(
-          { error: 'Invalid CSRF token' },
-          { status: 403 }
-        );
-      }
-    }
 
     const verification = await verifyAdmin(request);
     

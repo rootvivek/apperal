@@ -190,6 +190,4 @@ async function deleteProductHandler(request: NextRequest, { userId: adminUserId 
 
 export const POST = withAdminAuth(deleteProductHandler, {
   rateLimit: { windowMs: 60000, maxRequests: 10 },
-  requireCSRF: true
 });
-

@@ -9,6 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import DataTable from '@/components/DataTable';
 import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
@@ -66,6 +67,7 @@ interface OrderItem {
 
 function AdminDashboardContent() {
   const supabase = createClient();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('products');
   
@@ -129,19 +131,14 @@ function AdminDashboardContent() {
   const fetchUsers = async () => {
     try {
       setUsersLoading(true);
-      console.log('📝 Fetching users from user_profiles table...');
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('user_profiles')
         .select('id, email, full_name, phone, created_at')
         .order('created_at', { ascending: false });
       
-      console.log('📊 Fetched data:', data);
-      console.log('❌ Error (if any):', error);
-      console.log('📈 Total users:', data?.length || 0);
-      
       setUsers(data || []);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      // Error handled silently - users state remains empty
     } finally {
       setUsersLoading(false);
     }
@@ -156,7 +153,7 @@ function AdminDashboardContent() {
         .order('created_at', { ascending: false });
       setProducts(data || []);
     } catch (error) {
-      console.error('Error fetching products:', error);
+      // Error handled silently - products state remains empty
     } finally {
       setProductsLoading(false);
     }
@@ -207,7 +204,7 @@ function AdminDashboardContent() {
               firstItemImage = itemsData[0]?.product_image || null;
             }
           } catch (error) {
-            console.log('Note: Could not fetch product_image for order:', order.id);
+            // Silently handle error - firstItemImage remains null
           }
           
           try {
@@ -220,7 +217,7 @@ function AdminDashboardContent() {
               itemCount = count || 0;
             }
           } catch (error) {
-            console.log('Note: Could not count items for order:', order.id);
+            // Silently handle error - itemCount remains 0
           }
           
           return {
@@ -234,7 +231,7 @@ function AdminDashboardContent() {
       
       setOrders(ordersWithImages);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      // Error handled silently - orders state remains empty
     } finally {
       setOrdersLoading(false);
     }
@@ -348,7 +345,7 @@ function AdminDashboardContent() {
       }
       
     } catch (error) {
-      console.error('Error fetching order details:', error);
+      // Error handled silently
     }
     
     setShowOrderDetails(true);
@@ -398,8 +395,7 @@ function AdminDashboardContent() {
       
       alert('Order status updated successfully!');
     } catch (error: any) {
-      console.error('Error updating order status:', error);
-      alert('Failed to update order status: ' + error.message);
+      alert('Failed to update order status: ' + (error.message || 'Unknown error'));
     }
   };
 
@@ -430,20 +426,13 @@ function AdminDashboardContent() {
           .eq('user_id', user.id)
           .single()).data?.id || '');
       
-      if (cartError) console.error('Cart error:', cartError);
       setUserCartItems(cartData || []);
       
-      // Fetch wishlist items - Fixed query syntax
-      const { data: wishlistData, error: wishlistError } = await supabase
+      // Fetch wishlist items
+      const { data: wishlistData } = await supabase
         .from('wishlist')
         .select('id, product_id, products(id, name, price, image_url)')
         .eq('user_id', user.id);
-      
-      if (wishlistError) {
-        console.error('Wishlist error:', wishlistError);
-      } else {
-        console.log('Wishlist data fetched:', wishlistData);
-      }
       
       // Transform wishlist data to match expected format
       const transformedWishlist = (wishlistData || []).map((item: any) => ({
@@ -453,7 +442,7 @@ function AdminDashboardContent() {
       
       setUserWishlistItems(transformedWishlist);
     } catch (error) {
-      console.error('Error fetching user details:', error);
+      // Error handled silently
     }
     
     setShowUserDetails(true);
@@ -466,36 +455,46 @@ function AdminDashboardContent() {
   };
 
   const handleSaveProduct = async () => {
-    if (!editFormData || !selectedProduct) return;
+    if (!editFormData || !selectedProduct || !user?.id) return;
 
     try {
       setEditProductLoading(true);
-      const { error } = await supabase
-        .from('products')
-        .update({
-          name: editFormData.name,
-          description: editFormData.description,
-          price: editFormData.price,
-          original_price: editFormData.original_price,
-          badge: editFormData.badge,
-          category: editFormData.category,
-          subcategory: editFormData.subcategory,
-          stock_quantity: editFormData.stock_quantity,
-          is_active: editFormData.is_active,
-          show_in_hero: editFormData.show_in_hero,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', selectedProduct.id);
+      
+      const response = await fetch('/api/admin/update-product', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({
+          productId: selectedProduct.id,
+          product: {
+            name: editFormData.name,
+            description: editFormData.description,
+            price: editFormData.price,
+            original_price: editFormData.original_price,
+            badge: editFormData.badge,
+            category: editFormData.category,
+            subcategory: editFormData.subcategory,
+            stock_quantity: editFormData.stock_quantity,
+            is_active: editFormData.is_active,
+            show_in_hero: editFormData.show_in_hero,
+          },
+        }),
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to update product');
+      }
 
       // Update local products list
       setProducts(products.map(p => p.id === selectedProduct.id ? editFormData : p));
       setShowProductEdit(false);
       alert('Product updated successfully!');
     } catch (error: any) {
-      console.error('Error saving product:', error);
-      alert('Failed to update product: ' + error.message);
+      alert('Failed to update product: ' + (error.message || 'Unknown error'));
     } finally {
       setEditProductLoading(false);
     }
@@ -504,19 +503,35 @@ function AdminDashboardContent() {
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product?')) return;
 
+    if (!user?.id) {
+      alert('User not authenticated');
+      return;
+    }
+
     try {
-      const { error } = await supabase
-        .from('products')
-        .delete()
-        .eq('id', productId);
+      const response = await fetch('/api/admin/delete-product', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ productId }),
+      });
 
-      if (error) throw error;
+      const result = await response.json();
 
-      setProducts(products.filter(p => p.id !== productId));
-      alert('Product deleted successfully');
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to delete product');
+      }
+
+      if (result.success) {
+        setProducts(products.filter(p => p.id !== productId));
+        alert('Product deleted successfully');
+      } else {
+        throw new Error('Deletion failed');
+      }
     } catch (error: any) {
-      console.error('Error deleting product:', error);
-      alert('Failed to delete product: ' + error.message);
+      alert('Failed to delete product: ' + (error.message || 'Unknown error'));
     }
   };
 

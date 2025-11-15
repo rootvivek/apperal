@@ -66,11 +66,11 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         }
 
         const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
-        const normalizedUserPhone = userPhone.replace(/\D/g, ''); // Remove all non-digits
+        const normalizedUserPhone = userPhone.replace(/\D/g, '');
         const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-
-        // Strict matching - only exact match for security
-        const hasAdminAccess = normalizedUserPhone === normalizedAdminPhone;
+        const userLast10 = normalizedUserPhone.slice(-10);
+        const adminLast10 = normalizedAdminPhone.slice(-10);
+        const hasAdminAccess = userLast10 === adminLast10 && userLast10.length === 10;
 
         if (!hasAdminAccess) {
           setAccessDenied(true);

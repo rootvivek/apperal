@@ -56,5 +56,6 @@ async function updateCategoryHandler(request: NextRequest, { userId: adminUserId
   }
 }
 
-export const POST = withAdminAuth(updateCategoryHandler);
-
+export const POST = withAdminAuth(updateCategoryHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

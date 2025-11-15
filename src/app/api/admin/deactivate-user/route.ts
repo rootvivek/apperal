@@ -101,4 +101,6 @@ async function deactivateHandler(request: NextRequest, { userId: adminUserId }: 
   }
 }
 
-export const POST = withAdminAuth(deactivateHandler);
+export const POST = withAdminAuth(deactivateHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});

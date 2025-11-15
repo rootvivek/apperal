@@ -41,14 +41,12 @@ CREATE TABLE IF NOT EXISTS app_config (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert admin phone (update this with your actual admin phone)
--- Run this once to set the admin phone
+-- Insert admin phone (exactly 10 digits: 8881765192)
 INSERT INTO app_config (key, value) 
-VALUES ('admin_phone', '+918881765192')
+VALUES ('admin_phone', '8881765192')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 
 -- Function to check if current user is admin
--- This function checks if the user's phone number matches the admin phone
 CREATE OR REPLACE FUNCTION check_admin_by_phone()
 RETURNS BOOLEAN AS $$
 DECLARE
@@ -63,19 +61,20 @@ BEGIN
   -- Get current user's phone from user_profiles
   SELECT phone INTO user_phone
   FROM user_profiles
-  WHERE id = auth.uid();
+  WHERE id = auth.uid()::text;
   
   -- If no user or no phone, return false
   IF user_phone IS NULL OR admin_phone IS NULL THEN
     RETURN false;
   END IF;
   
-  -- Normalize both phones (remove non-digits)
+  -- Normalize both phones and extract last 10 digits
   user_phone := regexp_replace(user_phone, '[^0-9]', '', 'g');
   admin_phone := regexp_replace(admin_phone, '[^0-9]', '', 'g');
+  user_phone := RIGHT(user_phone, 10);
+  admin_phone := RIGHT(admin_phone, 10);
   
-  -- Return true if they match
-  RETURN user_phone = admin_phone AND user_phone != '';
+  RETURN user_phone = admin_phone AND user_phone != '' AND LENGTH(user_phone) = 10;
 EXCEPTION
   WHEN OTHERS THEN
     RETURN false;
@@ -99,13 +98,31 @@ ON categories
 FOR SELECT
 USING (is_active = true);
 
--- Admins: Full access (view, edit, delete, insert - everything)
-CREATE POLICY "Admins have full access to categories"
+-- Admins: Full access - Split into separate policies for better control
+CREATE POLICY "Admins can view all categories"
 ON categories
-FOR ALL
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
+
+CREATE POLICY "Admins can update categories"
+ON categories
+FOR UPDATE
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can insert categories"
+ON categories
+FOR INSERT
+TO authenticated
+WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can delete categories"
+ON categories
+FOR DELETE
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- SUBCATEGORIES: Simple policies
@@ -124,13 +141,31 @@ ON subcategories
 FOR SELECT
 USING (is_active = true);
 
--- Admins: Full access (view, edit, delete, insert - everything)
-CREATE POLICY "Admins have full access to subcategories"
+-- Admins: Full access - Split into separate policies for better control
+CREATE POLICY "Admins can view all subcategories"
 ON subcategories
-FOR ALL
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
+
+CREATE POLICY "Admins can update subcategories"
+ON subcategories
+FOR UPDATE
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can insert subcategories"
+ON subcategories
+FOR INSERT
+TO authenticated
+WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can delete subcategories"
+ON subcategories
+FOR DELETE
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- PRODUCTS: Simple policies
@@ -149,13 +184,31 @@ ON products
 FOR SELECT
 USING (is_active = true);
 
--- Admins: Full access (view, edit, delete, insert - everything)
-CREATE POLICY "Admins have full access to products"
+-- Admins: Full access - Split into separate policies for better control
+CREATE POLICY "Admins can view all products"
 ON products
-FOR ALL
+FOR SELECT
+TO authenticated
+USING (check_admin_by_phone());
+
+CREATE POLICY "Admins can update products"
+ON products
+FOR UPDATE
 TO authenticated
 USING (check_admin_by_phone())
 WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can insert products"
+ON products
+FOR INSERT
+TO authenticated
+WITH CHECK (check_admin_by_phone());
+
+CREATE POLICY "Admins can delete products"
+ON products
+FOR DELETE
+TO authenticated
+USING (check_admin_by_phone());
 
 -- =============================================
 -- PRODUCT_IMAGES: Simple policies

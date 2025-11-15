@@ -194,5 +194,6 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
   }
 }
 
-export const POST = withAdminAuth(uploadImageHandler);
-
+export const POST = withAdminAuth(uploadImageHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

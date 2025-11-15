@@ -8,7 +8,7 @@ const updateSubcategorySchema = z.object({
   name: z.string().min(1).optional(),
   slug: z.string().min(1).optional(),
   description: z.string().optional(),
-  image_url: z.string().url().optional().nullable(),
+  image_url: z.string().url().optional().nullable().or(z.literal('')),
   parent_category_id: z.string().uuid().optional(),
   is_active: z.boolean().optional(),
 });
@@ -56,5 +56,6 @@ async function updateSubcategoryHandler(request: NextRequest, { userId: adminUse
   }
 }
 
-export const POST = withAdminAuth(updateSubcategoryHandler);
-
+export const POST = withAdminAuth(updateSubcategoryHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

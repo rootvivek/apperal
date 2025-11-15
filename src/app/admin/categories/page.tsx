@@ -322,7 +322,7 @@ export default function CategoriesPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
             body: JSON.stringify({
               subcategoryId: editingCategory.id,
@@ -351,7 +351,7 @@ export default function CategoriesPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
             body: JSON.stringify({
               categoryId: editingCategory.id,
@@ -382,7 +382,7 @@ export default function CategoriesPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
             body: JSON.stringify({
               ...categoryData,
@@ -410,7 +410,7 @@ export default function CategoriesPage() {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'x-user-id': user.id,
+              'X-User-Id': user.id,
             },
             body: JSON.stringify(categoryData),
           });
@@ -627,73 +627,78 @@ export default function CategoriesPage() {
     }
   };
 
-  const toggleCategoryStatus = async (categoryId: string, currentStatus: boolean, isSubcategory: boolean = false) => {
+  const toggleCategoryStatus = async (categoryId: string, currentStatus: boolean | null | undefined, isSubcategory: boolean = false) => {
     try {
       setError(null);
-      const newStatus = !currentStatus;
-      const tableName = isSubcategory ? 'subcategories' : 'categories';
+      const actualCurrentStatus = currentStatus ?? true;
+      const newStatus = !actualCurrentStatus;
       
-      // Check if user is authenticated (use user from auth context)
       if (!user) {
-        throw new Error('You must be logged in to perform this action');
+        const errorMsg = 'You must be logged in to perform this action';
+        setError(errorMsg);
+        alert(errorMsg);
+        return;
       }
       
-      // Direct Supabase update - RLS policies automatically allow admins full access
-      // Admins: Full access (via "Admins have full access" policy)
-      // Users: Blocked (no update permission)
-      const { error } = await supabase
-        .from(tableName)
-        .update({ is_active: newStatus })
-        .eq('id', categoryId);
+      const response = await fetch('/api/admin/toggle-category-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({
+          categoryId,
+          isActive: newStatus,
+          isSubcategory,
+        }),
+      });
 
-      if (error) {
-        console.error('Toggle status error:', error);
-        // Provide more helpful error message
-        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-          throw new Error('Permission denied. Please ensure RLS policies are set up correctly. Run admin-rls-policies.sql in your Supabase SQL Editor.');
-        }
-        throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = result.error || 'Failed to update status';
+        setError(errorMessage);
+        alert(errorMessage);
+        return;
       }
 
-      // Update state using functional updates - create new arrays/objects to force re-render
-      if (isSubcategory) {
-        setSubcategoriesList(prev => {
-          const updated = { ...prev };
-          let found = false;
-          for (const parentId in updated) {
-            const subcatIndex = updated[parentId].findIndex(sub => sub.id === categoryId);
-            if (subcatIndex !== -1) {
-              // Create completely new array and new object to force React re-render
-              updated[parentId] = updated[parentId].map((sub, idx) => 
-                idx === subcatIndex 
-                  ? { ...sub, is_active: newStatus }
-                  : sub
-              );
-              found = true;
-              break;
+      const updatedItem = isSubcategory ? result.subcategory : result.category;
+      if (updatedItem && updatedItem.is_active === newStatus) {
+        if (isSubcategory) {
+          setSubcategoriesList(prev => {
+            const updated = { ...prev };
+            let found = false;
+            for (const parentId in updated) {
+              const subcatIndex = updated[parentId].findIndex(sub => sub.id === categoryId);
+              if (subcatIndex !== -1) {
+                updated[parentId] = updated[parentId].map((sub, idx) => 
+                  idx === subcatIndex 
+                    ? { ...sub, is_active: updatedItem.is_active }
+                    : sub
+                );
+                found = true;
+                break;
+              }
             }
-          }
-          return found ? updated : prev;
-        });
+            return found ? updated : prev;
+          });
+        } else {
+          setCategories(prev => {
+            const index = prev.findIndex(cat => cat.id === categoryId);
+            if (index === -1) return prev;
+            const updated = [...prev];
+            updated[index] = { ...updated[index], is_active: updatedItem.is_active };
+            return updated;
+          });
+        }
+        setRefreshKey(prev => prev + 1);
       } else {
-        // Create new array with updated category to force React re-render
-        setCategories(prev => {
-          const index = prev.findIndex(cat => cat.id === categoryId);
-          if (index === -1) return prev;
-          
-          // Create new array with new category object
-          const updated = [...prev];
-          updated[index] = { ...updated[index], is_active: newStatus };
-          return updated;
-        });
+        throw new Error('Status update verification failed');
       }
-      
-      // Force re-render by updating refresh key
-      setRefreshKey(prev => prev + 1);
     } catch (err: any) {
       const errorMessage = err.message || 'Failed to update status';
       setError(errorMessage);
-      console.error('Error toggling status:', err);
+      alert(errorMessage);
     }
   };
 

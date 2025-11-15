@@ -45,7 +45,6 @@ export default function StockPage() {
 
       setProducts(productsData || []);
     } catch (error: any) {
-      console.error('Error fetching products:', error);
       setError(error?.message || 'Failed to fetch products');
       setProducts([]);
     } finally {
@@ -101,7 +100,6 @@ export default function StockPage() {
       delete newEditStock[productId];
       setEditStock(newEditStock);
     } catch (error: any) {
-      console.error('Error updating stock:', error);
       alert(error?.message || 'Failed to update stock. Please try again.');
     } finally {
       setUpdatingProductId(null);

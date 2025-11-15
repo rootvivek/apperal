@@ -342,5 +342,6 @@ async function deleteSubcategoryHandler(request: NextRequest, { userId: adminUse
   }
 }
 
-export const POST = withAdminAuth(deleteSubcategoryHandler);
-
+export const POST = withAdminAuth(deleteSubcategoryHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});

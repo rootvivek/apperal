@@ -94,7 +94,7 @@ export default function OrdersPage() {
               firstItemImage = itemsData[0]?.product_image || null;
             }
           } catch (error) {
-            console.log('Note: Could not fetch product_image for order:', order.id);
+            // Silently handle error - firstItemImage remains null
           }
           
           try {
@@ -107,7 +107,7 @@ export default function OrdersPage() {
               itemCount = count || 0;
             }
           } catch (error) {
-            console.log('Note: Could not count items for order:', order.id);
+            // Silently handle error - itemCount remains 0
           }
           
           return {
@@ -120,7 +120,7 @@ export default function OrdersPage() {
       );
       setOrders(ordersWithImages);
     } catch (error) {
-      console.error('Error fetching orders:', error);
+      // Error handled silently - orders state remains empty
     } finally {
       setOrdersLoading(false);
     }
@@ -230,7 +230,7 @@ export default function OrdersPage() {
         }
       }
     } catch (error) {
-      console.error('Error fetching order details:', error);
+      // Error handled silently
     }
     setShowOrderDetails(true);
   };
@@ -277,8 +277,7 @@ export default function OrdersPage() {
       }
       alert('Order status updated successfully!');
     } catch (error: any) {
-      console.error('Error updating order status:', error);
-      alert('Failed to update order status: ' + error.message);
+      alert('Failed to update order status: ' + (error.message || 'Unknown error'));
     }
   };
 

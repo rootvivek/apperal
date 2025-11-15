@@ -54,5 +54,6 @@ async function createSubcategoryHandler(request: NextRequest, { userId: adminUse
   }
 }
 
-export const POST = withAdminAuth(createSubcategoryHandler);
-
+export const POST = withAdminAuth(createSubcategoryHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 30 },
+});

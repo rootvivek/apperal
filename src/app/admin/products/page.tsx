@@ -162,44 +162,59 @@ export default function ProductsPage() {
       const errorMessage = err.message || 'Failed to delete product. Please try again.';
       setError(errorMessage);
       alert(errorMessage);
-      console.error('Error deleting product:', err);
     }
   };
 
-  const toggleProductStatus = async (productId: string, currentStatus: boolean) => {
+  const toggleProductStatus = async (productId: string, currentStatus: boolean | null | undefined) => {
     try {
       setError(null);
-      const newStatus = !currentStatus;
+      // Handle null/undefined - default to true if not set
+      const actualCurrentStatus = currentStatus ?? true;
+      const newStatus = !actualCurrentStatus;
       
-      // Check if user is authenticated (use user from auth context)
       if (!user) {
-        throw new Error('You must be logged in to perform this action');
+        const errorMsg = 'You must be logged in to perform this action';
+        setError(errorMsg);
+        alert(errorMsg);
+        return;
       }
       
-      // Direct Supabase update - RLS policies automatically allow admins full access
-      // Admins: Full access (via "Admins have full access" policy)
-      // Users: Blocked (no update permission)
-      const { error } = await supabase
-        .from('products')
-        .update({ is_active: newStatus })
-        .eq('id', productId);
+      const response = await fetch('/api/admin/toggle-product-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({
+          productId,
+          isActive: newStatus,
+        }),
+      });
 
-      if (error) {
-        console.error('Toggle product status error:', error);
-        // Provide more helpful error message
-        if (error.code === '42501' || error.message?.includes('permission') || error.message?.includes('policy')) {
-          throw new Error('Permission denied. Please ensure RLS policies are set up correctly. Run admin-rls-policies.sql in your Supabase SQL Editor.');
-        }
-        throw error;
+      const result = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = result.error || 'Failed to update product status';
+        setError(errorMessage);
+        alert(errorMessage);
+        return;
       }
 
-      // Update local state
-      setProducts(products.map(p => 
-        p.id === productId ? { ...p, is_active: newStatus } : p
-      ));
+      // Verify the response contains the updated product
+      if (result.product && result.product.is_active === newStatus) {
+        // Update local state with the actual response from server
+        setProducts(prevProducts => {
+          return prevProducts.map(p => 
+            p.id === productId ? { ...p, is_active: result.product.is_active } : p
+          );
+        });
+      } else {
+        throw new Error('Status update verification failed');
+      }
     } catch (err: any) {
-      setError(err.message);
-      console.error('Error toggling product status:', err);
+      const errorMessage = err.message || 'Failed to update product status';
+      setError(errorMessage);
+      alert(errorMessage);
     }
   };
 
@@ -400,12 +415,13 @@ export default function ProductsPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <button
-                          onClick={() => toggleProductStatus(product.id, product.is_active)}
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          onClick={() => toggleProductStatus(product.id, product.is_active ?? true)}
+                          disabled={loading}
+                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full transition-colors ${
                             product.is_active
                               ? 'bg-green-100 text-green-800 hover:bg-green-200'
                               : 'bg-red-100 text-red-800 hover:bg-red-200'
-                          }`}
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
                         >
                           {product.is_active ? 'Active' : 'Inactive'}
                         </button>

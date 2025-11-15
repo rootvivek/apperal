@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef, use } from 'react';
-import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
 import ImageWithFallback from '@/components/ImageWithFallback';
@@ -111,6 +110,21 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const imageContainerRef = useRef<HTMLDivElement>(null);
   const previousSlugRef = useRef<string>('');
 
+  // Reset zoom preview when selected image changes
+  useEffect(() => {
+    if (showZoomPreview && product && product.images && product.images.length > 0) {
+      // Update zoom preview position and size when image changes
+      if (imageContainerRef.current) {
+        const rect = imageContainerRef.current.getBoundingClientRect();
+        setImageContainerSize({ width: rect.width, height: rect.height });
+        setZoomPreviewPosition({
+          left: rect.right + 16,
+          top: rect.top
+        });
+      }
+    }
+  }, [selectedImage, showZoomPreview, product]);
+
   const fetchRelatedProducts = async (categoryName: string, categoryId: string | null, currentProductId: string, subcategoryId?: string | null) => {
     try {
       setRelatedLoading(true);
@@ -121,16 +135,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       if (categoryId) {
         const { data, error } = await supabase
           .from('products')
-          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .select('id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category_id, subcategory_id, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)')
           .eq('category_id', categoryId)
           .neq('id', currentProductId)
           .eq('is_active', true)
           .limit(8)
           .order('created_at', { ascending: false });
         
-        if (error) {
-          console.error('Error fetching related products by category_id:', error);
-        } else if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           productsData = data;
         }
       }
@@ -139,16 +151,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       if (productsData.length === 0 && subcategoryId) {
         const { data, error } = await supabase
           .from('products')
-          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .select('id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category_id, subcategory_id, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)')
           .eq('subcategory_id', subcategoryId)
           .neq('id', currentProductId)
           .eq('is_active', true)
           .limit(8)
           .order('created_at', { ascending: false });
         
-        if (error) {
-          console.error('Error fetching related products by subcategory_id:', error);
-        } else if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           productsData = data;
         }
       }
@@ -157,38 +167,57 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       if (productsData.length === 0) {
         const { data, error } = await supabase
           .from('products')
-          .select('*, product_images (id, image_url, alt_text, display_order)')
+          .select('id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category_id, subcategory_id, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)')
           .neq('id', currentProductId)
           .eq('is_active', true)
           .limit(8)
           .order('created_at', { ascending: false });
         
-        if (error) {
-          console.error('Error fetching any related products:', error);
-        } else if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           productsData = data;
         }
       }
       
-      // Transform products to include images array
+      // Transform products to include images array and ensure image_url is present
       if (productsData.length > 0) {
-        const transformedProducts = productsData.map((product: any) => ({
-          ...product,
-          images: product.product_images || (product.image_url ? [{
-            id: 'main-image',
-            image_url: product.image_url,
-            alt_text: product.name,
-            display_order: 0
-          }] : [])
-        }));
+        const transformedProducts = productsData.map((product: any) => {
+          // Ensure image_url exists - use first product_image if main image_url is missing
+          let mainImageUrl = product.image_url;
+          if (!mainImageUrl && product.product_images && product.product_images.length > 0) {
+            mainImageUrl = product.product_images[0].image_url;
+          }
+          
+          // Transform product_images to images array format
+          const imagesArray = product.product_images && product.product_images.length > 0
+            ? product.product_images.map((img: any) => ({
+                id: img.id || 'image-' + Math.random(),
+                image_url: img.image_url,
+                alt_text: img.alt_text || product.name,
+                display_order: img.display_order || 0
+              }))
+            : (mainImageUrl ? [{
+                id: 'main-image',
+                image_url: mainImageUrl,
+                alt_text: product.name,
+                display_order: 0
+              }] : []);
+          
+          return {
+            ...product,
+            image_url: mainImageUrl || '', // Ensure image_url is always present
+            images: imagesArray,
+            // Ensure category and subcategory are strings for ProductCard
+            category: typeof product.category === 'object' ? product.category?.name || '' : (product.category || ''),
+            subcategory: product.subcategory || '',
+            subcategories: product.subcategory ? [product.subcategory] : []
+          };
+        });
         
         setRelatedProducts(transformedProducts as ProductCardProduct[]);
-      } else {
-        console.log('No related products found for category:', categoryId || categoryName, 'subcategory:', subcategoryId);
-        setRelatedProducts([]);
-      }
+        } else {
+          setRelatedProducts([]);
+        }
     } catch (err) {
-      console.error('Error fetching related products:', err);
       setRelatedProducts([]);
     } finally {
       setRelatedLoading(false);
@@ -277,13 +306,11 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         }
 
         if (productError) {
-          console.error('Error fetching product:', productError);
           setError('Product not found');
           return;
         }
 
         if (!product) {
-          console.error('No product found with slug:', slug);
           setError('Product not found');
           return;
         }
@@ -400,7 +427,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               setCategorySlug(categoryData.slug);
             }
           } catch (err) {
-            console.error('Error fetching category by ID:', err);
           }
         }
           
@@ -418,7 +444,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               setCategorySlug(categoryData.slug);
             }
           } catch (err) {
-            console.error('Error fetching category by name:', err);
           }
         }
           
@@ -443,7 +468,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
           setError('Product not found');
         }
       } catch (err) {
-        console.error('Error fetching product:', err);
         setError('Failed to load product');
       } finally {
         setLoading(false);
@@ -533,7 +557,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
 
   const handleShare = async () => {
     if (!product || isSharing) {
-      console.error('No product data available for sharing or already sharing');
       return;
     }
 
@@ -572,7 +595,6 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         document.body.removeChild(notification);
       }, 3000);
     } catch (err) {
-      console.error('Error copying to clipboard:', err);
       // Final fallback - show the URL in a prompt
       prompt('Copy this link to share:', window.location.href);
     }
@@ -839,8 +861,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               </div>
 
               <ImageWithFallback
+                key={`main-image-${selectedImage}`}
                 src={product.images && product.images.length > 0 
-                  ? product.images[selectedImage].image_url 
+                  ? product.images[selectedImage]?.image_url 
                   : product.image_url || PLACEHOLDER_PRODUCT}
                 alt={product.name}
                 className="h-full w-full object-cover"
@@ -864,8 +887,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 >
                   <div className="w-full h-full rounded-full overflow-hidden">
                     <ImageWithFallback
+                      key={`zoom-overlay-${selectedImage}`}
                       src={product.images && product.images.length > 0 
-                        ? product.images[selectedImage].image_url 
+                        ? product.images[selectedImage]?.image_url 
                         : product.image_url || PLACEHOLDER_PRODUCT}
                       alt={product.name}
                       className="w-full h-full object-cover"
@@ -893,8 +917,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 }}
               >
                 <ImageWithFallback
+                  key={`zoom-preview-${selectedImage}`}
                   src={product.images && product.images.length > 0 
-                    ? product.images[selectedImage].image_url 
+                    ? product.images[selectedImage]?.image_url 
                     : product.image_url || PLACEHOLDER_PRODUCT}
                   alt={product.name}
                   className="w-full h-full object-contain"
@@ -1009,8 +1034,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 </div>
 
                 <ImageWithFallback
+                  key={`mobile-main-image-${selectedImage}`}
                   src={product.images && product.images.length > 0 
-                    ? product.images[selectedImage].image_url 
+                    ? product.images[selectedImage]?.image_url 
                     : product.image_url || PLACEHOLDER_PRODUCT}
                   alt={product.name}
                   className="h-full w-full object-cover"

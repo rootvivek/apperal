@@ -100,5 +100,6 @@ async function hardDeleteUserHandler(request: NextRequest, { userId: adminUserId
 }
 
 // Export with admin authentication wrapper
-export const POST = withAdminAuth(hardDeleteUserHandler);
-
+export const POST = withAdminAuth(hardDeleteUserHandler, {
+  rateLimit: { windowMs: 60000, maxRequests: 10 },
+});
