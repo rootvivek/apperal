@@ -1110,6 +1110,37 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   )}
                 </div>
               </div>
+
+              {/* Quantity Selector */}
+              <div className="mt-4">
+                <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-2">
+                  Quantity
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <select
+                      value={quantity}
+                      onChange={(e) => setQuantity(parseInt(e.target.value))}
+                      className="w-16 h-10 px-1.5 pr-10 border border-gray-300 rounded font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand bg-white cursor-pointer text-center appearance-none"
+                    >
+                      {Array.from({ length: Math.min(product.stock_quantity || 99, 99) }, (_, i) => i + 1).map((num) => (
+                        <option key={num} value={num}>
+                          {num}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none">
+                      <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="text-sm text-gray-600">
+                    {product.stock_quantity > 0 ? `${product.stock_quantity} available` : 'Out of stock'}
+                  </span>
+                </div>
+              </div>
+
               {(productRating !== null && productRating !== undefined) && (
                 <div className="mt-3 flex items-center gap-1.5 sm:gap-2">
                   <span className="flex items-center text-yellow-500">

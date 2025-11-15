@@ -52,7 +52,6 @@ export default function HeroCarousel() {
       setProducts(data || []);
       }
     } catch (err: any) {
-      console.error('Error fetching featured products:', err);
       setProducts([]);
     } finally {
       setLoading(false);
@@ -63,12 +62,6 @@ export default function HeroCarousel() {
     fetchFeaturedProducts();
   }, [fetchFeaturedProducts]);
 
-  // Debug: Log products count
-  useEffect(() => {
-    if (!loading) {
-      console.log('HeroCarousel products:', products.length);
-    }
-  }, [products, loading]);
 
   if (loading) {
     return (

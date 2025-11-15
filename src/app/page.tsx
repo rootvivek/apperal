@@ -5,7 +5,6 @@ import Link from 'next/link';
 import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
 import HeroCarousel from '@/components/HeroCarousel';
-import HomePageSkeleton from '@/components/HomePageSkeleton';
 import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
 import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
@@ -75,9 +74,10 @@ export default function Home() {
           product_images (\n            id,\n            image_url,\n            alt_text,\n            display_order\n          )\n        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(8);
+        .limit(10);
 
       if (allProductsError) {
+        console.error('Error fetching all products:', allProductsError);
       }
 
       // Fetch categories and subcategories in parallel
@@ -96,9 +96,11 @@ export default function Home() {
       ]);
 
       if (categoriesResult.error) {
+        console.error('Error fetching categories:', categoriesResult.error);
       }
 
       if (subcategoriesResult.error) {
+        console.error('Error fetching subcategories:', subcategoriesResult.error);
       }
 
       // Attach subcategories to their parent categories
@@ -125,6 +127,7 @@ export default function Home() {
             .limit(8);
 
           if (categoryProductsError) {
+            console.error(`Error fetching products for category ${category.name}:`, categoryProductsError);
           }
 
           categorySectionsData.push({
@@ -210,7 +213,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, [dataFetched, fetchDataFallback, allProducts, categorySections, categories]); // Include fetchDataFallback
+  }, [dataFetched, fetchDataFallback]);
 
   useEffect(() => {
     // Only fetch data if not already fetched (prevents refetch on refresh)

@@ -128,7 +128,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Check if profile exists and is not deleted
       const { data: existingProfile, error: fetchError } = await supabase
         .from('user_profiles')
-        .select('id, deleted_at, is_active')
+        .select('id, email, deleted_at, is_active')
         .eq('id', userId)
         .maybeSingle();
 
@@ -186,11 +186,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           return;
         }
 
-        // Profile exists, update it with latest Firebase data
+        // Profile exists - only update email if it's a placeholder email
+        // This preserves user's manually set email from profile page
+        const currentEmail = existingProfile.email || '';
+        const isPlaceholderEmail = currentEmail.endsWith('@apperal.local');
+        
+        // Only update email if it's a placeholder or if Firebase has a real email and current is placeholder
+        const emailToUpdate = isPlaceholderEmail ? userEmail : currentEmail;
+
+        // Profile exists, update it with latest Firebase data (but preserve manually set email)
         const { error: updateError } = await supabase
           .from('user_profiles')
           .update({
-            email: userEmail,
+            email: emailToUpdate,
             full_name: displayName,
             phone: userPhone,
             updated_at: new Date().toISOString(),

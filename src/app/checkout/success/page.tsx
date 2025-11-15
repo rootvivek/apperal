@@ -324,12 +324,6 @@ function CheckoutSuccessContent() {
             >
               Continue Shopping
             </Link>
-            <Link
-              href="/"
-              className="border border-gray-300 text-gray-700 px-6 py-3 rounded-md font-medium hover:bg-gray-50 transition-colors text-center"
-            >
-              Back to Home
-            </Link>
           </div>
         </div>
       </div>

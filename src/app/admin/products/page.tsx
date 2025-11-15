@@ -39,12 +39,29 @@ export default function ProductsPage() {
     try {
       setLoading(true);
       
-      const { data: productsData, error: productsError } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Use API route to fetch all products (including inactive) - bypasses RLS
+      if (!user?.id) {
+        setError('No active session. Please log in again.');
+        setLoading(false);
+        return;
+      }
 
-      if (productsError) throw productsError;
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch products');
+      }
+
+      const productsData = result.products || [];
 
       if (!productsData || productsData.length === 0) {
         setProducts([]);
@@ -377,8 +394,15 @@ export default function ProductsPage() {
                           </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">
-                              {product.name}
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-medium text-gray-900">
+                                {product.name}
+                              </div>
+                              {product.is_active === false && (
+                                <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-500 text-white">
+                                  Inactive
+                                </span>
+                              )}
                             </div>
                         <div className="text-sm text-gray-500 truncate max-w-xs">
                               {product.description}

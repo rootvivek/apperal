@@ -147,13 +147,32 @@ function AdminDashboardContent() {
   const fetchProducts = async () => {
     try {
       setProductsLoading(true);
-      const { data } = await supabase
-        .from('products')
-        .select('*')
-        .order('created_at', { ascending: false });
-      setProducts(data || []);
+      
+      // Use API route to fetch all products (including inactive) - bypasses RLS
+      if (!user?.id) {
+        setProducts([]);
+        return;
+      }
+
+      const response = await fetch('/api/admin/products', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-User-Id': user.id,
+        },
+        body: JSON.stringify({ userId: user.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to fetch products');
+      }
+
+      setProducts(result.products || []);
     } catch (error) {
       // Error handled silently - products state remains empty
+      console.error('Error fetching products:', error);
     } finally {
       setProductsLoading(false);
     }
@@ -638,7 +657,21 @@ function AdminDashboardContent() {
                     </div>
                   ),
                 },
-                { key: 'name' as const, label: 'Product', sortable: true },
+                {
+                  key: 'name' as const,
+                  label: 'Product',
+                  sortable: true,
+                  render: (value: string, row: Product) => (
+                    <div className="flex items-center gap-2">
+                      <span>{value}</span>
+                      {row.is_active === false && (
+                        <span className="px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-500 text-white">
+                          Inactive
+                        </span>
+                      )}
+                    </div>
+                  ),
+                },
                 {
                   key: 'price' as const,
                   label: 'Price',

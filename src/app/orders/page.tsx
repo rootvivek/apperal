@@ -1,30 +1,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
-import { getProductDetailType } from '@/utils/productDetailsMapping';
 import { useAuth } from '@/contexts/AuthContext';
 import EmptyState from '@/components/EmptyState';
 import LoadingLogo from '@/components/LoadingLogo';
-import Modal from '@/components/Modal';
-import Button from '@/components/Button';
 import ImageWithFallback from '@/components/ImageWithFallback';
 
 interface Order {
   id: string;
   order_number: string;
-  user_id: string;
-  total_amount: number;
   status: string;
   payment_method: string;
   payment_status?: string;
   created_at: string;
 }
 
-interface OrderItem {
+interface ExpandedOrderItem {
   id: string;
   order_id: string;
+  order_item_id: string; // Original order_item id
+  order_number: string;
   product_id: string;
   product_name: string;
   product_image?: string;
@@ -32,20 +30,18 @@ interface OrderItem {
   quantity: number;
   total_price: number;
   size?: string | null;
+  status: string;
+  payment_method: string;
+  created_at: string;
+  is_cancelled?: boolean;
 }
 
 function OrdersContent() {
+  const router = useRouter();
   const supabase = createClient();
   const { user } = useAuth();
-  const [orders, setOrders] = useState<Order[]>([]);
+  const [expandedOrderItems, setExpandedOrderItems] = useState<ExpandedOrderItem[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancellationReason, setCancellationReason] = useState('');
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
 
   useEffect(() => {
     if (user) {
@@ -56,8 +52,7 @@ function OrdersContent() {
   const fetchOrders = async () => {
     try {
       setOrdersLoading(true);
-      // Only fetch orders that are paid/completed (not pending)
-      // Fetch all orders for user, then filter to only show paid ones
+      // Fetch all orders for user
       const { data } = await supabase
         .from('orders')
         .select('*')
@@ -65,78 +60,107 @@ function OrdersContent() {
         .order('created_at', { ascending: false });
       
       // Filter to ensure we only show truly paid orders
-      // Orders must have status='paid' OR payment_status='completed'
       const paidOrders = (data || []).filter((order: Order) => 
         order.status === 'paid' || order.payment_status === 'completed'
       );
       
-      setOrders(paidOrders);
-    } catch (error) {
+      // Fetch all order items and expand them into separate entries
+      const allExpandedItems: ExpandedOrderItem[] = [];
+      
+      for (const order of paidOrders) {
+        try {
+          // Fetch all order items for this order
+          const { data: itemsData } = await supabase
+            .from('order_items')
+            .select('*')
+            .eq('order_id', order.id);
+          
+          if (itemsData) {
+            // Fetch product images and subcategory info
+            const itemsWithImages = await Promise.all(
+              itemsData.map(async (item: any) => {
+                let productImage = item.product_image;
+                
+                // Fetch from products table if needed
+                if (item.product_id) {
+                  const { data: productData } = await supabase
+                    .from('products')
+                    .select('image_url')
+                    .eq('id', item.product_id)
+                    .maybeSingle();
+                  
+                  if (productData?.image_url) {
+                    productImage = productData.image_url;
+                  }
+                }
+                
+                return {
+                  ...item,
+                  product_image: productImage || null
+                };
+              })
+            );
+            
+            // Expand items with quantity > 1 into separate entries
+            itemsWithImages.forEach((item: any) => {
+              const cancelledQty = item.cancelled_quantity || 0;
+              const activeQty = item.quantity - cancelledQty;
+              
+              // Only expand active (non-cancelled) items
+              for (let i = 0; i < activeQty; i++) {
+                allExpandedItems.push({
+                  id: `${item.id}-${i}`,
+                  order_id: order.id,
+                  order_item_id: item.id, // Store original order_item id
+                  order_number: order.order_number,
+                  product_id: item.product_id,
+                  product_name: item.product_name,
+                  product_image: item.product_image,
+                  product_price: item.product_price,
+                  quantity: 1,
+                  total_price: item.product_price,
+                  size: item.size,
+                  status: order.status,
+                  payment_method: order.payment_method,
+                  created_at: order.created_at,
+                  is_cancelled: false
+                });
+              }
+              
+              // Add cancelled items separately (if any)
+              for (let i = 0; i < cancelledQty; i++) {
+                allExpandedItems.push({
+                  id: `${item.id}-cancelled-${i}`,
+                  order_id: order.id,
+                  order_item_id: item.id,
+                  order_number: order.order_number,
+                  product_id: item.product_id,
+                  product_name: item.product_name,
+                  product_image: item.product_image,
+                  product_price: item.product_price,
+                  quantity: 1,
+                  total_price: item.product_price,
+                  size: item.size,
+                  status: 'cancelled',
+                  payment_method: order.payment_method,
+                  created_at: order.created_at,
+                  is_cancelled: true
+                });
+              }
+            });
+          }
+        } catch (error) {
+          console.error(`Error fetching order items for order ${order.id}:`, error);
+        }
+      }
+      
+      setExpandedOrderItems(allExpandedItems);
+    } catch (error: any) {
+      console.error('Error fetching orders:', error);
+      setExpandedOrderItems([]);
     } finally {
       setOrdersLoading(false);
     }
-  };
-
-  const handleOrderClick = async (order: Order) => {
-    setSelectedOrder(order);
-    
-    try {
-      // Fetch order items
-      const { data: itemsData } = await supabase
-        .from('order_items')
-        .select('*')
-        .eq('order_id', order.id);
-      
-      // Fetch product images and subcategory info for each order item
-      const subcategoryMap: {[key: string]: {name: string | null, slug: string | null, detail_type: string | null}} = {};
-      
-      const itemsWithImages = await Promise.all(
-        (itemsData || []).map(async (item: any) => {
-          let productImage = item.product_image;
-          
-          // If no product_image in order_items, fetch from products table
-          if (item.product_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('image_url, subcategory_id')
-              .eq('id', item.product_id)
-              .single();
-            
-            if (productData?.image_url) {
-              productImage = productData.image_url;
-            }
-            
-            // Fetch subcategory info
-            if (productData?.subcategory_id) {
-              const { data: subcategory } = await supabase
-                .from('subcategories')
-                .select('name, slug, detail_type')
-                .eq('id', productData.subcategory_id)
-                .single();
-              
-              if (subcategory) {
-                subcategoryMap[item.product_id] = {
-                  name: subcategory.name,
-                  slug: subcategory.slug,
-                  detail_type: subcategory.detail_type
-                };
-              }
-            }
-          }
-          
-          return {
-            ...item,
-            product_image: productImage || null
-          };
-        })
-      );
-      
-      setProductSubcategories(subcategoryMap);
-      setOrderItems(itemsWithImages);
-    } catch (error) {
-    }
-    
-    setShowOrderDetails(true);
   };
 
   const formatDate = (date: string) => {
@@ -151,56 +175,6 @@ function OrdersContent() {
   };
 
   const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
-
-  const canCancelOrder = (order: Order) => {
-    // Can only cancel if order is pending or processing
-    // Cannot cancel if order is delivered, shipped, or already cancelled
-    const cancelableStatuses = ['pending', 'processing'];
-    return cancelableStatuses.includes(order.status);
-  };
-
-  const handleCancelOrder = async () => {
-    if (!selectedOrder || !cancellationReason.trim()) {
-      alert('Please provide a reason for cancellation');
-      return;
-    }
-
-    if (!canCancelOrder(selectedOrder)) {
-      alert('This order cannot be cancelled. Only pending or processing orders can be cancelled.');
-      return;
-    }
-
-    setIsCancelling(true);
-    try {
-      const { error } = await supabase
-        .from('orders')
-        .update({
-          status: 'cancelled',
-          cancellation_reason: cancellationReason.trim(),
-          cancelled_by: 'customer',
-          cancelled_at: new Date().toISOString()
-        })
-        .eq('id', selectedOrder.id);
-
-      if (error) throw error;
-
-      // Update local state
-      setOrders(orders.map(o => 
-        o.id === selectedOrder.id 
-          ? { ...o, status: 'cancelled' as any } 
-          : o
-      ));
-      
-      setSelectedOrder({ ...selectedOrder, status: 'cancelled' as any });
-      setShowCancelModal(false);
-      setCancellationReason('');
-      alert('Order cancelled successfully!');
-    } catch (error: any) {
-      alert('Failed to cancel order: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsCancelling(false);
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -225,66 +199,74 @@ function OrdersContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pb-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-3 lg:px-4 pb-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
           <p className="text-gray-600">
-            {orders.length === 0 
+            {expandedOrderItems.length === 0 
               ? "You haven't placed any orders yet." 
-              : `You have ${orders.length} order${orders.length === 1 ? '' : 's'}.`
+              : `You have ${expandedOrderItems.length} item${expandedOrderItems.length === 1 ? '' : 's'}.`
             }
           </p>
         </div>
 
-        {orders.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-            <svg className="w-24 h-24 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-            </svg>
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No orders yet</h3>
-            <p className="text-gray-500 mb-6">Start shopping to see your orders here.</p>
-            <a 
-              href="/products" 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors"
-            >
-              Browse Products
-            </a>
-          </div>
+        {expandedOrderItems.length === 0 ? (
+          <EmptyState
+            icon="🛍️"
+            title="No orders yet"
+            description="Start shopping to see your orders here."
+            actionLabel="Browse Products"
+            actionHref="/products"
+            variant="default"
+            className="bg-white rounded-lg shadow-sm border border-gray-200"
+          />
         ) : (
-          <div className="space-y-4">
-            {orders.map((order) => (
+          <div className="space-y-3">
+            {expandedOrderItems.map((item) => (
               <div 
-                key={order.id} 
-                className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow cursor-pointer"
-                onClick={() => handleOrderClick(order)}
+                key={item.id} 
+                className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer'}`}
+                onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}`)}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-1">
                     <div className="flex-shrink-0">
-                      <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                        </svg>
-                      </div>
+                      {item.product_image ? (
+                        <ImageWithFallback
+                          src={item.product_image}
+                          alt={item.product_name || 'Product'}
+                          className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                          fallbackType="product"
+                        />
+                      ) : (
+                        <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                          </svg>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-1">
-                        <h3 className="text-lg font-semibold text-gray-900">
-                          Order #{order.order_number}
-                        </h3>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusColor(order.status)}`}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </span>
-                      </div>
-                      <p className="text-sm text-gray-600 font-medium">{formatDate(order.created_at)}</p>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method.charAt(0).toUpperCase() + order.payment_method.slice(1)}
+                      {/* Product Name */}
+                      <p className="text-base font-semibold text-gray-900 mb-1">
+                        {item.product_name || `Order #${item.order_number}`}
+                      </p>
+                      {/* Order Number */}
+                      <p className="text-xs text-gray-500 mb-1">Order #{item.order_number}</p>
+                      {/* Purchase Date */}
+                      <p className="text-sm text-gray-600 mb-1">{formatDate(item.created_at)}</p>
+                      {/* Payment Method */}
+                      <p className="text-sm text-gray-600">
+                        {item.payment_method === 'cod' ? 'Cash on Delivery' : item.payment_method.charAt(0).toUpperCase() + item.payment_method.slice(1)}
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-blue-600">{formatCurrency(order.total_amount)}</p>
-                    <p className="text-xs text-gray-500 mt-1">Total</p>
+                  <div className="text-right flex flex-col items-end">
+                    <span className={`px-3 py-1 rounded-full text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
+                      {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                    </span>
+                    <p className="text-lg font-bold text-blue-600">{formatCurrency(item.product_price)}</p>
+                    <p className="text-xs text-gray-500 mt-1">Price</p>
                   </div>
                 </div>
               </div>
@@ -292,203 +274,6 @@ function OrdersContent() {
           </div>
         )}
       </div>
-
-      {/* Order Details Modal */}
-      {showOrderDetails && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg w-full max-h-[90vh] flex flex-col max-w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center flex-shrink-0">
-              <div>
-                <h2 className="text-xl font-bold">Order #{selectedOrder.order_number}</h2>
-                <p className="text-sm text-gray-600">{formatDate(selectedOrder.created_at)}</p>
-              </div>
-              <button 
-                onClick={() => setShowOrderDetails(false)} 
-                className="text-2xl text-gray-400 hover:text-gray-600"
-              >
-                ✕
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-6 overflow-y-auto flex-1">
-              {/* Order Summary */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Order Status</p>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium inline-block ${getStatusColor(selectedOrder.status)}`}>
-                      {selectedOrder.status.charAt(0).toUpperCase() + selectedOrder.status.slice(1)}
-                    </span>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Payment Method</p>
-                    <p className="font-medium capitalize">
-                      {selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Order Date</p>
-                    <p className="font-medium">{formatDate(selectedOrder.created_at)}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Total Amount</p>
-                    <p className="font-bold text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Order Items */}
-              <div>
-                <h3 className="font-semibold mb-4 text-gray-900">Order Items</h3>
-                {orderItems.length === 0 ? (
-                  <EmptyState
-                    title="No items found"
-                    variant="minimal"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {orderItems.map((item) => (
-                      <div key={item.id} className="border border-gray-200 rounded-lg p-4">
-                        <div className="flex items-start space-x-4">
-                          {item.product_image ? (
-                            <ImageWithFallback
-                              src={item.product_image}
-                              alt={item.product_name}
-                              className="w-20 h-20 object-cover rounded-lg"
-                              fallbackType="product"
-                            />
-                          ) : (
-                            <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center">
-                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
-                          <div className="flex-1">
-                            <h4 className="font-medium text-gray-900">{item.product_name}</h4>
-                            <p className="text-sm text-gray-600 mt-1">
-                              ₹{item.product_price.toFixed(2)} × {item.quantity} item{item.quantity !== 1 ? 's' : ''}
-                              {(() => {
-                                const subcategoryInfo = productSubcategories[item.product_id];
-                                const detailType = subcategoryInfo 
-                                  ? getProductDetailType(
-                                      subcategoryInfo.name,
-                                      subcategoryInfo.slug,
-                                      subcategoryInfo.detail_type
-                                    )
-                                  : 'none';
-                                
-                                // Only show size for apparel products
-                                if (detailType === 'apparel' && item.size) {
-                                  return <span className="ml-2">| Size: {item.size}</span>;
-                                }
-                                return null;
-                              })()}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-gray-900">{formatCurrency(item.total_price)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Order Total */}
-              <div className="border-t border-gray-200 pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold text-gray-900">Order Total</span>
-                  <span className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(selectedOrder.total_amount)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-4 sm:p-6 border-t border-gray-200 bg-white flex-shrink-0">
-              <div className="flex flex-col sm:flex-row gap-3">
-                {canCancelOrder(selectedOrder) && (
-                  <button
-                    onClick={() => setShowCancelModal(true)}
-                    className="w-full sm:flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm sm:text-base font-medium"
-                  >
-                    Cancel Order
-                  </button>
-                )}
-                <button
-                  onClick={() => setShowOrderDetails(false)}
-                  className={`w-full ${canCancelOrder(selectedOrder) ? 'sm:flex-1' : ''} px-4 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm sm:text-base font-medium`}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Cancellation Modal */}
-      {showCancelModal && selectedOrder && (
-        <Modal
-          isOpen={showCancelModal}
-          onClose={() => {
-            setShowCancelModal(false);
-            setSelectedOrder(null);
-            setCancellationReason('');
-          }}
-          title={`Cancel Order #${selectedOrder.order_number}`}
-          variant="simple"
-          size="lg"
-        >
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="cancellationReason" className="block text-sm font-medium text-gray-700 mb-2">
-                Reason for Cancellation <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="cancellationReason"
-                value={cancellationReason}
-                onChange={(e) => setCancellationReason(e.target.value)}
-                placeholder="Please provide a reason for cancelling this order..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                rows={4}
-              />
-            </div>
-            
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-sm text-yellow-800">
-                <strong>Note:</strong> Once cancelled, this order cannot be restored. Are you sure you want to proceed?
-              </p>
-            </div>
-            
-            <div className="flex gap-3 mt-6">
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={() => {
-                  setShowCancelModal(false);
-                  setSelectedOrder(null);
-                  setCancellationReason('');
-                }}
-                disabled={isCancelling}
-              >
-                Keep Order
-              </Button>
-              <Button
-                variant="danger"
-                fullWidth
-                onClick={handleCancelOrder}
-                disabled={isCancelling || !cancellationReason.trim()}
-                loading={isCancelling}
-              >
-                Confirm Cancellation
-              </Button>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }
