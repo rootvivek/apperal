@@ -62,6 +62,25 @@ export default function HeroCarousel() {
     fetchFeaturedProducts();
   }, [fetchFeaturedProducts]);
 
+  // Preload first hero image for LCP optimization
+  useEffect(() => {
+    if (products.length > 0 && products[0].image_url) {
+      const link = document.createElement('link');
+      link.rel = 'preload';
+      link.as = 'image';
+      link.href = products[0].image_url;
+      link.fetchPriority = 'high';
+      document.head.appendChild(link);
+      
+      return () => {
+        // Cleanup on unmount
+        if (document.head.contains(link)) {
+          document.head.removeChild(link);
+        }
+      };
+    }
+  }, [products]);
+
 
   if (loading) {
     return (

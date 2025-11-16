@@ -109,6 +109,9 @@ const Card = memo(function Card({
           height={aspectRatio === 'square' ? 400 : aspectRatio === '5/6' ? 480 : 427}
           fallbackType="category"
           onError={onImageError}
+          responsive={true}
+          responsiveSizes={[200, 300, 400]}
+          quality={85}
         />
         {showOverlay && titlePosition === 'overlay' && (
           <div className={getOverlayClasses()}>

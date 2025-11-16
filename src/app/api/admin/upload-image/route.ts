@@ -113,11 +113,11 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
       lastModified: Date.now()
     });
 
-    // Upload processed image to Supabase Storage
+    // Upload processed image to Supabase Storage with long-term cache (1 year)
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, processedFile, {
-        cacheControl: '3600',
+        cacheControl: '31536000, immutable',
         upsert: useFixedName,
         contentType: 'image/webp'
       });
@@ -127,11 +127,11 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
       if (error.message.includes('already exists') && useFixedName) {
         try {
           await supabase.storage.from(bucket).remove([filePath]);
-          // Retry upload
+          // Retry upload with long-term cache (1 year)
           const { data: retryData, error: retryError } = await supabase.storage
             .from(bucket)
             .upload(filePath, processedFile, {
-              cacheControl: '3600',
+              cacheControl: '31536000, immutable',
               upsert: false,
               contentType: 'image/webp'
             });

@@ -73,11 +73,11 @@ export async function uploadImageToSupabase(
       await new Promise(resolve => setTimeout(resolve, 200));
     }
     
-    // Upload file to Supabase Storage
+    // Upload file to Supabase Storage with long-term cache (1 year)
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, file, {
-        cacheControl: '3600',
+        cacheControl: '31536000, immutable',
         upsert: useFixedName // Use upsert for fixed name files to allow overwriting
       });
     
@@ -88,11 +88,11 @@ export async function uploadImageToSupabase(
           const bucketApi = supabase.storage.from(bucket);
           if (bucketApi && typeof (bucketApi as any).remove === 'function') {
             await (bucketApi as any).remove([filePath]);
-            // Retry upload
+            // Retry upload with long-term cache (1 year)
             const { data: retryData, error: retryError } = await supabase.storage
               .from(bucket)
               .upload(filePath, file, {
-                cacheControl: '3600',
+                cacheControl: '31536000, immutable',
                 upsert: false
               });
             

@@ -237,6 +237,13 @@ function OrdersContent() {
                           alt={item.product_name || 'Product'}
                           className="w-24 h-24 object-cover rounded-lg border border-gray-200"
                           fallbackType="product"
+                          loading="lazy"
+                          decoding="async"
+                          width={256}
+                          height={256}
+                          responsive={true}
+                          responsiveSizes={[96, 192, 256]}
+                          quality={85}
                         />
                       ) : (
                         <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
