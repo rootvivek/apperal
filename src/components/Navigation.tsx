@@ -42,7 +42,16 @@ const ChevronDownIcon = ({ className = "w-4 h-4", rotated = false }: { className
 
 const Logo = ({ className = "h-8 sm:h-10 w-auto", maxWidth = "120px" }: { className?: string; maxWidth?: string }) => (
   <Link href="/" className="flex items-center">
-    <img src="/logo.png" alt="Carts24" className={className} style={{ maxWidth }} />
+    <img 
+      src="/logo.webp" 
+      alt="Carts24" 
+      className={className} 
+      style={{ maxWidth }} 
+      width={96}
+      height={93}
+      loading="eager"
+      fetchPriority="high"
+    />
   </Link>
 );
 

@@ -1,5 +1,5 @@
-import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
-import { getAuth, Auth } from 'firebase/auth';
+import type { FirebaseApp } from 'firebase/app';
+import type { Auth } from 'firebase/auth';
 
 // Validate Firebase environment variables
 const requiredEnvVars = {
@@ -20,14 +20,6 @@ const missingVars = Object.entries(requiredEnvVars)
     return `NEXT_PUBLIC_FIREBASE_${snakeCase}`;
   });
 
-if (missingVars.length > 0 && typeof window !== 'undefined') {
-  console.error(
-    'Firebase configuration error: Missing environment variables:\n' +
-    missingVars.join('\n') +
-    '\n\nPlease add these to your .env.local file. See env.example for reference.'
-  );
-}
-
 const firebaseConfig = {
   apiKey: requiredEnvVars.apiKey || '',
   authDomain: requiredEnvVars.authDomain || '',
@@ -37,25 +29,79 @@ const firebaseConfig = {
   appId: requiredEnvVars.appId || '',
 };
 
-// Initialize Firebase only if we have valid config
+// Lazy-load Firebase - only initialize when actually needed
 let app: FirebaseApp | null = null;
 let authInstance: Auth | null = null;
+let initPromise: Promise<{ app: FirebaseApp; auth: Auth } | null> | null = null;
 
-if (typeof window !== 'undefined' && requiredEnvVars.apiKey) {
-  try {
-    if (getApps().length === 0) {
-      app = initializeApp(firebaseConfig);
-    } else {
-      app = getApps()[0];
-    }
-    authInstance = getAuth(app);
-  } catch (error) {
-    console.error('Firebase initialization error:', error);
+async function initializeFirebase(): Promise<{ app: FirebaseApp; auth: Auth } | null> {
+  // Only initialize on client side
+  if (typeof window === 'undefined') {
+    return null;
   }
+
+  // Return existing instance if already initialized
+  if (app && authInstance) {
+    return { app, auth: authInstance };
+  }
+
+  // Return existing promise if initialization is in progress
+  if (initPromise) {
+    return initPromise;
+  }
+
+  // Check for missing environment variables
+  if (missingVars.length > 0) {
+    console.error(
+      'Firebase configuration error: Missing environment variables:\n' +
+      missingVars.join('\n') +
+      '\n\nPlease add these to your .env.local file. See env.example for reference.'
+    );
+    return null;
+  }
+
+  if (!requiredEnvVars.apiKey) {
+    return null;
+  }
+
+  // Start initialization
+  initPromise = (async () => {
+    try {
+      const { initializeApp, getApps } = await import('firebase/app');
+      const { getAuth } = await import('firebase/auth');
+
+      if (getApps().length === 0) {
+        app = initializeApp(firebaseConfig);
+      } else {
+        app = getApps()[0];
+      }
+      authInstance = getAuth(app);
+      
+      return { app, auth: authInstance };
+    } catch (error) {
+      console.error('Firebase initialization error:', error);
+      initPromise = null;
+      return null;
+    }
+  })();
+
+  return initPromise;
 }
 
-// Export auth instance (will be null if not initialized)
-export const auth: Auth | null = authInstance;
+// Lazy getter for auth - initializes Firebase on first access
+export async function getAuth(): Promise<Auth | null> {
+  const result = await initializeFirebase();
+  return result?.auth || null;
+}
 
-export default app;
+// Lazy getter for app - initializes Firebase on first access
+export async function getApp(): Promise<FirebaseApp | null> {
+  const result = await initializeFirebase();
+  return result?.app || null;
+}
+
+// Legacy export for backward compatibility (returns null initially, will be set after init)
+export const auth: Auth | null = null;
+
+export default null;
 

@@ -14,10 +14,13 @@ export default function Footer({ className = '' }: FooterProps) {
           {/* Company Info */}
           <div className="space-y-4">
             <img 
-              src="/logo.png" 
+              src="/logo.webp" 
               alt="Carts24" 
               className="h-8 w-auto"
               style={{ maxWidth: '120px' }}
+              width={96}
+              height={93}
+              loading="lazy"
             />
             <p className="text-gray-300 text-sm leading-relaxed">
               Your one-stop destination for fashion, electronics, and lifestyle products. 

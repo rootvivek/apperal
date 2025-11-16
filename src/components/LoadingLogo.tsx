@@ -30,9 +30,12 @@ export default function LoadingLogo({
       <div className={containerClasses}>
         {/* Logo - inline version */}
         <img 
-          src="/logo.png" 
+          src="/logo.webp" 
           alt="Loading" 
           className={`${sizeClasses[size]} object-contain animate-pulse`}
+          width={96}
+          height={93}
+          loading="eager"
         />
         {/* Loading text */}
         {text && (
@@ -47,9 +50,12 @@ export default function LoadingLogo({
       <div className="flex flex-col items-center justify-center gap-4">
         {/* Logo with pulse animation */}
         <img 
-          src="/logo.png" 
+          src="/logo.webp" 
           alt="Loading" 
           className={`${sizeClasses[size]} object-contain animate-pulse`}
+          width={96}
+          height={93}
+          loading="eager"
         />
         {/* Loading text */}
         {text && (

@@ -366,6 +366,13 @@ export default function OrderDetail({
                             alt={item.product_name}
                             className="w-full h-full rounded object-cover"
                             fallbackType="product"
+                            loading="lazy"
+                            decoding="async"
+                            width={256}
+                            height={256}
+                            responsive={true}
+                            responsiveSizes={[128, 256]}
+                            quality={85}
                           />
                         ) : (
                           <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center">

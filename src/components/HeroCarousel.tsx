@@ -107,7 +107,7 @@ export default function HeroCarousel() {
         className="h-full w-full"
         style={{ height: '100%', width: '100%' }}
       >
-        {products.map((product) => (
+        {products.map((product, index) => (
           <SwiperSlide key={product.id} className="h-full" style={{ height: '100%' }}>
             <div className="h-full w-full">
                 <ProductCard 
@@ -123,6 +123,7 @@ export default function HeroCarousel() {
                     images: product.image_url ? [product.image_url] : []
                   }} 
                   variant="image-only"
+                  isHeroImage={index === 0}
                 />
               </div>
           </SwiperSlide>

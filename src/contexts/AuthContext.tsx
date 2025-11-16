@@ -7,7 +7,7 @@ import type {
   RecaptchaVerifier,
   ConfirmationResult
 } from 'firebase/auth';
-import { auth } from '@/lib/firebase/config';
+import { getAuth as getFirebaseAuth } from '@/lib/firebase/config';
 import { createClient } from '@/lib/supabase/client';
 // checkUserActiveStatus will be dynamically imported to prevent Turbopack HMR issues
 
@@ -89,6 +89,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [bannedReason, setBannedReason] = useState<'deleted' | 'deactivated' | string>('');
   const [confirmationResult, setConfirmationResult] = useState<ConfirmationResult | null>(null);
   const [recaptchaVerifier, setRecaptchaVerifier] = useState<RecaptchaVerifier | null>(null);
+  
+  // Helper to get auth instance (lazy-loaded)
+  const getAuthInstance = useCallback(async () => {
+    return await getFirebaseAuth();
+  }, []);
 
   // Firebase user mapper
   const mapFirebaseUser = useCallback((firebaseUser: FirebaseUser | null): User | null => {
@@ -154,6 +159,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setBannedReason('deleted');
           setBannedModal(true);
           try {
+            const auth = await getAuthInstance();
             if (auth) {
               const { signOut: firebaseSignOut } = await import('firebase/auth');
               await firebaseSignOut(auth);
@@ -174,6 +180,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
           setBannedReason('deactivated');
           setBannedModal(true);
           try {
+            const auth = await getAuthInstance();
             if (auth) {
               const { signOut: firebaseSignOut } = await import('firebase/auth');
               await firebaseSignOut(auth);
@@ -297,12 +304,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } catch (error) {
       console.error('Error ensuring user profile:', error);
     }
-  }, [auth]);
+  }, [getAuthInstance]);
 
   // Helper function to initialize reCAPTCHA verifier
   const initializeRecaptcha = useCallback(async (): Promise<RecaptchaVerifier | null> => {
-    if (typeof window === 'undefined' || !auth) {
-      console.error('Cannot initialize reCAPTCHA: window or auth not available');
+    if (typeof window === 'undefined') {
+      console.error('Cannot initialize reCAPTCHA: window not available');
+      return null;
+    }
+    
+    const auth = await getAuthInstance();
+    if (!auth) {
+      console.error('Cannot initialize reCAPTCHA: auth not available');
       return null;
     }
     
@@ -373,13 +386,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setRecaptchaVerifier(null);
       return null;
     }
-  }, [auth, recaptchaVerifier]);
+  }, [getAuthInstance, recaptchaVerifier]);
 
-  // Initialize reCAPTCHA verifier on mount
+  // Initialize reCAPTCHA verifier on mount - defer until after initial render
   useEffect(() => {
-    if (!recaptchaVerifier && auth) {
-      initializeRecaptcha();
-    }
+    const initRecaptcha = async () => {
+      // Defer initialization until after initial paint
+      await new Promise(resolve => {
+        if (typeof requestIdleCallback !== 'undefined') {
+          requestIdleCallback(resolve, { timeout: 3000 });
+        } else {
+          setTimeout(resolve, 100);
+        }
+      });
+      
+      if (!recaptchaVerifier) {
+        const auth = await getAuthInstance();
+        if (auth) {
+          initializeRecaptcha();
+        }
+      }
+    };
+    
+    initRecaptcha();
 
     return () => {
       if (recaptchaVerifier) {
@@ -391,7 +420,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setRecaptchaVerifier(null);
       }
     };
-  }, [auth, initializeRecaptcha]); // Include initializeRecaptcha in deps
+  }, [getAuthInstance, initializeRecaptcha]); // Include initializeRecaptcha in deps
 
   // Use refs to track state and prevent infinite loops
   const lastUserIdRef = useRef<string | null>(null);
@@ -399,13 +428,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const mountedRef = useRef(true);
   
-  // Listen for auth state changes
+  // Listen for auth state changes - Defer Firebase initialization until after initial render
   useEffect(() => {
-    if (!auth) {
-        setLoading(false);
-        return;
-      }
-      
     mountedRef.current = true;
     
     // Cleanup previous subscription
@@ -417,8 +441,28 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     // Reset processing flag but keep lastUserId to prevent duplicate processing
     isProcessingRef.current = false;
     
-    (async () => {
+    // Defer Firebase initialization until after initial paint
+    // Use requestIdleCallback or setTimeout to ensure page can render first
+    const initFirebase = async () => {
       try {
+        // Wait for next tick to allow initial render
+        await new Promise(resolve => {
+          if (typeof requestIdleCallback !== 'undefined') {
+            requestIdleCallback(resolve, { timeout: 2000 });
+          } else {
+            setTimeout(resolve, 0);
+          }
+        });
+
+        if (!mountedRef.current) return;
+
+        // Lazy-load Firebase auth
+        const auth = await getFirebaseAuth();
+        if (!auth || !mountedRef.current) {
+          setLoading(false);
+          return;
+        }
+
         const { onAuthStateChanged } = await import('firebase/auth');
         if (!mountedRef.current) return;
         
@@ -487,7 +531,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         console.error('Error loading Firebase auth:', error);
         if (mountedRef.current) setLoading(false);
       }
-    })();
+    };
+
+    // Start initialization after initial render
+    initFirebase();
 
     return () => {
       mountedRef.current = false;
@@ -496,7 +543,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         unsubscribeRef.current = null;
       }
     };
-  }, [auth, mapFirebaseUser, ensureUserProfile]); // mapFirebaseUser and ensureUserProfile are stable via useCallback
+  }, [mapFirebaseUser, ensureUserProfile]); // mapFirebaseUser and ensureUserProfile are stable via useCallback
 
   // Subscribe to realtime updates on the user's profile to detect deactivation or deletion by admin.
   // Fallback: if realtime subscription fails, we keep a polling interval as backup.
@@ -508,6 +555,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setBannedReason(reason);
       setBannedModal(true);
       try {
+        const auth = await getAuthInstance();
         if (auth) {
           const { signOut: firebaseSignOut } = await import('firebase/auth');
           await firebaseSignOut(auth);
@@ -602,6 +650,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const handleOTPSend = useCallback(async (phone: string): Promise<AuthResponse> => {
     try {
+      // Lazy-load Firebase auth when user actually tries to login
+      const auth = await getAuthInstance();
       if (!auth) {
         const missingVars = [
           !process.env.NEXT_PUBLIC_FIREBASE_API_KEY && 'NEXT_PUBLIC_FIREBASE_API_KEY',
@@ -747,7 +797,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       // Fallback for unknown error types
       return { data: null, error: 'Failed to send verification code. Please refresh the page and try again.' };
     }
-  }, [auth, recaptchaVerifier, initializeRecaptcha]);
+  }, [getAuthInstance, recaptchaVerifier, initializeRecaptcha]);
 
   const handleOTPVerify = useCallback(async (phone: string, token: string): Promise<AuthResponse> => {
     try {
@@ -786,6 +836,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setBannedModal(true);
 
         try {
+          const auth = await getAuthInstance();
           if (auth) {
             const { signOut: firebaseSignOut } = await import('firebase/auth');
             await firebaseSignOut(auth);
@@ -911,11 +962,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       
       return { data: null, error: errorMessage };
     }
-  }, [auth, confirmationResult, mapFirebaseUser]);
+  }, [getAuthInstance, confirmationResult, mapFirebaseUser]);
 
   const handleSignOut = useCallback(async () => {
     try {
       setSigningOut(true);
+      const auth = await getAuthInstance();
 
       if (auth) {
         const { signOut: firebaseSignOut } = await import('firebase/auth');
@@ -941,7 +993,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       setSession(null);
       window.location.href = '/';
     }
-  }, [auth]);
+  }, [getAuthInstance]);
 
   // Context value - memoized to prevent unnecessary re-renders
   const contextValue: AuthContextType = useMemo(() => ({

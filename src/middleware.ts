@@ -49,10 +49,10 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
     "script-src 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://apis.google.com https://www.google-analytics.com", // Allow Razorpay, Firebase, and Google reCAPTCHA scripts (unsafe-inline required for Razorpay)
     "script-src-elem 'self' 'unsafe-inline' https://checkout.razorpay.com https://www.gstatic.com https://www.google.com https://apis.google.com https://www.google-analytics.com", // Explicitly allow Razorpay, Firebase, and Google reCAPTCHA script elements
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase styles
-    "style-src-elem 'self' 'unsafe-inline' https://fonts.googleapis.com https://www.gstatic.com", // Allow Google Fonts and Firebase style elements
+    "style-src 'self' 'unsafe-inline' https://www.gstatic.com", // Allow Firebase styles
+    "style-src-elem 'self' 'unsafe-inline' https://www.gstatic.com", // Allow Firebase style elements
     "img-src 'self' data: https: blob:",
-    "font-src 'self' data: https://fonts.gstatic.com",
+    "font-src 'self' data:",
     "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.razorpay.com https://*.razorpay.com https://*.googleapis.com https://*.firebaseio.com https://*.firebase.com https://www.google.com https://www.google-analytics.com", // Allow Firebase API calls, Razorpay, Google services, and Supabase WebSocket
     "frame-src 'self' https://checkout.razorpay.com https://api.razorpay.com https://www.google.com https://www.gstatic.com https://*.firebaseapp.com https://*.firebase.com", // Allow Razorpay, Google reCAPTCHA, and Firebase iframes
     "frame-ancestors 'self' https://www.google.com", // Allow Google to frame for reCAPTCHA

@@ -8,6 +8,7 @@ import { useLoginModal } from '@/contexts/LoginModalContext';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 import EmptyState from '@/components/EmptyState';
 import LoadingLogo from '@/components/LoadingLogo';
+import ImageWithFallback from '@/components/ImageWithFallback';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
@@ -101,14 +102,18 @@ function CartContent() {
                     <div className="flex items-stretch gap-3 sm:gap-4 px-3 sm:px-6">
                       {/* Product Image - Left Column */}
                       <div className="flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 aspect-square">
-                        <img
+                        <ImageWithFallback
                           className="w-full h-full rounded object-cover"
                           src={item.product.image_url || '/placeholder-product.jpg'}
                           alt={item.product.name}
                           loading="lazy"
                           decoding="async"
-                          width={128}
-                          height={128}
+                          width={256}
+                          height={256}
+                          fallbackType="product"
+                          responsive={true}
+                          responsiveSizes={[128, 256]}
+                          quality={85}
                         />
                       </div>
 

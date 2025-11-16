@@ -869,10 +869,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                 className="h-full w-full object-cover"
                 loading="eager"
                 decoding="async"
-                width={800}
-                height={800}
+                width={1200}
+                height={1200}
                 fetchPriority="high"
                 fallbackType="product"
+                responsive={true}
+                responsiveSizes={[640, 800, 1200]}
+                quality={85}
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 800px"
               />
               
               {/* Magnifying Glass Overlay */}
@@ -1046,6 +1050,10 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                   height={800}
                   fetchPriority="high"
                   fallbackType="product"
+                  responsive={true}
+                  responsiveSizes={[640, 800]}
+                  quality={85}
+                  sizes="100vw"
                 />
               </div>
             </div>
@@ -1077,6 +1085,9 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
                         width={80}
                         height={80}
                         fallbackType="product"
+                        responsive={true}
+                        responsiveSizes={[80, 160]}
+                        quality={85}
                       />
                     </div>
                   </button>

@@ -37,9 +37,10 @@ interface ProductCardProps {
   product: ProductCardProduct;
   hideStockOverlay?: boolean; // New prop to hide the stock overlay
   variant?: 'default' | 'minimal' | 'image-only'; // New prop to control styling variant
+  isHeroImage?: boolean; // Indicates if this is the first hero image (LCP element)
 }
 
-function ProductCard({ product, hideStockOverlay = false, variant = 'default' }: ProductCardProps) {
+function ProductCard({ product, hideStockOverlay = false, variant = 'default', isHeroImage = false }: ProductCardProps) {
   const { user } = useAuth();
   const { addToWishlist, removeFromWishlist, isInWishlist, loading } = useWishlist();
   const { openModal: openLoginModal } = useLoginModal();
@@ -333,13 +334,16 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default' }:
           src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
           alt={product.name}
           className={`${imageClasses} transition-all duration-500`}
-          loading={variant === 'image-only' ? 'eager' : currentImageIndex === 0 ? 'eager' : 'lazy'}
+          loading={isHeroImage || variant === 'image-only' ? 'eager' : currentImageIndex === 0 ? 'eager' : 'lazy'}
           decoding="async"
-          width={400}
-          height={480}
-          fetchPriority={variant === 'image-only' || currentImageIndex === 0 ? 'high' : 'low'}
+          width={variant === 'image-only' ? 800 : 400}
+          height={variant === 'image-only' ? 600 : 480}
+          fetchPriority={isHeroImage ? 'high' : variant === 'image-only' || currentImageIndex === 0 ? 'high' : 'low'}
           sizes={variant === 'image-only' ? '100vw' : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
           fallbackType="product"
+          responsive={true}
+          responsiveSizes={variant === 'image-only' ? [640, 1024, 1920] : [300, 400, 500]}
+          quality={85}
         />
         
         {/* Image dots indicator - show when multiple images */}
