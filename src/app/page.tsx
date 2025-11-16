@@ -74,7 +74,7 @@ export default function Home() {
           product_images (\n            id,\n            image_url,\n            alt_text,\n            display_order\n          )\n        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(10);
+        .limit(20);
 
       if (allProductsError) {
         console.error('Error fetching all products:', allProductsError);
@@ -124,7 +124,7 @@ export default function Home() {
             .eq('is_active', true)
             .eq('category_id', category.id)
             .order('created_at', { ascending: false })
-            .limit(8);
+            .limit(20);
 
           if (categoryProductsError) {
             console.error(`Error fetching products for category ${category.name}:`, categoryProductsError);
@@ -284,7 +284,7 @@ export default function Home() {
               </div>
               {section.products.length > 0 ? (
                 <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP}`} style={{ touchAction: 'pan-x pan-y' }}>
-                  {section.products.slice(0, 6).map((product) => (
+                  {section.products.map((product) => (
                     <ProductCard key={product.id} product={product as any} />
                   ))}
                 </div>

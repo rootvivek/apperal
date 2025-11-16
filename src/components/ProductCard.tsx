@@ -11,15 +11,15 @@ import ImageWithFallback from './ImageWithFallback';
 
 interface ProductCardProduct {
   id: string;
-  slug?: string; // Product slug for friendly URLs
+  slug?: string;
   name: string;
-  description?: string; // Optional description field
-  price: number; // Current selling price
-  original_price?: number; // Original price before discount
-  discount_percentage?: number; // Discount percentage
-  badge?: string; // Product badge (NEW, SALE, HOT, etc.)
+  description?: string;
+  price: number;
+  original_price?: number;
+  discount_percentage?: number;
+  badge?: string;
   category: string | { id: string; name: string; slug: string; image: string; subcategories: any[] };
-  subcategories: string[]; // Changed from single subcategory to array
+  subcategories: string[];
   image_url: string;
   stock_quantity: number;
   is_active: boolean;
@@ -35,10 +35,15 @@ interface ProductCardProduct {
 
 interface ProductCardProps {
   product: ProductCardProduct;
-  hideStockOverlay?: boolean; // New prop to hide the stock overlay
-  variant?: 'default' | 'minimal' | 'image-only'; // New prop to control styling variant
-  isHeroImage?: boolean; // Indicates if this is the first hero image (LCP element)
+  hideStockOverlay?: boolean;
+  variant?: 'default' | 'minimal' | 'image-only';
+  isHeroImage?: boolean;
 }
+
+// Constants
+const AUTO_SLIDE_INTERVAL = 2000;
+const MIN_SWIPE_DISTANCE = 30;
+const PLACEHOLDER_IMAGE = '/placeholder-product.jpg';
 
 function ProductCard({ product, hideStockOverlay = false, variant = 'default', isHeroImage = false }: ProductCardProps) {
   const { user } = useAuth();
@@ -47,17 +52,52 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
   const pathname = usePathname();
   const isWishlisted = isInWishlist(product.id);
   
-  // State for image sliding functionality
+  // Image swiper state
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   
-  // State for touch/swipe functionality
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
-  const [isTouching, setIsTouching] = useState(false);
+  // Touch/swipe refs
+  const touchStartRef = useRef<number | null>(null);
+  const touchEndRef = useRef<number | null>(null);
+  
+  // Check if device is touch-enabled (mobile/tablet)
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  
+  useEffect(() => {
+    // Check if device supports touch
+    const checkTouchDevice = () => {
+      return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    };
+    setIsTouchDevice(checkTouchDevice());
+  }, []);
 
-  // Convert ProductCardProduct to Product type for wishlist - memoized
+  // Helper: Clear interval safely
+  const clearSlideInterval = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  }, []);
+
+  // Helper: Navigate to next image
+  const goToNextImage = useCallback((imageCount: number) => {
+    setCurrentImageIndex(prev => (prev + 1) % imageCount);
+  }, []);
+
+  // Helper: Navigate to previous image
+  const goToPrevImage = useCallback((imageCount: number) => {
+    setCurrentImageIndex(prev => (prev - 1 + imageCount) % imageCount);
+  }, []);
+
+  // Helper: Navigate to specific image
+  const goToImage = useCallback((index: number, imageCount: number) => {
+    if (index >= 0 && index < imageCount) {
+      setCurrentImageIndex(index);
+    }
+  }, []);
+
+  // Convert product for wishlist
   const convertToWishlistProduct = useCallback((productCardProduct: ProductCardProduct): Product => {
     const categoryName = typeof productCardProduct.category === 'string' 
       ? productCardProduct.category 
@@ -91,20 +131,19 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
     };
   }, []);
 
+  // Wishlist toggle handler
   const handleWishlistToggle = useCallback(async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent navigation to product page
+    e.preventDefault();
     e.stopPropagation();
     
-    if (loading) return; // Prevent multiple clicks while loading
+    if (loading) return;
     
-    // If user is not logged in, open login modal and save product to pending wishlist
     if (!user) {
-      // Save product to pending wishlist in localStorage
-      const pendingProduct = convertToWishlistProduct(product);
       try {
+        const pendingProduct = convertToWishlistProduct(product);
         const pendingWishlist = localStorage.getItem('pending-wishlist-add');
         const pendingItems = pendingWishlist ? JSON.parse(pendingWishlist) : [];
-        // Check if product already in pending list
+        
         if (!pendingItems.find((item: Product) => item.id === product.id)) {
           pendingItems.push(pendingProduct);
           localStorage.setItem('pending-wishlist-add', JSON.stringify(pendingItems));
@@ -112,12 +151,10 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
       } catch (error) {
         console.error('Error saving pending wishlist item:', error);
       }
-      // Open login modal
       openLoginModal();
       return;
     }
     
-    // For logged-in users, add/remove from database
     if (isWishlisted) {
       await removeFromWishlist(product.id);
     } else {
@@ -125,189 +162,192 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
     }
   }, [isWishlisted, loading, product, user, addToWishlist, removeFromWishlist, convertToWishlistProduct, openLoginModal]);
 
-  // Calculate discount percentage automatically - memoized
+  // Calculate discount
   const discountPercentage = useMemo(() => {
-    if (product.original_price && product.original_price > product.price) {
-      return Math.round(((product.original_price - product.price) / product.original_price) * 100);
-    }
-    return 0;
+    if (!product.original_price || product.original_price <= product.price) return 0;
+    const discount = ((product.original_price - product.price) / product.original_price) * 100;
+    return Math.round(discount);
   }, [product.original_price, product.price]);
 
   const hasDiscount = discountPercentage > 0;
 
-  // Get all available images for the product - memoized
+  // Get all available images with deduplication
   const availableImages = useMemo(() => {
     const images: string[] = [];
+    const seenUrls = new Set<string>();
     
-    // Add main image first
-    if (product.image_url && typeof product.image_url === 'string' && product.image_url.trim() !== '') {
-      images.push(product.image_url);
+    // Add main image
+    if (product.image_url && typeof product.image_url === 'string') {
+      const mainImageUrl = product.image_url.trim();
+      if (mainImageUrl && (mainImageUrl.startsWith('http') || mainImageUrl.startsWith('https') || mainImageUrl.startsWith('/'))) {
+        images.push(mainImageUrl);
+        seenUrls.add(mainImageUrl);
+      }
     }
     
-    // Add additional images if they exist
-    if (product.images && Array.isArray(product.images) && product.images.length > 0) {
+    // Add additional images
+    if (product.images && Array.isArray(product.images)) {
       product.images.forEach((image) => {
         let imageUrl: string | null = null;
         
-        // Handle string images
-        if (typeof image === 'string' && image.trim() !== '') {
-          imageUrl = image;
-        }
-        // Handle object images with image_url property
-        else if (typeof image === 'object' && image !== null && 'image_url' in image && typeof image.image_url === 'string') {
-          imageUrl = image.image_url;
+        if (typeof image === 'string' && image.trim()) {
+          imageUrl = image.trim();
+        } else if (typeof image === 'object' && image !== null && 'image_url' in image && typeof image.image_url === 'string') {
+          imageUrl = image.image_url.trim();
         }
         
-        // Add if valid and not duplicate
         if (imageUrl && 
-            imageUrl.trim() !== '' &&
-            imageUrl !== product.image_url && 
-            !images.includes(imageUrl) &&
+            !seenUrls.has(imageUrl) &&
             (imageUrl.startsWith('http') || imageUrl.startsWith('https') || imageUrl.startsWith('/'))) {
           images.push(imageUrl);
+          seenUrls.add(imageUrl);
         }
       });
     }
     
-    // Return images or main image as fallback
-    return images.length > 0 ? images : (product.image_url ? [product.image_url] : []);
+    return images.length > 0 ? images : (product.image_url ? [product.image_url] : [PLACEHOLDER_IMAGE]);
   }, [product.image_url, product.images]);
 
-  // Only show image sliding if product has more than 1 valid image
   const hasMultipleImages = availableImages.length > 1;
 
-  // Start image sliding when hovering - memoized
-  // Only start if product actually has multiple images (more than 1)
+  // Auto-slide handlers
   const startImageSliding = useCallback(() => {
-    // Double check: only start if we have more than 1 image
-    if (availableImages.length <= 1) return;
+    if (!hasMultipleImages) return;
     
     setIsHovered(true);
     setCurrentImageIndex(0);
+    clearSlideInterval();
     
     intervalRef.current = setInterval(() => {
-      setCurrentImageIndex(prevIndex => {
-        return (prevIndex + 1) % availableImages.length;
-      });
-    }, 2000); // Change image every 2 seconds
-  }, [availableImages.length]);
+      goToNextImage(availableImages.length);
+    }, AUTO_SLIDE_INTERVAL);
+  }, [hasMultipleImages, availableImages.length, clearSlideInterval, goToNextImage]);
 
-  // Stop image sliding when not hovering - memoized
   const stopImageSliding = useCallback(() => {
     setIsHovered(false);
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-    setCurrentImageIndex(0); // Reset to first image
-  }, []);
+    clearSlideInterval();
+    setCurrentImageIndex(0);
+  }, [clearSlideInterval]);
 
-  // Touch event handlers for mobile swipe - memoized
-  // Only allow swipe if product has multiple images
+  // Touch handlers (only enabled on touch devices)
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (availableImages.length <= 1) return;
+    if (!isTouchDevice || !hasMultipleImages || !e.targetTouches?.[0]) return;
     
-    setIsTouching(true);
-    setTouchEnd(null);
-    setTouchStart(e.targetTouches[0].clientX);
-    
-    // Stop auto-sliding when user starts touching
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, [hasMultipleImages]);
+    touchEndRef.current = null;
+    touchStartRef.current = e.targetTouches[0].clientX;
+    clearSlideInterval();
+  }, [isTouchDevice, hasMultipleImages, clearSlideInterval]);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (availableImages.length <= 1) return;
-    setTouchEnd(e.targetTouches[0].clientX);
-  }, [availableImages.length]);
+    if (!isTouchDevice || !hasMultipleImages || !e.targetTouches?.[0]) return;
+    touchEndRef.current = e.targetTouches[0].clientX;
+  }, [isTouchDevice, hasMultipleImages]);
 
   const handleTouchEnd = useCallback(() => {
-    if (availableImages.length <= 1 || !touchStart || !touchEnd) {
-      setIsTouching(false);
+    if (!isTouchDevice || !hasMultipleImages) {
+      touchStartRef.current = null;
+      touchEndRef.current = null;
       return;
     }
     
-    const distance = touchStart - touchEnd;
-    const isLeftSwipe = distance > 50;
-    const isRightSwipe = distance < -50;
-
-    if (isLeftSwipe) {
-      // Swipe left - next image
-      setCurrentImageIndex(prevIndex => (prevIndex + 1) % availableImages.length);
-    } else if (isRightSwipe) {
-      // Swipe right - previous image
-      setCurrentImageIndex(prevIndex => prevIndex === 0 ? availableImages.length - 1 : prevIndex - 1);
+    const start = touchStartRef.current;
+    const end = touchEndRef.current;
+    
+    if (start === null || end === null) {
+      touchStartRef.current = null;
+      touchEndRef.current = null;
+      return;
     }
     
-    setIsTouching(false);
-    setTouchStart(null);
-    setTouchEnd(null);
-  }, [availableImages.length, touchStart, touchEnd]);
+    const distance = start - end;
+    
+    if (Math.abs(distance) > MIN_SWIPE_DISTANCE) {
+      if (distance > 0) {
+        goToNextImage(availableImages.length);
+      } else {
+        goToPrevImage(availableImages.length);
+      }
+    }
+    
+    touchStartRef.current = null;
+    touchEndRef.current = null;
+  }, [isTouchDevice, hasMultipleImages, availableImages.length, goToNextImage, goToPrevImage]);
 
-  // Cleanup interval on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
+      clearSlideInterval();
     };
-  }, []);
+  }, [clearSlideInterval]);
 
-  // Badge styling - memoized
-  const badgeStyle = useMemo(() => {
-    const badge = product.badge;
-    switch (badge?.toUpperCase()) {
-      case 'NEW':
-        return 'bg-green-500 text-white';
-      case 'SALE':
-        return 'bg-red-500 text-white';
-      case 'HOT':
-        return 'bg-brand-400 text-white';
-      case 'FEATURED':
-        return 'bg-brand-400 text-white';
-      case 'LIMITED':
-        return 'bg-purple-500 text-white';
-      default:
-        return 'bg-gray-500 text-white';
+  // Reset image index when images change
+  useEffect(() => {
+    if (currentImageIndex >= availableImages.length) {
+      setCurrentImageIndex(0);
     }
+  }, [availableImages.length, currentImageIndex]);
+
+  // Badge styling
+  const badgeStyle = useMemo(() => {
+    const badge = product.badge?.toUpperCase();
+    const styles: Record<string, string> = {
+      'NEW': 'bg-green-500 text-white',
+      'SALE': 'bg-red-500 text-white',
+      'HOT': 'bg-brand-400 text-white',
+      'FEATURED': 'bg-brand-400 text-white',
+      'LIMITED': 'bg-purple-500 text-white',
+    };
+    return styles[badge || ''] || 'bg-gray-500 text-white';
   }, [product.badge]);
 
-  // Conditional styling based on variant - memoized
+  // Styling based on variant
   const { cardClasses, imageClasses, contentClasses, productUrl } = useMemo(() => {
-    const card = variant === 'minimal' || variant === 'image-only'
+    const isImageOnly = variant === 'image-only';
+    const isMinimal = variant === 'minimal';
+    
+    const card = isImageOnly || isMinimal
       ? "group relative bg-white rounded-none shadow-none hover:shadow-none transition-shadow duration-300 overflow-hidden block border border-gray-200 h-full"
       : "group relative bg-white rounded-[4px] shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden block border border-gray-200";
     
-    const image = variant === 'minimal' || variant === 'image-only'
-      ? "h-full w-full object-cover transition-transform duration-300"
-      : "h-full w-full object-cover transition-transform duration-300";
-      
-    const content = variant === 'minimal'
-      ? "px-1.5 py-0.5"
-      : variant === 'image-only'
+    const image = "h-full w-full object-cover transition-transform duration-300";
+    
+    const content = isImageOnly
       ? "hidden"
+      : isMinimal
+      ? "px-1.5 py-0.5"
       : "p-1.5";
 
-    // Use slug if available, otherwise use ID for backward compatibility
     const url = product.slug ? `/product/${product.slug}` : `/product/${product.id}`;
 
-    return {
-      cardClasses: card,
-      imageClasses: image,
-      contentClasses: content,
-      productUrl: url
-    };
+    return { cardClasses: card, imageClasses: image, contentClasses: content, productUrl: url };
   }, [variant, product.slug, product.id]);
   
   const handleProductClick = useCallback(() => {
-    // Store current pathname as referrer when navigating to product page
     if (typeof window !== 'undefined' && pathname) {
-      sessionStorage.setItem('productReferrer', pathname);
+      try {
+        sessionStorage.setItem('productReferrer', pathname);
+      } catch (error) {
+        // Handle storage quota or other errors
+        console.warn('Failed to save product referrer:', error);
+      }
     }
   }, [pathname]);
-  
+
+  // Format price safely
+  const formatPrice = useCallback((price: number) => {
+    if (typeof price !== 'number' || isNaN(price) || price < 0) return '0.00';
+    return price.toFixed(2);
+  }, []);
+
+  // Image loading priority
+  const getImageLoading = useCallback((index: number) => {
+    return hasMultipleImages ? 'eager' : (index === 0 ? 'eager' : 'lazy');
+  }, [hasMultipleImages]);
+
+  const getImagePriority = useCallback((index: number) => {
+    return index === 0 ? 'high' : (index <= 2 ? 'high' : 'low');
+  }, []);
+
   return (
     <Link href={productUrl} className={`${cardClasses} relative z-0`} onClick={handleProductClick}>
       {/* Product Badge */}
@@ -319,67 +359,78 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
         </div>
       )}
 
-
       {/* Product Image */}
       <div 
         className={`${variant === 'image-only' ? "h-full w-full overflow-hidden relative" : "aspect-[5/6] sm:aspect-[4/5] overflow-hidden relative"} group`}
-        style={{ touchAction: 'pan-x pan-y' }}
+        style={{ touchAction: isTouchDevice ? 'pan-x pan-y' : 'auto' }}
         onMouseEnter={startImageSliding}
         onMouseLeave={stopImageSliding}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        onTouchStart={isTouchDevice ? handleTouchStart : undefined}
+        onTouchMove={isTouchDevice ? handleTouchMove : undefined}
+        onTouchEnd={isTouchDevice ? handleTouchEnd : undefined}
       >
-        <ImageWithFallback
-          src={availableImages[currentImageIndex] || '/placeholder-product.jpg'}
-          alt={product.name}
-          className={`${imageClasses} transition-all duration-500`}
-          loading={isHeroImage || variant === 'image-only' ? 'eager' : currentImageIndex === 0 ? 'eager' : 'lazy'}
-          decoding="async"
-          width={variant === 'image-only' ? 800 : 400}
-          height={variant === 'image-only' ? 600 : 480}
-          fetchPriority={isHeroImage ? 'high' : variant === 'image-only' || currentImageIndex === 0 ? 'high' : 'low'}
-          sizes={variant === 'image-only' ? '100vw' : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
-          fallbackType="product"
-          responsive={true}
-          responsiveSizes={variant === 'image-only' ? [640, 1024, 1920] : [300, 400, 500]}
-          quality={85}
-        />
+        <div className="relative w-full h-full">
+          {availableImages.map((imageUrl, index) => {
+            const isActive = currentImageIndex === index;
+            return (
+              <ImageWithFallback
+                key={`product-image-${product.id}-${index}-${imageUrl}`}
+                src={imageUrl || PLACEHOLDER_IMAGE}
+                alt={`${product.name || 'Product'} ${index + 1}`}
+                className={`${imageClasses} absolute inset-0 transition-opacity duration-500 ${
+                  isActive ? 'opacity-100 z-[5]' : 'opacity-0 z-0 pointer-events-none'
+                }`}
+                loading={getImageLoading(index)}
+                decoding="async"
+                width={variant === 'image-only' ? 800 : 400}
+                height={variant === 'image-only' ? 600 : 480}
+                fetchPriority={getImagePriority(index)}
+                sizes={variant === 'image-only' ? '100vw' : '(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw'}
+                fallbackType="product"
+                responsive={true}
+                responsiveSizes={variant === 'image-only' ? [640, 1024, 1920] : [300, 400, 500]}
+                quality={85}
+              />
+            );
+          })}
+        </div>
         
-        {/* Image dots indicator - show when multiple images */}
-        {hasMultipleImages && availableImages.length > 1 && (
-          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1.5 z-20">
+        {/* Image dots indicator */}
+        {hasMultipleImages && (
+          <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 flex gap-1.5 z-30">
             {availableImages.map((_, index) => (
               <button
                 key={index}
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  setCurrentImageIndex(index);
-                  // Reset auto-slide interval
-                  if (intervalRef.current) {
-                    clearInterval(intervalRef.current);
-                  }
+                  goToImage(index, availableImages.length);
+                  clearSlideInterval();
                   if (isHovered) {
                     intervalRef.current = setInterval(() => {
-                      setCurrentImageIndex(prevIndex => (prevIndex + 1) % availableImages.length);
-                    }, 2000);
+                      goToNextImage(availableImages.length);
+                    }, AUTO_SLIDE_INTERVAL);
                   }
                 }}
-                className={`transition-all duration-200 rounded-full ${
+                onMouseEnter={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className={`transition-all duration-200 rounded-full cursor-pointer ${
                   currentImageIndex === index
-                    ? 'w-2 h-2 bg-white'
-                    : 'w-1.5 h-1.5 bg-white/50 hover:bg-white/75'
+                    ? 'w-2 h-2 bg-white shadow-md'
+                    : 'w-1.5 h-1.5 bg-white/60 hover:bg-white/80'
                 }`}
-                aria-label={`Go to image ${index + 1}`}
+                aria-label={`Go to image ${index + 1} of ${availableImages.length}`}
+                type="button"
               />
             ))}
           </div>
         )}
         
-        
+        {/* Out of Stock Overlay */}
         {!product.is_active && !hideStockOverlay && (
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center z-40">
             <span className="text-white font-medium">Out of Stock</span>
           </div>
         )}
@@ -389,7 +440,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
       <div className={contentClasses}>
         <div className="flex items-center justify-between gap-2 mb-1 sm:mb-1.5">
           <h3 className="font-medium sm:font-normal text-gray-900 line-clamp-1 group-hover:text-brand transition-colors text-xs sm:text-sm flex-1" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
-            {product.name}
+            {product.name || 'Unnamed Product'}
           </h3>
           {variant !== 'image-only' && (
             <button
@@ -421,17 +472,17 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
         
         <div className="flex items-center space-x-1">
           <span className="text-xs sm:text-sm font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
-            ₹{product.price.toFixed(2)}
+            ₹{formatPrice(product.price)}
           </span>
           {hasDiscount && product.original_price && (
-            <span className="text-xs sm:text-sm text-gray-500 line-through">
-              ₹{product.original_price.toFixed(2)}
-            </span>
-          )}
-          {hasDiscount && (
-            <span className="text-xs sm:text-sm text-red-500 font-normal">
-              {discountPercentage}% off
-            </span>
+            <>
+              <span className="text-xs sm:text-sm text-gray-500 line-through">
+                ₹{formatPrice(product.original_price)}
+              </span>
+              <span className="text-xs sm:text-sm text-red-500 font-normal">
+                {discountPercentage}% off
+              </span>
+            </>
           )}
         </div>
       </div>
@@ -439,14 +490,14 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
   );
 }
 
-// Memoize component to prevent unnecessary re-renders
+// Memoize component
 export default memo(ProductCard, (prevProps, nextProps) => {
-  // Custom comparison function for better performance
   return (
     prevProps.product.id === nextProps.product.id &&
     prevProps.product.price === nextProps.product.price &&
     prevProps.product.stock_quantity === nextProps.product.stock_quantity &&
     prevProps.product.is_active === nextProps.product.is_active &&
+    prevProps.product.image_url === nextProps.product.image_url &&
     prevProps.hideStockOverlay === nextProps.hideStockOverlay &&
     prevProps.variant === nextProps.variant
   );

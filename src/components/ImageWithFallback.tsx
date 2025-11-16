@@ -95,10 +95,12 @@ export default function ImageWithFallback({
     }
   }, [hasError, fallback, fallbackType, onError]);
 
-  // Reset error state when src changes
-  if (src !== imgSrc && hasError) {
-    setHasError(false);
+  // Update imgSrc when src prop changes
+  if (src !== imgSrc) {
     setImgSrc(src);
+    if (hasError) {
+      setHasError(false);
+    }
   }
 
   return (
