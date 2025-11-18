@@ -30,7 +30,7 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
       );
     }
 
-    if (!FILE_LIMITS.VALID_IMAGE_TYPES.includes(file.type)) {
+    if (!(FILE_LIMITS.VALID_IMAGE_TYPES as readonly string[]).includes(file.type)) {
       return NextResponse.json(
         { success: false, error: 'Invalid file type. Only images are allowed.' },
         { status: 400 }

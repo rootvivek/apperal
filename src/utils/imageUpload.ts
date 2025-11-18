@@ -5,8 +5,8 @@ async function getCurrentUserId(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   
   try {
-    const { auth, getAuth } = await import('@/lib/firebase/config');
-    const authInstance = auth || getAuth();
+    const { getAuth } = await import('@/lib/firebase/config');
+    const authInstance = await getAuth();
     
     if (authInstance?.currentUser) {
       return authInstance.currentUser.uid;
