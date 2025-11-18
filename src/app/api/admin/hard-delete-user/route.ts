@@ -48,7 +48,7 @@ async function hardDeleteUserHandler(request: NextRequest, { userId: adminUserId
     // Get user info before deletion for logging
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('email, full_name, phone')
+      .select('full_name, phone')
       .eq('id', userId)
       .maybeSingle();
 
@@ -75,7 +75,7 @@ async function hardDeleteUserHandler(request: NextRequest, { userId: adminUserId
         resourceType: 'user',
         resourceId: userId,
         details: {
-          deleted_user_email: userProfile?.email || 'Unknown',
+          deleted_user_name: userProfile?.full_name || 'Unknown',
           deleted_user_phone: userProfile?.phone || 'Unknown',
           note: 'User profile permanently deleted from database',
         },

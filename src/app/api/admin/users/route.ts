@@ -14,7 +14,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     // Build query based on whether we want deleted or active users
     let query = supabase
       .from('user_profiles')
-      .select('id, email, full_name, phone, created_at, user_number, is_active, deleted_at');
+      .select('id, full_name, phone, created_at, user_number, is_active, deleted_at');
     
     if (includeDeleted) {
       // Get only deleted users (deleted_at is not null)

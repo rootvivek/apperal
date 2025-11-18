@@ -5,22 +5,18 @@ async function getCurrentUserId(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   
   try {
-    // Try to get from Firebase auth
-    const { auth } = await import('@/lib/firebase/config');
-    if (auth && auth.currentUser) {
-      return auth.currentUser.uid;
+    const { auth, getAuth } = await import('@/lib/firebase/config');
+    const authInstance = auth || getAuth();
+    
+    if (authInstance?.currentUser) {
+      return authInstance.currentUser.uid;
     }
     
-    // Fallback: try to get from localStorage (if stored)
-    const storedUserId = localStorage.getItem('firebase_user_id');
-    if (storedUserId) {
-      return storedUserId;
-    }
-  } catch (e) {
-    console.warn('Could not get user ID:', e);
+    // Fallback to localStorage
+    return localStorage.getItem('firebase_user_id');
+  } catch {
+    return localStorage.getItem('firebase_user_id');
   }
-  
-  return null;
 }
 
 export interface UploadResult {
@@ -36,109 +32,7 @@ export async function uploadImageToSupabase(
   useFixedName: boolean = false,
   userId?: string | null
 ): Promise<UploadResult> {
-  try {
-    // For product images and category images, use API route with compression
-    // This ensures consistent processing and bypasses RLS issues
-    if (bucket === 'product-images' || bucket === 'category-images' || bucket === 'subcategory-images') {
-      return await uploadImageViaAPI(file, bucket, folder, useFixedName, userId);
-    }
-
-    // For other buckets, use direct upload
-    const supabase = createClient();
-    
-    // Validate file
-    if (!file || !file.name) {
-      return { success: false, error: 'Invalid file provided' };
-    }
-    
-    // Generate filename
-    const fileExt = file.name.split('.').pop();
-    let fileName: string;
-    let filePath: string;
-    
-    if (useFixedName) {
-      // Use fixed filename like "image.jpg" for easy replacement
-      fileName = `image.${fileExt}`;
-      filePath = `${folder}/${fileName}`;
-    } else {
-      // Generate unique filename for products
-      fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      filePath = `${folder}/${fileName}`;
-    }
-    
-    // For fixed name files, delete ALL old files in the folder first
-    if (useFixedName) {
-      await deleteFolderContents(bucket, folder);
-      // Small delay to ensure folder cleanup is fully processed by Supabase
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
-    
-    // Upload file to Supabase Storage with long-term cache (1 year)
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .upload(filePath, file, {
-        cacheControl: '31536000, immutable',
-        upsert: useFixedName // Use upsert for fixed name files to allow overwriting
-      });
-    
-    if (error) {
-      // If resource already exists and we're using fixed name, try to delete and re-upload
-      if (error.message.includes('already exists') && useFixedName) {
-        try {
-          const bucketApi = supabase.storage.from(bucket);
-          if (bucketApi && typeof (bucketApi as any).remove === 'function') {
-            await (bucketApi as any).remove([filePath]);
-            // Retry upload with long-term cache (1 year)
-            const { data: retryData, error: retryError } = await supabase.storage
-              .from(bucket)
-              .upload(filePath, file, {
-                cacheControl: '31536000, immutable',
-                upsert: false
-              });
-            
-            if (retryError) {
-              return { success: false, error: retryError.message };
-            }
-            
-            // Success on retry
-            const { data: { publicUrl } } = supabase.storage
-              .from(bucket)
-              .getPublicUrl(filePath);
-            
-            // Add cache-busting parameter for fixed-name uploads to bypass browser cache
-            const finalUrl = useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl;
-            
-            return { success: true, url: finalUrl };
-          }
-        } catch (retryErr: any) {
-          return { success: false, error: retryErr.message };
-        }
-      }
-      
-      // If bucket doesn't exist, try to create it
-      if (error.message.includes('Bucket not found')) {
-        return { 
-          success: false, 
-          error: `Bucket '${bucket}' not found. Please create the bucket in Supabase Storage dashboard first.` 
-        };
-      }
-      
-      return { success: false, error: error.message };
-    }
-    
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-    
-    // Add cache-busting parameter for fixed-name uploads to bypass browser cache
-    const finalUrl = useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl;
-    
-    return { success: true, url: finalUrl };
-    
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+  return await uploadImageViaAPI(file, bucket, folder, useFixedName, userId);
 }
 
 // Upload image via API route (with compression and WebP conversion)
@@ -150,23 +44,15 @@ async function uploadImageViaAPI(
   providedUserId?: string | null
 ): Promise<UploadResult> {
   try {
-    // Get user ID for admin authentication (use provided ID or fetch from auth)
-    let userId = providedUserId;
-    if (!userId) {
-      userId = await getCurrentUserId();
-    }
-
+    const userId = providedUserId || await getCurrentUserId();
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bucket', bucket);
     formData.append('folder', folder);
     formData.append('useFixedName', useFixedName.toString());
 
-    // Add user ID to headers for admin authentication
     const headers: HeadersInit = {};
-    if (userId) {
-      headers['X-User-Id'] = userId;
-    }
+    if (userId) headers['X-User-Id'] = userId;
 
     const response = await fetch('/api/admin/upload-image', {
       method: 'POST',
@@ -174,13 +60,15 @@ async function uploadImageViaAPI(
       body: formData
     });
 
-    const result = await response.json();
+    const contentType = response.headers.get('content-type');
+    if (!contentType?.includes('application/json')) {
+      const text = await response.text();
+      return { success: false, error: `Server error: ${text.substring(0, 200)}` };
+    }
 
+    const result = await response.json();
     if (!response.ok || !result.success) {
-      return { 
-        success: false, 
-        error: result.error || 'Upload failed' 
-      };
+      return { success: false, error: result.error || 'Upload failed' };
     }
 
     return { success: true, url: result.url };
@@ -189,30 +77,6 @@ async function uploadImageViaAPI(
   }
 }
 
-export async function uploadImageToCloudinary(file: File): Promise<UploadResult> {
-  try {
-    // Create form data
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', 'apperal_products'); // You'll need to set this up in Cloudinary
-    
-    // Upload to Cloudinary
-    const response = await fetch('https://api.cloudinary.com/v1_1/YOUR_CLOUD_NAME/image/upload', {
-      method: 'POST',
-      body: formData
-    });
-    
-    if (!response.ok) {
-      throw new Error('Upload failed');
-    }
-    
-    const data = await response.json();
-    return { success: true, url: data.secure_url };
-    
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
 
 // Delete image from Supabase storage
 export async function deleteImageFromSupabase(
@@ -285,12 +149,3 @@ export async function deleteFolderContents(
   }
 }
 
-// Fallback: Convert to base64 (for small images)
-export function convertToBase64(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = error => reject(error);
-  });
-}

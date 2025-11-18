@@ -160,7 +160,7 @@ export default function SubcategoriesPage() {
       }
       
       // Step 3: Upload new image with fixed filename
-      const result = await uploadImageToSupabase(file, 'subcategory-images', subcategoryUuid, true);
+      const result = await uploadImageToSupabase(file, 'subcategory-images', subcategoryUuid, true, user?.id || null);
       
       if (result.success && result.url) {
         setFormData(prev => ({

@@ -8,6 +8,7 @@ import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { createClient } from '@/lib/supabase/client';
+import { NAVIGATION_CACHE } from '@/constants';
 import CartIcon from './CartIcon';
 import WishlistIcon from './WishlistIcon';
 import SearchBar from './SearchBar';
@@ -20,6 +21,10 @@ const CHEVRON_DOWN_PATH = "M19 9l-7 7-7-7";
 const SEARCH_ICON_PATH = "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z";
 const ORDERS_ICON_PATH = "M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z";
 const SIGN_OUT_ICON_PATH = "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1";
+const ADMIN_ICON_PATH = "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z";
+
+// Admin phone number
+const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
 
 // Helper Components
 const BackArrowIcon = ({ className = "w-4 h-4 sm:w-6 sm:h-6" }: { className?: string }) => (
@@ -74,10 +79,6 @@ interface Subcategory {
   parent_category_id: string;
 }
 
-// Client-side cache constants (defined outside component to avoid scope issues)
-const NAVIGATION_CACHE_KEY = 'navigation_categories';
-const NAVIGATION_CACHE_TTL = 10 * 60 * 1000; // 10 minutes (categories change less frequently)
-
 export default function Navigation() {
   const { user, signOut, signingOut } = useAuth();
   const { cartCount } = useCart();
@@ -98,6 +99,7 @@ export default function Navigation() {
   const [isMounted, setIsMounted] = useState(false);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [dropdownTimeout, setDropdownTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   const supabase = createClient();
   
   // Get login modal - safe to call as provider wraps this component
@@ -111,6 +113,42 @@ export default function Navigation() {
 
   // Ensure user check is consistent (convert undefined to null for consistent rendering)
   const isUserLoggedIn = Boolean(user);
+
+  // Check if user is admin
+  useEffect(() => {
+    const checkAdminStatus = async () => {
+      if (!user || !ADMIN_PHONE) {
+        setIsAdmin(false);
+        return;
+      }
+
+      try {
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('phone')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (error) {
+          setIsAdmin(false);
+          return;
+        }
+
+        const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
+        const normalizedUserPhone = userPhone.replace(/\D/g, '');
+        const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
+        const userLast10 = normalizedUserPhone.slice(-10);
+        const adminLast10 = normalizedAdminPhone.slice(-10);
+        
+        const hasAdminAccess = userLast10 === adminLast10 && userLast10.length === 10;
+        setIsAdmin(hasAdminAccess);
+      } catch (error) {
+        setIsAdmin(false);
+      }
+    };
+
+    checkAdminStatus();
+  }, [user, supabase]);
 
   // Close category dropdown when clicking outside
   useEffect(() => {
@@ -247,7 +285,7 @@ export default function Navigation() {
           }
         }
       } catch (error) {
-        console.error('Error fetching category info:', error);
+        // Error handled silently
         setCurrentCategoryName(null);
         setCurrentSubcategoryName(null);
       }
@@ -325,7 +363,7 @@ export default function Navigation() {
         setUserFullName(null);
       }
     } catch (error) {
-      console.error('Error fetching user full name:', error);
+      // Error handled silently
       setUserFullName(null);
     }
   }, [user?.id, supabase]);
@@ -391,7 +429,7 @@ export default function Navigation() {
     
       // Check client-side cache first
       if (typeof window !== 'undefined') {
-        const cached = sessionStorage.getItem(NAVIGATION_CACHE_KEY);
+        const cached = sessionStorage.getItem(NAVIGATION_CACHE.KEY);
         if (cached) {
           try {
             const { data, expires } = JSON.parse(cached);
@@ -413,7 +451,7 @@ export default function Navigation() {
       // This prevents timeout delays from waiting for non-existent RPC function
       await fetchCategoriesFallback();
     } catch (error) {
-      console.error('Error fetching categories:', error);
+      // Error handled silently
       setCategories([]);
     } finally {
       setCategoriesLoading(false);
@@ -438,13 +476,13 @@ export default function Navigation() {
       ]);
 
       if (categoriesResult.error) {
-        console.error('Error fetching categories:', categoriesResult.error);
+        // Error handled silently
         setCategories([]);
         return;
       }
 
       if (subcategoriesResult.error) {
-        console.error('Error fetching subcategories:', subcategoriesResult.error);
+        // Error handled silently
         // Continue without subcategories
       }
 
@@ -462,11 +500,11 @@ export default function Navigation() {
       // Cache the results
       if (typeof window !== 'undefined') {
         const cacheData = categoriesWithSubcategories;
-        const expires = Date.now() + NAVIGATION_CACHE_TTL;
-        sessionStorage.setItem(NAVIGATION_CACHE_KEY, JSON.stringify({ data: cacheData, expires }));
+        const expires = Date.now() + NAVIGATION_CACHE.TTL;
+        sessionStorage.setItem(NAVIGATION_CACHE.KEY, JSON.stringify({ data: cacheData, expires }));
       }
     } catch (error) {
-      console.error('Fallback error:', error);
+      // Error handled silently
       setCategories([]);
     }
   };
@@ -722,6 +760,20 @@ export default function Navigation() {
                             <span>Orders</span>
                           </div>
                         </Link>
+                        {isAdmin && (
+                          <Link
+                            href="/admin"
+                            onClick={() => setShowUserDropdown(false)}
+                            className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-purple-600 transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center space-x-1.5">
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={ADMIN_ICON_PATH} />
+                              </svg>
+                              <span>Go to Admin Dashboard</span>
+                            </div>
+                          </Link>
+                        )}
                         <div className="border-t border-gray-200 my-1"></div>
                         <button
                           type="button"

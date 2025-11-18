@@ -45,10 +45,10 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
     // Create admin client with service role key
     const supabaseAdmin = createServerClient();
 
-    // Get user email before deletion for logging
+    // Get user profile before deletion for logging
     const { data: deletedUserProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('email')
+      .select('full_name, phone')
       .eq('id', userId)
       .maybeSingle();
 
@@ -101,7 +101,6 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
       .from('user_profiles')
       .update({
         deleted_at: new Date().toISOString(),
-        email: `deleted_${Date.now()}_${userId.substring(0, 8)}@deleted.local`,
         full_name: '[Deleted User]',
         // Keep phone number for potential account recovery or new signup detection
       })
@@ -122,7 +121,8 @@ async function deleteUserHandler(request: NextRequest, { userId: adminUserId }: 
         resourceType: 'user',
         resourceId: userId,
         details: {
-          deleted_user_email: deletedUserProfile?.email || 'Unknown',
+          deleted_user_name: deletedUserProfile?.full_name || 'Unknown',
+          deleted_user_phone: deletedUserProfile?.phone || 'Unknown',
         },
         request,
       });

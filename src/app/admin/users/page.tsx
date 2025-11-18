@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
-  email: string;
   full_name: string;
   phone: string;
   created_at: string;
@@ -156,7 +155,7 @@ export default function UsersPage() {
   };
 
   const handleDeleteUser = async (userToDelete: User) => {
-    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.email}"?\n\nThis will delete all user data and mark the profile as deleted.\n\nThis action cannot be undone!`;
+    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.phone || 'User'}"?\n\nThis will delete all user data and mark the profile as deleted.\n\nThis action cannot be undone!`;
     
     if (!confirm(confirmMessage)) {
       return;
@@ -207,7 +206,7 @@ export default function UsersPage() {
   };
 
   const handleReactivateUser = async (userToReactivate: User) => {
-    const confirmMessage = `Are you sure you want to reactivate user "${userToReactivate.full_name || userToReactivate.email}"?\n\nThis will:\n- Restore the user account\n- Allow the user to log in again\n- The phone number will be associated with this reactivated account`;
+    const confirmMessage = `Are you sure you want to reactivate user "${userToReactivate.full_name || userToReactivate.phone || 'User'}"?\n\nThis will:\n- Restore the user account\n- Allow the user to log in again\n- The phone number will be associated with this reactivated account`;
     
     if (!confirm(confirmMessage)) {
       return;
@@ -263,7 +262,6 @@ export default function UsersPage() {
     if (!search) return true;
     const searchLower = search.toLowerCase();
     return (
-      user.email?.toLowerCase().includes(searchLower) ||
       user.full_name?.toLowerCase().includes(searchLower) ||
       user.phone?.toLowerCase().includes(searchLower)
     );
@@ -360,7 +358,7 @@ export default function UsersPage() {
             <DataTable
               columns={[
                 {
-                  key: 'email',
+                  key: 'full_name',
                   label: 'User',
                   sortable: true,
                   render: (value: string, row: User) => (
@@ -379,7 +377,7 @@ export default function UsersPage() {
                             </span>
                           )}
                         </div>
-                        <p className="text-sm text-gray-500">{value || 'No email'}</p>
+                        <p className="text-sm text-gray-500">{row.phone || 'No phone'}</p>
                       </div>
                     </div>
                   ),
@@ -584,10 +582,6 @@ export default function UsersPage() {
                 
                 <div className="p-6 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-gray-600 text-sm">Email</p>
-                      <p className="font-medium">{selectedUser.email}</p>
-                    </div>
                     <div>
                       <p className="text-gray-600 text-sm">Phone</p>
                       <p className="font-medium">{selectedUser.phone || '-'}</p>

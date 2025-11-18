@@ -192,7 +192,7 @@ export default function CategoriesPage() {
         throw new Error('Failed to determine folder ID for image upload. Please try saving the category first, then upload the image.');
       }
       
-      const result = await uploadImageToSupabase(file, imageBucket, imageFolder, true);
+      const result = await uploadImageToSupabase(file, imageBucket, imageFolder, true, user?.id || null);
       
       if (result.success && result.url) {
         setFormData(prev => ({

@@ -6,7 +6,6 @@ import Link from 'next/link';
 export default function ContactPage() {
   const [formData, setFormData] = useState({
     name: '',
-    email: '',
     phone: '',
     subject: '',
     message: '',
@@ -26,7 +25,6 @@ export default function ContactPage() {
     setSubmitted(true);
     setFormData({
       name: '',
-      email: '',
       phone: '',
       subject: '',
       message: '',
@@ -138,38 +136,20 @@ export default function ContactPage() {
               )}
 
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
-                      Name *
-                    </label>
-                    <input
-                      type="text"
-                      id="name"
-                      name="name"
-                      required
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                      placeholder="Your name"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                      Email *
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      required
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                      placeholder="your.email@example.com"
-                    />
-                  </div>
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+                    Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    required
+                    value={formData.name}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
+                    placeholder="Your name"
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

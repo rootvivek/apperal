@@ -48,7 +48,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               {user && (
                 <div className="flex items-center space-x-3">
                   <span className="text-sm text-gray-700">
-                    Welcome, {user.email}
+                    Welcome, Admin
                   </span>
                   <button
                     onClick={() => signOut()}

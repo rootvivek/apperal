@@ -53,13 +53,13 @@ export default function AdminLogsPage() {
           if (log.admin_id) {
             const { data: profile } = await supabase
               .from('user_profiles')
-              .select('full_name, email')
+              .select('full_name, phone')
               .eq('id', log.admin_id)
               .maybeSingle();
             
             return {
               ...log,
-              admin_name: profile?.full_name || profile?.email || 'Unknown',
+              admin_name: profile?.full_name || profile?.phone || 'Unknown',
             };
           }
           return { ...log, admin_name: 'Unknown' };

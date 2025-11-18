@@ -303,7 +303,7 @@ function CheckoutSuccessContent() {
             <ul className="space-y-2 sm:space-y-3">
               <li className="flex items-start">
                 <span className="text-brand mr-3 flex-shrink-0">✓</span>
-                <span className="text-sm sm:text-base text-gray-700">You&apos;ll receive an order confirmation email shortly</span>
+                <span className="text-sm sm:text-base text-gray-700">Your order has been confirmed!</span>
               </li>
               <li className="flex items-start">
                 <span className="text-brand mr-3 flex-shrink-0">✓</span>

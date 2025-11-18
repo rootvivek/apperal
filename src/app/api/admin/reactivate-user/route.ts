@@ -40,7 +40,7 @@ async function reactivateUserHandler(request: NextRequest, { userId: adminUserId
     // Get user info before reactivation for logging
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
-      .select('email, full_name, phone, deleted_at')
+      .select('full_name, phone, deleted_at')
       .eq('id', userId)
       .maybeSingle();
 
@@ -59,7 +59,6 @@ async function reactivateUserHandler(request: NextRequest, { userId: adminUserId
     }
 
     // Reactivate: Clear deleted_at and restore account
-    // Restore email and name if they were changed during deletion
     const { error: reactivateError } = await supabaseAdmin
       .from('user_profiles')
       .update({
@@ -85,7 +84,7 @@ async function reactivateUserHandler(request: NextRequest, { userId: adminUserId
         resourceType: 'user',
         resourceId: userId,
         details: {
-          reactivated_user_email: userProfile?.email || 'Unknown',
+          reactivated_user_name: userProfile?.full_name || 'Unknown',
           reactivated_user_phone: userProfile?.phone || 'Unknown',
           note: 'User account reactivated. User can now log in again.',
         },

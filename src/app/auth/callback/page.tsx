@@ -50,11 +50,10 @@ function AuthCallbackContent() {
           sessionReceived = true;
           setRedirected(true);
           
-          console.log('✅ User signed in successfully:', session.user.email);
+          console.log('✅ User signed in successfully');
           
           // Update user profile for OAuth users (profile is created automatically by database trigger)
           const userId = session.user.id;
-          const userEmail = session.user.email || '';
           const userMetadata = session.user.user_metadata || {};
           const displayName = userMetadata.full_name || userMetadata.name || 'User';
           
@@ -62,7 +61,6 @@ function AuthCallbackContent() {
           supabase
             .from('user_profiles')
             .update({
-              email: userEmail,
               full_name: displayName,
               updated_at: new Date().toISOString()
             })
@@ -115,7 +113,7 @@ function AuthCallbackContent() {
           if (session?.user && !redirected && !sessionReceived) {
             sessionReceived = true;
             setRedirected(true);
-            console.log('✅ Session found via getSession:', session.user.email);
+            console.log('✅ Session found via getSession');
             router.push(next);
           } else if (!session && attempt < 3) {
             // Session not ready yet, try again

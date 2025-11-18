@@ -168,7 +168,18 @@ export function withAdminAuth(
       );
     }
 
-    return handler(request, { userId: verification.userId });
+    try {
+      return await handler(request, { userId: verification.userId });
+    } catch (handlerError: any) {
+      console.error('Error in admin handler:', handlerError);
+      return NextResponse.json(
+        { 
+          error: handlerError.message || 'Internal server error',
+          details: process.env.NODE_ENV === 'development' ? handlerError.stack : undefined
+        },
+        { status: 500 }
+      );
+    }
   };
 }
 

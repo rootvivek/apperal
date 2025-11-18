@@ -36,7 +36,6 @@ interface OrderDetailProps {
   order: OrderDetailData;
   loading?: boolean;
   showCustomerInfo?: boolean;
-  customerEmail?: string;
   customerName?: string;
   customerPhone?: string;
   onOrderUpdate?: (updatedOrder: OrderDetailData) => void;
@@ -78,7 +77,6 @@ export default function OrderDetail({
   order, 
   loading = false,
   showCustomerInfo = false,
-  customerEmail,
   customerName,
   customerPhone,
   onOrderUpdate
@@ -308,7 +306,7 @@ export default function OrderDetail({
       </div>
 
       {/* Customer Information */}
-      {showCustomerInfo && (customerEmail || customerName || customerPhone) && (
+      {showCustomerInfo && (customerName || customerPhone) && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6">
           <h3 className="font-semibold text-lg text-gray-900 mb-4">Customer Information</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -316,12 +314,6 @@ export default function OrderDetail({
               <div>
                 <p className="text-gray-600 text-sm mb-1">Name</p>
                 <p className="font-medium text-gray-900">{customerName}</p>
-              </div>
-            )}
-            {customerEmail && (
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Email</p>
-                <p className="font-medium text-gray-900">{customerEmail}</p>
               </div>
             )}
             {customerPhone && (

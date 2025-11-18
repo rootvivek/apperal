@@ -1,35 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { withAdminAuth } from '@/lib/middleware/adminAuth';
-import sharp from 'sharp';
+import { FILE_LIMITS, IMAGE_SETTINGS } from '@/constants';
+
+async function loadSharp() {
+  try {
+    if (typeof require !== 'undefined') {
+      return { default: require('sharp') };
+    }
+    return await import('sharp');
+  } catch {
+    return null;
+  }
+}
 
 async function uploadImageHandler(request: NextRequest, { userId: adminUserId }: { userId: string }) {
   try {
     const formData = await request.formData();
+
     const file = formData.get('file') as File;
     const bucket = formData.get('bucket') as string || 'product-images';
     const folder = formData.get('folder') as string || 'products';
     const useFixedName = formData.get('useFixedName') === 'true';
 
-    if (!file) {
+    if (!file || !(file instanceof File)) {
       return NextResponse.json(
-        { success: false, error: 'No file provided' },
+        { success: false, error: 'No file provided or invalid file' },
         { status: 400 }
       );
     }
 
-    // Validate file type
-    const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
-    if (!validTypes.includes(file.type)) {
+    if (!FILE_LIMITS.VALID_IMAGE_TYPES.includes(file.type)) {
       return NextResponse.json(
         { success: false, error: 'Invalid file type. Only images are allowed.' },
         { status: 400 }
       );
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
-    if (file.size > maxSize) {
+    if (file.size > FILE_LIMITS.MAX_SIZE) {
       return NextResponse.json(
         { success: false, error: 'File size exceeds 10MB limit' },
         { status: 400 }
@@ -46,145 +54,88 @@ async function uploadImageHandler(request: NextRequest, { userId: adminUserId }:
     let fileName: string;
     let filePath: string;
 
-    try {
-      // Get image metadata
-      const metadata = await sharp(buffer).metadata();
-      
-      // Resize if image is too large (max width/height 2000px)
-      let sharpInstance = sharp(buffer);
-      if (metadata.width && metadata.width > 2000) {
-        sharpInstance = sharpInstance.resize(2000, null, {
-          withoutEnlargement: true,
-          fit: 'inside'
-        });
-      } else if (metadata.height && metadata.height > 2000) {
-        sharpInstance = sharpInstance.resize(null, 2000, {
-          withoutEnlargement: true,
-          fit: 'inside'
-        });
+    // Try to load and use sharp for image processing
+    const sharpModule = await loadSharp();
+    
+    if (sharpModule?.default) {
+      try {
+        const sharp = sharpModule.default;
+        const metadata = await sharp(buffer).metadata();
+        let instance = sharp(buffer);
+        
+        if (metadata.width && metadata.width > IMAGE_SETTINGS.MAX_DIMENSION) {
+          instance = instance.resize(IMAGE_SETTINGS.MAX_DIMENSION, null, { withoutEnlargement: true, fit: 'inside' });
+        } else if (metadata.height && metadata.height > IMAGE_SETTINGS.MAX_DIMENSION) {
+          instance = instance.resize(null, IMAGE_SETTINGS.MAX_DIMENSION, { withoutEnlargement: true, fit: 'inside' });
+        }
+        
+        processedBuffer = await instance.webp({ 
+          quality: IMAGE_SETTINGS.WEBP_QUALITY, 
+          effort: IMAGE_SETTINGS.WEBP_EFFORT 
+        }).toBuffer();
+      } catch {
+        processedBuffer = buffer;
+        fileExt = file.name.split('.').pop() || 'jpg';
       }
-
-      // Convert to WebP with compression
-      // Quality: 85 (good balance between quality and file size)
-      processedBuffer = await sharpInstance
-        .webp({ 
-          quality: 85,
-          effort: 6 // Higher effort = better compression but slower (0-6)
-        })
-        .toBuffer();
-
-    } catch (processingError: any) {
-      // If processing fails, use original file
+    } else {
       processedBuffer = buffer;
       fileExt = file.name.split('.').pop() || 'jpg';
     }
 
     // Generate filename
-    if (useFixedName) {
-      fileName = `image.${fileExt}`;
-      filePath = `${folder}/${fileName}`;
-    } else {
-      // Generate unique filename with timestamp and random string
-      fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-      filePath = `${folder}/${fileName}`;
-    }
+    fileName = useFixedName 
+      ? `image.${fileExt}`
+      : `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+    filePath = `${folder}/${fileName}`;
 
     // Get Supabase client
     const supabase = createServerClient();
 
-    // For fixed name files, delete old files first
+    // Delete old files if using fixed name
     if (useFixedName) {
       try {
         const { data: files } = await supabase.storage.from(bucket).list(folder);
-        if (files && files.length > 0) {
-          const filePaths = files.map(f => `${folder}/${f.name}`);
-          await supabase.storage.from(bucket).remove(filePaths);
+        if (files?.length) {
+          await supabase.storage.from(bucket).remove(files.map(f => `${folder}/${f.name}`));
+          await new Promise(resolve => setTimeout(resolve, 200));
         }
-        // Small delay to ensure cleanup is processed
-        await new Promise(resolve => setTimeout(resolve, 200));
-      } catch (deleteError) {
-        // Continue with upload even if delete fails
+      } catch {
+        // Continue even if delete fails
       }
     }
 
-    // Create a File-like object from the processed buffer
     const processedFile = new File([new Uint8Array(processedBuffer)], fileName, {
-      type: 'image/webp',
+      type: fileExt === 'webp' ? 'image/webp' : file.type || 'image/jpeg',
       lastModified: Date.now()
     });
 
-    // Upload processed image to Supabase Storage with long-term cache (1 year)
+    const contentType = fileExt === 'webp' ? 'image/webp' : file.type || 'image/jpeg';
     const { data, error } = await supabase.storage
       .from(bucket)
       .upload(filePath, processedFile, {
         cacheControl: '31536000, immutable',
         upsert: useFixedName,
-        contentType: 'image/webp'
+        contentType
       });
 
     if (error) {
-      // If resource already exists and we're using fixed name, try to delete and re-upload
       if (error.message.includes('already exists') && useFixedName) {
-        try {
-          await supabase.storage.from(bucket).remove([filePath]);
-          // Retry upload with long-term cache (1 year)
-          const { data: retryData, error: retryError } = await supabase.storage
-            .from(bucket)
-            .upload(filePath, processedFile, {
-              cacheControl: '31536000, immutable',
-              upsert: false,
-              contentType: 'image/webp'
-            });
-
-          if (retryError) {
-            return NextResponse.json(
-              { success: false, error: retryError.message },
-              { status: 500 }
-            );
-          }
-
-          // Success on retry
-          const { data: { publicUrl } } = supabase.storage
-            .from(bucket)
-            .getPublicUrl(filePath);
-
-          const finalUrl = useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl;
-
-          return NextResponse.json({ success: true, url: finalUrl });
-        } catch (retryErr: any) {
-          return NextResponse.json(
-            { success: false, error: retryErr.message },
-            { status: 500 }
-          );
+        await supabase.storage.from(bucket).remove([filePath]);
+        const { error: retryError } = await supabase.storage
+          .from(bucket)
+          .upload(filePath, processedFile, { cacheControl: '31536000, immutable', upsert: false, contentType });
+        if (retryError) {
+          return NextResponse.json({ success: false, error: retryError.message }, { status: 500 });
         }
+      } else if (error.message.includes('Bucket not found')) {
+        return NextResponse.json({ success: false, error: `Bucket '${bucket}' not found` }, { status: 404 });
+      } else {
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
       }
-
-      // If bucket doesn't exist
-      if (error.message.includes('Bucket not found')) {
-        return NextResponse.json(
-          {
-            success: false,
-            error: `Bucket '${bucket}' not found. Please create the bucket in Supabase Storage dashboard first.`
-          },
-          { status: 404 }
-        );
-      }
-
-      return NextResponse.json(
-        { success: false, error: error.message },
-        { status: 500 }
-      );
     }
 
-    // Get public URL
-    const { data: { publicUrl } } = supabase.storage
-      .from(bucket)
-      .getPublicUrl(filePath);
-
-    // Add cache-busting parameter for fixed-name uploads
-    const finalUrl = useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl;
-
-    return NextResponse.json({ success: true, url: finalUrl });
+    const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(filePath);
+    return NextResponse.json({ success: true, url: useFixedName ? `${publicUrl}?t=${Date.now()}` : publicUrl });
 
   } catch (error: any) {
     return NextResponse.json(

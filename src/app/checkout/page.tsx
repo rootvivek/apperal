@@ -13,7 +13,6 @@ import Modal from '@/components/Modal';
 import Button from '@/components/Button';
 
 interface CheckoutFormData {
-  email?: string;
   fullName: string;
   address: string;
   city: string;
@@ -155,7 +154,6 @@ function CheckoutContent() {
   }, []); // Run only once on mount
   const [productSubcategories, setProductSubcategories] = useState<{[key: string]: {name: string | null, slug: string | null, detail_type: string | null}}>({});
   const [formData, setFormData] = useState<CheckoutFormData>({
-    email: '',
     fullName: '',
     address: '',
     city: '',
@@ -424,7 +422,6 @@ function CheckoutContent() {
       // This ensures if user removes data from profile, it won't show in checkout
       setFormData(prev => ({
         ...prev,
-        email: user.email || '', // Only use Firebase email (can't be removed)
         fullName: profile?.full_name || '', // Only from profile, empty if removed
         phone: profile?.phone || '', // Only from profile, empty if removed
         address: address?.address_line1 || '', // Only from address, empty if removed
@@ -955,7 +952,6 @@ function CheckoutContent() {
           // Store customer information for guest orders
           customer_name: formData.fullName || null,
           customer_phone: formData.phone || null,
-          customer_email: formData.email || null,
           shipping_address: formData.address || null,
           shipping_city: formData.city || null,
           shipping_state: formData.state || null,
@@ -1290,7 +1286,6 @@ function CheckoutContent() {
         },
         prefill: {
           name: formData.fullName,
-          email: formData.email || user?.email || '',
           contact: formData.phone,
         },
         theme: {

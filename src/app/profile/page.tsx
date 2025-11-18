@@ -11,7 +11,6 @@ import LoadingLogo from '@/components/LoadingLogo';
 
 interface UserProfile {
   id: string;
-  email: string | null;
   full_name: string | null;
   phone: string | null;
   user_number?: string | null;
@@ -45,7 +44,6 @@ function ProfileContent() {
   const [success, setSuccess] = useState(false);
   
   // Form state
-  const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
   
@@ -93,7 +91,6 @@ function ProfileContent() {
 
       if (data) {
         setProfile(data);
-        setEmail(data.email || '');
         setFullName(data.full_name || '');
         setPhone(data.phone || '');
       } else {
@@ -104,7 +101,6 @@ function ProfileContent() {
           .from('user_profiles')
           .insert({
             id: user.id,
-            email: user.email || '',
             full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
             phone: user.phone || null,
           })
@@ -123,21 +119,18 @@ function ProfileContent() {
             
           if (existingProfile) {
             setProfile(existingProfile);
-            setEmail(existingProfile.email || '');
             setFullName(existingProfile.full_name || '');
             setPhone(existingProfile.phone || '');
           } else {
             // Profile doesn't exist and couldn't be created - set defaults
             setProfile({
               id: user.id,
-              email: user.email || '',
               full_name: user.user_metadata?.full_name || null,
               phone: user.phone || null,
               user_number: null,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             });
-            setEmail(user.email || '');
             setFullName(user.user_metadata?.full_name || '');
             setPhone(user.phone || '');
             // Fall back to in-memory profile
@@ -145,7 +138,6 @@ function ProfileContent() {
         } else if (insertResult.data && insertResult.data.length > 0) {
           const newProfile = insertResult.data[0];
           setProfile(newProfile);
-          setEmail(newProfile.email || '');
           setFullName(newProfile.full_name || '');
           setPhone(newProfile.phone || '');
         }
@@ -171,7 +163,6 @@ function ProfileContent() {
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
-          email: email.trim() || null,
           full_name: fullName.trim() || null,
           phone: phone.trim() || null,
           updated_at: new Date().toISOString(),
@@ -200,7 +191,6 @@ function ProfileContent() {
       if (profile) {
         setProfile({
           ...profile,
-          email: email.trim() || null,
           full_name: fullName.trim() || null,
           phone: phone.trim() || null,
         });
@@ -433,21 +423,6 @@ function ProfileContent() {
           {/* Profile Form */}
           <form onSubmit={handleSubmit} className="p-6">
             <div className="space-y-6">
-              {/* Email */}
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Enter your email"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                />
-              </div>
-
               {/* Full Name */}
               <div>
                 <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
@@ -761,7 +736,6 @@ function ProfileContent() {
                 onClick={() => {
                   // Reset form to original profile values
                   if (profile) {
-                    setEmail(profile.email || '');
                     setFullName(profile.full_name || '');
                     setPhone(profile.phone || '');
                   }

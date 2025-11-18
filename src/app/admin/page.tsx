@@ -13,7 +13,6 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface User {
   id: string;
-  email: string;
   full_name: string;
   phone: string;
   created_at: string;
@@ -88,7 +87,6 @@ function AdminDashboardContent() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [userEmail, setUserEmail] = useState<string>('');
   const [userName, setUserName] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string>('');
   const [userAddress, setUserAddress] = useState<any>(null);
@@ -133,7 +131,7 @@ function AdminDashboardContent() {
       setUsersLoading(true);
       const { data } = await supabase
         .from('user_profiles')
-        .select('id, email, full_name, phone, created_at')
+        .select('id, full_name, phone, created_at')
         .order('created_at', { ascending: false });
       
       setUsers(data || []);
@@ -295,16 +293,15 @@ function AdminDashboardContent() {
       
       // Fetch user information if user_id exists
       if (order.user_id) {
-        // Fetch user profile (name, phone, email)
+        // Fetch user profile (name, phone)
         const { data: userProfile } = await supabase
           .from('user_profiles')
-          .select('email, full_name, phone')
+          .select('full_name, phone')
           .eq('id', order.user_id)
           .single() as any;
         
         // Prioritize order customer info (from checkout form) over profile data
         // This ensures we show what was actually entered during checkout
-        setUserEmail((order as any).customer_email || userProfile?.email || 'N/A');
         setUserName((order as any).customer_name || userProfile?.full_name || 'N/A');
         setUserPhone((order as any).customer_phone || userProfile?.phone || 'N/A');
         
@@ -344,7 +341,6 @@ function AdminDashboardContent() {
         }
       } else {
         // Guest order - use customer information from order
-        setUserEmail((order as any).customer_email || 'N/A');
         setUserName((order as any).customer_name || 'Guest User');
         setUserPhone((order as any).customer_phone || 'N/A');
         
@@ -555,8 +551,8 @@ function AdminDashboardContent() {
   };
 
   const filteredUsers = users.filter(user =>
-    user.email?.toLowerCase().includes(userSearch.toLowerCase()) ||
-    user.full_name?.toLowerCase().includes(userSearch.toLowerCase())
+    user.full_name?.toLowerCase().includes(userSearch.toLowerCase()) ||
+    user.phone?.toLowerCase().includes(userSearch.toLowerCase())
   );
 
   const filteredProducts = products.filter(product =>
@@ -1009,10 +1005,6 @@ function AdminDashboardContent() {
               {/* User Info */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-gray-600 text-sm">Email</p>
-                  <p className="font-medium">{selectedUser.email}</p>
-                </div>
-                <div>
                   <p className="text-gray-600 text-sm">Phone</p>
                   <p className="font-medium">{selectedUser.phone || '-'}</p>
                 </div>
@@ -1128,7 +1120,6 @@ function AdminDashboardContent() {
             <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
               <div>
                 <h2 className="text-xl font-bold">Order #{selectedOrder.order_number}</h2>
-                <p className="text-sm text-gray-600">{userEmail}</p>
               </div>
               <button onClick={() => setShowOrderDetails(false)} className="text-2xl">✕</button>
             </div>
@@ -1141,10 +1132,6 @@ function AdminDashboardContent() {
                   <div>
                     <p className="text-gray-600 text-sm mb-1">Name</p>
                     <p className="font-medium">{userName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Email</p>
-                    <p className="font-medium">{userEmail || 'N/A'}</p>
                   </div>
                   <div>
                     <p className="text-gray-600 text-sm mb-1">Phone Number</p>

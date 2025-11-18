@@ -4,7 +4,15 @@ import { createServerClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    let body;
+    try {
+      body = await request.json();
+    } catch (jsonError) {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      );
+    }
     const { 
       razorpay_order_id, 
       razorpay_payment_id, 
@@ -80,7 +88,6 @@ export async function POST(request: NextRequest) {
     if (orderData.formData) {
       if (orderData.formData.fullName) orderInsertData.customer_name = orderData.formData.fullName;
       if (orderData.formData.phone) orderInsertData.customer_phone = orderData.formData.phone;
-      if (orderData.formData.email) orderInsertData.customer_email = orderData.formData.email;
       if (orderData.formData.address) orderInsertData.shipping_address = orderData.formData.address;
       if (orderData.formData.city) orderInsertData.shipping_city = orderData.formData.city;
       if (orderData.formData.state) orderInsertData.shipping_state = orderData.formData.state;

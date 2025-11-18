@@ -41,9 +41,11 @@ CREATE TABLE IF NOT EXISTS app_config (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Insert admin phone (exactly 10 digits: 8881765192)
+-- Insert admin phone (with country code: +918881765192)
+-- The function will automatically extract the last 10 digits for comparison
+-- Format: +[country code][phone number] (e.g., +918881765192 for India)
 INSERT INTO app_config (key, value) 
-VALUES ('admin_phone', '8881765192')
+VALUES ('admin_phone', '+918881765192')
 ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW();
 
 -- Function to check if current user is admin

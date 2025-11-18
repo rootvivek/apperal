@@ -60,7 +60,7 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
   // Touch/swipe refs
   const touchStartRef = useRef<number | null>(null);
   const touchEndRef = useRef<number | null>(null);
-  
+
   // Check if device is touch-enabled (mobile/tablet)
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   

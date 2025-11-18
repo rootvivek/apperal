@@ -91,17 +91,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Try creating on retries 1, 3, 5, 7, etc. to give AuthContext time first
       if (!profile && i > 0 && i % 2 === 1 && user) {
         try {
-          // Generate email - use user email if available, otherwise create placeholder from phone
-          let userEmail = user.email || '';
-          if (!userEmail && user.phone) {
-            // Create placeholder email from phone number (email column is NOT NULL)
-            const cleanPhone = user.phone.replace(/\D/g, ''); // Remove non-digits
-            userEmail = `phone_${cleanPhone}@apperal.local`;
-          } else if (!userEmail) {
-            // Fallback if no phone either
-            userEmail = `user_${userId.substring(0, 8)}@apperal.local`;
-          }
-          
           // Check for soft-deleted profiles with same phone (like AuthContext does)
           const userPhone = user.phone || null;
           if (userPhone) {
@@ -125,7 +114,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             .from('user_profiles')
             .insert({
               id: userId,
-              email: userEmail, // Now always has a value
               full_name: user.user_metadata?.full_name || 'User',
               phone: userPhone,
             })

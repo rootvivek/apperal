@@ -8,6 +8,7 @@ import HeroCarousel from '@/components/HeroCarousel';
 import LoadingLogo from '@/components/LoadingLogo';
 import { createClient } from '@/lib/supabase/client';
 import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
+import { PRODUCT_LIMITS } from '@/constants';
 
 interface Product {
   id: string;
@@ -74,10 +75,10 @@ export default function Home() {
           product_images (\n            id,\n            image_url,\n            alt_text,\n            display_order\n          )\n        `)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(PRODUCT_LIMITS.HOME_PAGE);
 
       if (allProductsError) {
-        console.error('Error fetching all products:', allProductsError);
+        // Error handled silently - UI will show empty state
       }
 
       // Fetch categories and subcategories in parallel
@@ -96,11 +97,11 @@ export default function Home() {
       ]);
 
       if (categoriesResult.error) {
-        console.error('Error fetching categories:', categoriesResult.error);
+        // Error handled silently
       }
 
       if (subcategoriesResult.error) {
-        console.error('Error fetching subcategories:', subcategoriesResult.error);
+        // Error handled silently
       }
 
       // Attach subcategories to their parent categories
@@ -124,10 +125,10 @@ export default function Home() {
             .eq('is_active', true)
             .eq('category_id', category.id)
             .order('created_at', { ascending: false })
-            .limit(20);
+            .limit(PRODUCT_LIMITS.HOME_PAGE);
 
           if (categoryProductsError) {
-            console.error(`Error fetching products for category ${category.name}:`, categoryProductsError);
+            // Error handled silently
           }
 
           categorySectionsData.push({
