@@ -52,11 +52,7 @@ async function initializeFirebase(): Promise<{ app: FirebaseApp; auth: Auth } | 
 
   // Check for missing environment variables
   if (missingVars.length > 0) {
-    console.error(
-      'Firebase configuration error: Missing environment variables:\n' +
-      missingVars.join('\n') +
-      '\n\nPlease add these to your .env.local file. See env.example for reference.'
-    );
+    // Missing environment variables - Firebase will not initialize
     return null;
   }
 
@@ -78,8 +74,7 @@ async function initializeFirebase(): Promise<{ app: FirebaseApp; auth: Auth } | 
       authInstance = getAuth(app);
       
       return { app, auth: authInstance };
-    } catch (error) {
-      console.error('Firebase initialization error:', error);
+    } catch {
       initPromise = null;
       return null;
     }

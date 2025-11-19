@@ -103,6 +103,9 @@ function ProfileContent() {
             id: user.id,
             full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
             phone: user.phone || null,
+            // Temporary placeholder email until database migration removes NOT NULL constraint
+            // TODO: Remove this after running migrate-remove-email-constraint.sql
+            email: user.phone ? `phone_${user.phone.replace(/\D/g, '')}@placeholder.local` : `user_${user.id.substring(0, 8)}@placeholder.local`,
           })
           .select();
         

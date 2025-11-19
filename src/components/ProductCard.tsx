@@ -148,8 +148,8 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
           pendingItems.push(pendingProduct);
           localStorage.setItem('pending-wishlist-add', JSON.stringify(pendingItems));
         }
-      } catch (error) {
-        console.error('Error saving pending wishlist item:', error);
+      } catch {
+        // Error handled silently
       }
       openLoginModal();
       return;
@@ -326,9 +326,8 @@ function ProductCard({ product, hideStockOverlay = false, variant = 'default', i
     if (typeof window !== 'undefined' && pathname) {
       try {
         sessionStorage.setItem('productReferrer', pathname);
-      } catch (error) {
-        // Handle storage quota or other errors
-        console.warn('Failed to save product referrer:', error);
+      } catch {
+        // Handle storage quota or other errors silently
       }
     }
   }, [pathname]);

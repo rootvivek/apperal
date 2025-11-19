@@ -28,8 +28,8 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
       if (savedWishlist) {
         return JSON.parse(savedWishlist);
       }
-    } catch (error) {
-      console.error('Error loading guest wishlist:', error);
+    } catch {
+      // Error handled silently
     }
     return [];
   };
@@ -76,8 +76,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           try {
             const pendingWishlist: Product[] = JSON.parse(pendingWishlistStr);
             if (pendingWishlist.length > 0) {
-              console.log(`Adding ${pendingWishlist.length} pending wishlist items to database...`);
-              
               // Add each pending item to database
               let addedCount = 0;
               for (const product of pendingWishlist) {
@@ -91,7 +89,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                     .maybeSingle();
 
                   if (checkError && checkError.code !== 'PGRST116') {
-                    console.error('Error checking existing wishlist item:', checkError);
                     continue; // Skip this item if there's an error
                   }
 
@@ -105,30 +102,19 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                       })
                       .select();
 
-                    if (insertError) {
-                      console.error('Error inserting wishlist item:', insertError);
-                      // Continue with other items even if one fails
-                    } else {
+                    if (!insertError) {
                       addedCount++;
                     }
                   }
-                } catch (itemError) {
-                  console.error('Error processing pending wishlist item:', itemError);
+                } catch {
                   // Continue with other items
                 }
               }
 
               // Clear pending wishlist after successful transfer
-              if (addedCount > 0) {
-                localStorage.removeItem('pending-wishlist-add');
-                console.log(`Successfully added ${addedCount} pending items to user wishlist`);
-              } else {
-                // Clear if all items already existed
-                localStorage.removeItem('pending-wishlist-add');
-              }
+              localStorage.removeItem('pending-wishlist-add');
             }
-          } catch (parseError) {
-            console.error('Error parsing pending wishlist:', parseError);
+          } catch {
             // Clear invalid localStorage data
             localStorage.removeItem('pending-wishlist-add');
           }
@@ -140,8 +126,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
           try {
             const guestWishlist: Product[] = JSON.parse(guestWishlistStr);
             if (guestWishlist.length > 0) {
-              console.log(`Transferring ${guestWishlist.length} items from guest wishlist to database...`);
-              
               // Transfer each guest wishlist item to database
               let transferredCount = 0;
               for (const product of guestWishlist) {
@@ -155,7 +139,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                     .maybeSingle();
 
                   if (checkError && checkError.code !== 'PGRST116') {
-                    console.error('Error checking existing wishlist item:', checkError);
                     continue; // Skip this item if there's an error
                   }
 
@@ -169,15 +152,11 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
                       })
                       .select();
 
-                    if (insertError) {
-                      console.error('Error inserting wishlist item:', insertError);
-                      // Continue with other items even if one fails
-                    } else {
+                    if (!insertError) {
                       transferredCount++;
                     }
                   }
-                } catch (itemError) {
-                  console.error('Error processing wishlist item:', itemError);
+                } catch {
                   // Continue with other items
                 }
               }
@@ -185,13 +164,9 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
               // Clear guest wishlist after successful transfer
               if (transferredCount > 0) {
                 localStorage.removeItem('guest-wishlist');
-                console.log(`Successfully transferred ${transferredCount} items from guest wishlist to user account`);
-              } else {
-                console.warn('No items were transferred from guest wishlist');
               }
             }
-          } catch (parseError) {
-            console.error('Error parsing guest wishlist:', parseError);
+          } catch {
             // Clear invalid localStorage data
             localStorage.removeItem('guest-wishlist');
           }
@@ -206,7 +181,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
         if (error) {
           // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
           if (error.code !== 'PGRST116') {
-            console.error('Error fetching wishlist:', error);
+            // Error handled silently
           }
           setWishlist([]);
         } else {
@@ -236,7 +211,6 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
               .in('id', productIds);
 
             if (productsError) {
-              console.error('Error fetching wishlist products:', productsError);
               setWishlist([]);
             } else {
               // Transform to Product type
@@ -292,8 +266,7 @@ export function WishlistProvider({ children }: { children: React.ReactNode }) {
             }
           }
         }
-      } catch (error: any) {
-        console.error('Error loading wishlist:', error);
+      } catch {
         setWishlist([]);
       } finally {
         setIsFetching(false);

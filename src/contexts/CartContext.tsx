@@ -79,7 +79,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (error && error.code !== 'PGRST116') {
-        console.warn('Error checking user profile:', error);
         // Continue retrying even on error (might be transient)
         if (i < maxRetries - 1) {
           await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
@@ -110,12 +109,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
           
           // Try to create profile with minimal data
+          // Note: Database may still require email (NOT NULL constraint)
+          // Temporary placeholder until migration is run to make email nullable
           const { error: createError } = await supabase
             .from('user_profiles')
             .insert({
               id: userId,
               full_name: user.user_metadata?.full_name || 'User',
               phone: userPhone,
+              // Temporary placeholder email until database migration removes NOT NULL constraint
+              // TODO: Remove this after running migrate-remove-email-constraint.sql
+              email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
             })
             .select();
 
@@ -146,12 +150,9 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             }
           } else if (createError.code === '23503') {
             // Foreign key constraint - might be a transient issue, continue retrying
-            console.warn('Foreign key constraint error, will retry:', createError);
-          } else {
-            console.warn('Failed to create profile from cart context:', createError);
           }
-        } catch (err) {
-          console.warn('Exception creating profile from cart context:', err);
+        } catch {
+          // Error handled silently - will retry
         }
       }
 
@@ -177,7 +178,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       // Ensure user profile exists before creating cart
       const profileExists = await ensureUserProfileExists(user.id);
       if (!profileExists) {
-        console.warn('User profile is being created, cart will be available shortly. Retrying...');
         // Retry after a delay - profile might be created by AuthContext
         setTimeout(() => {
           fetchCartItems();
@@ -191,8 +191,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         try {
           const guestCart: CartItem[] = JSON.parse(guestCartStr);
           if (guestCart.length > 0) {
-            console.log(`Transferring ${guestCart.length} items from guest cart to database...`);
-            
             // Get or create user's cart
             let { data: cartData, error: cartError } = await supabase
               .from('carts')
@@ -203,7 +201,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             let cart = cartData;
 
             if (cartError && cartError.code !== 'PGRST116') {
-              console.error('Error fetching cart:', cartError);
+              // Error handled silently
             }
 
             if (!cart) {
@@ -214,7 +212,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                 .select('id');
 
               if (createError) {
-                console.error('Error creating cart:', createError);
                 // If foreign key error, wait a bit and retry once
                 if (createError.code === '23503') {
                   await new Promise(resolve => setTimeout(resolve, 1000));
@@ -246,7 +243,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                     .maybeSingle();
 
                   if (checkError && checkError.code !== 'PGRST116') {
-                    console.error('Error checking existing cart item:', checkError);
                     continue; // Skip this item if there's an error
                   }
 
@@ -257,9 +253,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                       .update({ quantity: existingItem.quantity + guestItem.quantity })
                       .eq('id', existingItem.id);
 
-                    if (updateError) {
-                      console.error('Error updating cart item quantity:', updateError);
-                    } else {
+                    if (!updateError) {
                       transferredCount++;
                     }
                   } else {
@@ -274,15 +268,11 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                       })
                       .select();
 
-                    if (insertError) {
-                      console.error('Error inserting cart item:', insertError);
-                      // Continue with other items even if one fails
-                    } else {
+                    if (!insertError) {
                       transferredCount++;
                     }
                   }
-                } catch (itemError) {
-                  console.error('Error processing cart item:', itemError);
+                } catch {
                   // Continue with other items
                 }
               }
@@ -290,16 +280,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               // Clear guest cart after successful transfer
               if (transferredCount > 0) {
                 localStorage.removeItem('guest-cart');
-                console.log(`Successfully transferred ${transferredCount} items from guest cart to user account`);
-              } else {
-                console.warn('No items were transferred from guest cart');
               }
-            } else {
-              console.error('Could not create or fetch user cart, skipping guest cart transfer');
             }
           }
-        } catch (parseError) {
-          console.error('Error parsing guest cart:', parseError);
+        } catch {
           // Clear invalid localStorage data
           localStorage.removeItem('guest-cart');
         }
@@ -313,11 +297,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (cartError && cartError.code !== 'PGRST116') {
-        // Only log actual errors, not empty results
-        console.log('Note: Error fetching cart:', cartError.message || cartError);
-        if (cartError.message?.includes('Could not find the table')) {
-          console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-        }
         return;
       }
 
@@ -326,7 +305,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         const profileExists = await ensureUserProfileExists(user.id);
         if (!profileExists) {
           // Profile is being created by AuthContext, retry after a delay
-          console.log('User profile is being created, will retry cart creation shortly...');
           setTimeout(() => {
             fetchCartItems();
           }, 2000);
@@ -340,9 +318,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .select('id');
 
           if (createError) {
-            console.error('Error creating cart:', createError);
-          // If foreign key error, wait a bit and retry once
-          if (createError.code === '23503') {
+            // If foreign key error, wait a bit and retry once
+            if (createError.code === '23503') {
             await new Promise(resolve => setTimeout(resolve, 1000));
             const retryResult = await supabase
               .from('carts')
@@ -353,10 +330,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             } else {
               return;
             }
-          } else {
-            if (createError.message?.includes('Could not find the table')) {
-              console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
-            }
+            } else {
             return;
           }
         } else if (!newCartData || newCartData.length === 0) {
@@ -394,11 +368,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('cart_id', cart.id);
 
       if (itemsError) {
-        // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
-        // This is expected for users who don't have items in their cart yet
-        if (itemsError.code !== 'PGRST116') {
-          console.log('Note: Error fetching cart items:', itemsError.message || itemsError);
-        }
+        // PGRST116 = no rows returned, which is expected for empty carts
         setCartItems([]);
         return;
       }
@@ -430,9 +400,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       }) || [];
 
       setCartItems(transformedItems);
-    } catch (error: any) {
-      // Silently handle errors - cart might not exist yet for new users
-      console.log('Note: Error fetching cart items:', error?.message || error);
+    } catch {
+      // Error handled silently - cart might not exist yet for new users
     } finally {
       setLoading(false);
     }
@@ -472,7 +441,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (productError || !product) {
-          console.error('Error fetching product:', productError);
+          // Error handled silently
           const currentUrl = window.location.pathname;
           window.location.href = `/login?redirect=${encodeURIComponent(currentUrl)}`;
           return;
@@ -524,8 +493,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Save to localStorage
         localStorage.setItem('guest-cart', JSON.stringify(updatedCart));
         setCartItems(updatedCart);
-      } catch (error) {
-        console.error('Error adding to guest cart:', error);
+      } catch {
+        // Error handled silently
       }
       return;
     }
@@ -543,9 +512,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
       // If there was an error fetching cart
       if (cartError) {
-        console.error('Error fetching cart:', cartError);
         if (cartError.message.includes('Could not find the table')) {
-          console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
           alert('❌ Cart table missing! Please contact admin to fix this issue.');
         }
         return;
@@ -556,7 +523,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         // Ensure user profile exists before creating cart
         const profileExists = await ensureUserProfileExists(user.id);
         if (!profileExists) {
-          console.warn('User profile is being created, please try again in a moment');
           return;
         }
 
@@ -566,7 +532,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .select('id');
 
         if (createError) {
-          console.error('Error creating cart:', createError);
           // If foreign key error, wait a bit and retry once
           if (createError.code === '23503') {
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -581,7 +546,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             }
           } else {
             if (createError.message?.includes('Could not find the table')) {
-            console.error('❌ MISSING TABLE: The carts table does not exist. Please run the SQL script to create it.');
             alert('❌ Cart table missing! Please contact admin to fix this issue.');
           }
           return;
@@ -611,7 +575,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       const { data: existingItem, error: existingError } = await query.maybeSingle();
 
       if (existingError && existingError.code !== 'PGRST116') {
-        console.error('Error checking existing cart item:', existingError);
         alert('Error adding item to cart. Please try again.');
         return;
       }
@@ -624,7 +587,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .eq('id', existingItem.id);
 
         if (updateError) {
-          console.error('Error updating cart item:', updateError);
           alert('Error updating cart. Please try again.');
           return;
         }
@@ -646,7 +608,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .single();
 
         if (productError || !productData) {
-          console.error('Error fetching product:', productError);
           alert('Error fetching product details. Please try again.');
           return;
         }
@@ -662,7 +623,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .select('id');
 
         if (insertError) {
-          console.error('Error adding to cart:', insertError);
           alert('Error adding item to cart. Please try again.');
           return;
         }
@@ -684,11 +644,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           setCartItems(prevItems => [...prevItems, newItem]);
         }
       }
-      
-      // Show success notification
-      console.log('Item added to cart successfully!');
-    } catch (error) {
-      console.error('Error adding to cart:', error);
+    } catch {
+      // Error handled silently
     }
   };
 
@@ -701,11 +658,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         
         const updatedCart = existingCart.filter(item => item.id !== cartItemId);
         
-        console.log('Removing item from guest cart:', cartItemId, 'Updated cart:', updatedCart);
         localStorage.setItem('guest-cart', JSON.stringify(updatedCart));
         setCartItems(updatedCart);
-      } catch (error) {
-        console.error('Error removing from guest cart:', error);
+      } catch {
+        // Error handled silently
       }
       return;
     }
@@ -718,14 +674,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('id', cartItemId);
 
       if (error) {
-        console.error('Error removing from cart:', error);
         return;
       }
 
       // Optimistically update local state instead of full refetch
       setCartItems(prevItems => prevItems.filter(item => item.id !== cartItemId));
-    } catch (error) {
-      console.error('Error removing from cart:', error);
+    } catch {
+      // Error handled silently
     }
   };
 
@@ -747,8 +702,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         
         localStorage.setItem('guest-cart', JSON.stringify(updatedCart));
         setCartItems(updatedCart);
-      } catch (error) {
-        console.error('Error updating guest cart quantity:', error);
+      } catch {
+        // Error handled silently
       }
       return;
     }
@@ -761,7 +716,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('id', cartItemId);
 
       if (error) {
-        console.error('Error updating quantity:', error);
         return;
       }
 
@@ -771,8 +725,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           item.id === cartItemId ? { ...item, quantity } : item
         )
       );
-    } catch (error) {
-      console.error('Error updating quantity:', error);
+    } catch {
+      // Error handled silently
     }
   };
 
@@ -794,7 +748,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .single();
 
       if (cartError) {
-        console.error('Error fetching cart:', cartError);
         return;
       }
 
@@ -805,15 +758,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .eq('cart_id', cart.id);
 
         if (error) {
-          console.error('Error clearing cart:', error);
           return;
         }
       }
 
       // Refresh cart items
       await fetchCartItems();
-    } catch (error) {
-      console.error('Error clearing cart:', error);
+    } catch {
+      // Error handled silently
     }
   };
 

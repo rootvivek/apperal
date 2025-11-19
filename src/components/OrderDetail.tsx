@@ -192,7 +192,7 @@ export default function OrderDetail({
             .eq('id', selectedItem.id);
           
           if (quantityError) {
-            console.warn('Could not update order_item quantity:', quantityError);
+            // Error handled silently
           }
         } else {
           // All items cancelled, mark the order_item as cancelled
@@ -206,7 +206,7 @@ export default function OrderDetail({
             .eq('id', selectedItem.id);
           
           if (cancelError) {
-            console.warn('Could not mark order_item as cancelled:', cancelError);
+            // Error handled silently
           }
         }
       }

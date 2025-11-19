@@ -202,7 +202,6 @@ export async function POST(request: NextRequest) {
             .single();
 
           if (fetchError || !product) {
-            console.error(`Error fetching product ${item.product_id}:`, fetchError);
             return { productId: item.product_id, success: false };
           }
 
@@ -219,7 +218,6 @@ export async function POST(request: NextRequest) {
             .eq('id', item.product_id);
 
           if (updateError) {
-            console.error(`Error updating stock for product ${item.product_id}:`, updateError);
             return { productId: item.product_id, success: false };
           }
 
@@ -229,11 +227,9 @@ export async function POST(request: NextRequest) {
 
       const failedUpdates = stockUpdates.filter(update => !update.success);
       if (failedUpdates.length > 0) {
-        console.warn('Some stock updates failed:', failedUpdates);
         // Don't fail the order if stock update fails - log it for admin review
       }
-    } catch (stockError) {
-      console.error('Error updating stock:', stockError);
+    } catch {
       // Don't fail the order if stock update fails
     }
 

@@ -77,8 +77,8 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
           }
         }
       }
-    } catch (error) {
-      console.error('Error fetching reviews:', error);
+    } catch {
+      // Error handled silently
     } finally {
       setLoading(false);
     }
@@ -114,12 +114,6 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
           errorData = { error: errorText || `Server error: ${response.status}` };
         }
         const errorMessage = errorData.error || errorData.details || `Failed to submit rating (${response.status})`;
-        console.error('API Error Response:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorData,
-          fullResponse: errorText
-        });
         throw new Error(errorMessage);
       }
 
@@ -138,11 +132,9 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
         }
       } else {
         const errorMessage = data.error || data.details || 'Failed to submit rating';
-        console.error('Rating submission error:', data);
         alert(errorMessage);
       }
     } catch (error) {
-      console.error('Error submitting rating:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit rating';
       alert(errorMessage);
     } finally {
@@ -205,11 +197,9 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
         }
       } else {
         const errorMessage = data.error || data.details || 'Failed to submit review';
-        console.error('Review submission error:', data);
         alert(errorMessage);
       }
     } catch (error) {
-      console.error('Error submitting review:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit review';
       alert(errorMessage);
     } finally {
@@ -247,8 +237,7 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
       } else {
         alert(data.error || 'Failed to delete review');
       }
-    } catch (error) {
-      console.error('Error deleting review:', error);
+    } catch {
       alert('Failed to delete review');
     }
   };

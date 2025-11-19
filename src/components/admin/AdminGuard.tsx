@@ -91,9 +91,8 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         
         setIsAdmin(hasAdminAccess);
         setIsChecking(false);
-      } catch (error) {
+      } catch {
         // Any error means access is denied
-        console.error('Error checking admin access:', error);
         setIsAdmin(false);
         setIsChecking(false);
       }

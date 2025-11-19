@@ -215,12 +215,17 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // Create new profile
+        // Note: Database may still require email (NOT NULL constraint)
+        // Temporary placeholder until migration is run to make email nullable
         const { data, error } = await supabase
           .from('user_profiles')
           .insert({
             id: userId,
             full_name: displayName,
             phone: userPhone,
+            // Temporary placeholder email until database migration removes NOT NULL constraint
+            // TODO: Remove this after running migrate-remove-email-constraint.sql
+            email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
           })
           .select();
 
@@ -266,6 +271,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   id: userId,
                   full_name: displayName,
                   phone: userPhone,
+                  // Temporary placeholder email until database migration removes NOT NULL constraint
+                  email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
                 })
                 .select();
 
