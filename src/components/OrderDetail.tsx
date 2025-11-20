@@ -206,10 +206,9 @@ export default function OrderDetail({
       setShowCancelItemModal(false);
       setSelectedItem(null);
       
-      alert('Item cancelled successfully!');
       setTimeout(() => {
         router.push('/orders');
-      }, 500); // Small delay to show the alert
+      }, 100);
     } catch (error: any) {
       alert('Failed to cancel item: ' + (error.message || 'Unknown error'));
     } finally {
@@ -384,9 +383,6 @@ export default function OrderDetail({
                             )}
                           </div>
                           <div className="flex items-center gap-2 sm:gap-3">
-                            <span className="text-xs sm:text-base font-semibold text-gray-900">
-                              {formatCurrency(item.total_price)}
-                            </span>
                             {canCancelItem(item) && (
                               <Button
                                 variant="danger"
@@ -447,7 +443,7 @@ export default function OrderDetail({
                   <div className="border-t border-gray-200 pt-3 sm:pt-4">
                     <div className="flex justify-between text-sm sm:text-base">
                       <span className="font-medium text-gray-900">Total</span>
-                      <span className="font-bold text-blue-600">
+                      <span className="font-normal text-gray-900">
                         {formatCurrency(currentOrder.total_amount)}
                       </span>
                     </div>

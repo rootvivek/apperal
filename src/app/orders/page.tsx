@@ -195,7 +195,7 @@ function OrdersContent() {
     <div className="min-h-screen bg-white">
       <div className="max-w-[1450px] mx-auto w-full">
         <div className="px-3 sm:px-4 py-3 sm:py-4">
-          <h1 className="text-sm sm:text-lg font-semibold text-gray-900 mb-2">My Orders</h1>
+          <h1 className="text-xs sm:text-base font-medium text-gray-900 mb-2">My Orders</h1>
           <p className="text-xs sm:text-sm text-gray-600">
             {expandedOrderItems.length === 0 
               ? "You haven't placed any orders yet." 
@@ -236,19 +236,19 @@ function OrdersContent() {
                         <ImageWithFallback
                           src={item.product_image}
                           alt={item.product_name || 'Product'}
-                          className="w-24 h-24 object-cover rounded-lg border border-gray-200"
+                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border border-gray-200"
                           fallbackType="product"
                           loading="lazy"
                           decoding="async"
-                          width={256}
-                          height={256}
+                          width={80}
+                          height={80}
                           responsive={true}
-                          responsiveSizes={[96, 192, 256]}
+                          responsiveSizes={[64, 80, 96]}
                           quality={85}
                         />
                       ) : (
-                        <div className="w-24 h-24 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-10 h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-lg flex items-center justify-center">
+                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                           </svg>
                         </div>
@@ -256,25 +256,22 @@ function OrdersContent() {
                     </div>
                     <div className="flex-1">
                       {/* Product Name */}
-                      <p className="text-base font-semibold text-gray-900 mb-1">
-                        {item.product_name || `Order #${item.order_number}`}
+                      <p className="text-sm sm:text-base font-semibold text-gray-900 mb-1 line-clamp-1">
+                        {item.product_name || 'Product'}
                       </p>
-                      {/* Order Number */}
-                      <p className="text-xs text-gray-500 mb-1">Order #{item.order_number}</p>
                       {/* Purchase Date */}
-                      <p className="text-sm text-gray-600 mb-1">{formatDate(item.created_at)}</p>
+                      <p className="text-xs sm:text-sm text-gray-600 mb-1">{formatDate(item.created_at)}</p>
                       {/* Payment Method */}
-                      <p className="text-sm text-gray-600">
+                      <p className="text-xs sm:text-sm text-gray-600">
                         {item.payment_method === 'cod' ? 'Cash on Delivery' : item.payment_method.charAt(0).toUpperCase() + item.payment_method.slice(1)}
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end">
-                    <span className={`px-3 py-1 rounded-full text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
+                    <span className={`px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
                       {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </span>
-                    <p className="text-lg font-bold text-blue-600">{formatCurrency(item.total_price)}</p>
-                    <p className="text-xs text-gray-500 mt-1">Price</p>
+                    <p className="text-base sm:text-lg font-normal text-gray-900">{formatCurrency(item.total_price)}</p>
                   </div>
                 </div>
                 </div>

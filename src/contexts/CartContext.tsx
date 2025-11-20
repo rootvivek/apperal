@@ -313,8 +313,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           .select('id');
 
           if (createError) {
-            // If foreign key error, wait a bit and retry once
-            if (createError.code === '23503') {
+          // If foreign key error, wait a bit and retry once
+          if (createError.code === '23503') {
             await new Promise(resolve => setTimeout(resolve, 1000));
             const retryResult = await supabase
               .from('carts')
@@ -325,7 +325,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             } else {
               return;
             }
-            } else {
+          } else {
             return;
           }
         } else if (!newCartData || newCartData.length === 0) {

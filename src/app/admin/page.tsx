@@ -278,11 +278,11 @@ function AdminDashboardContent() {
       // Process items with product data from JOIN
       const itemsWithImages = (itemsData || []).map((item: any) => {
         const product = item.products || {};
-        return {
-          ...item,
+          return {
+            ...item,
           product_name: product.name || 'Product not found',
           product_image: product.image_url || null
-        };
+          };
       });
       
       setOrderItems(itemsWithImages);
@@ -296,8 +296,8 @@ function AdminDashboardContent() {
             .from('addresses')
             .select('*')
             .eq('id', (order as any).shipping_address_id)
-            .single() as any;
-          
+          .single() as any;
+        
           setUserAddress(addressData || null);
           
           // Fetch customer info from address (this is what was used for the order)
@@ -392,20 +392,20 @@ function AdminDashboardContent() {
         alert('Order cancelled successfully!');
       } else {
         // For other status updates, update directly
-        const { error } = await supabase
-          .from('orders')
+      const { error } = await supabase
+        .from('orders')
           .update({ status: newStatus, updated_at: new Date().toISOString() })
-          .eq('id', orderId);
-        
-        if (error) throw error;
-        
-        // Update local state
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: newStatus });
-        }
-        
-        alert('Order status updated successfully!');
+        .eq('id', orderId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+      if (selectedOrder && selectedOrder.id === orderId) {
+        setSelectedOrder({ ...selectedOrder, status: newStatus });
+      }
+      
+      alert('Order status updated successfully!');
       }
     } catch (error: any) {
       alert('Failed to update order status: ' + (error.message || 'Unknown error'));

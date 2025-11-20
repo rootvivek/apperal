@@ -5,10 +5,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
-import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
 import LoadingLogo from '@/components/LoadingLogo';
-import { PRODUCT_GRID_CLASSES } from '@/utils/layoutUtils';
 
 function WishlistContent() {
   const { wishlist, loading } = useWishlist();
@@ -59,7 +57,7 @@ function WishlistContent() {
           </p>
         </div>
 
-        <div className={PRODUCT_GRID_CLASSES}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3">
           {wishlist.map((product: any) => (
             <ProductCard 
               key={product.id} 
