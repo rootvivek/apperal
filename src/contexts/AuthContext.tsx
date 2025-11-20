@@ -215,17 +215,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
 
         // Create new profile
-        // Note: Database may still require email (NOT NULL constraint)
-        // Temporary placeholder until migration is run to make email nullable
         const { data, error } = await supabase
           .from('user_profiles')
           .insert({
             id: userId,
             full_name: displayName,
             phone: userPhone,
-            // Temporary placeholder email until database migration removes NOT NULL constraint
-            // TODO: Remove this after running migrate-remove-email-constraint.sql
-            email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
           })
           .select();
 
@@ -271,8 +266,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
                   id: userId,
                   full_name: displayName,
                   phone: userPhone,
-                  // Temporary placeholder email until database migration removes NOT NULL constraint
-                  email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
                 })
                 .select();
 
@@ -372,7 +365,12 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       await verifier.render();
       setRecaptchaVerifier(verifier);
       return verifier;
-    } catch {
+    } catch (error: any) {
+      // Silently handle reCAPTCHA errors - these are often non-critical warnings
+      // Common issues:
+      // - Domain not authorized in Firebase console (add localhost to authorized domains)
+      // - reCAPTCHA key issues (check Firebase console settings)
+      // - Network errors (will retry on next attempt)
       setRecaptchaVerifier(null);
       return null;
     }
@@ -1005,7 +1003,18 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   return (
     <AuthContext.Provider value={contextValue}>
       {/* Hidden container for reCAPTCHA */}
-      <div id="recaptcha-container" style={{ display: 'none' }}></div>
+      <div 
+        id="recaptcha-container" 
+        style={{ 
+          display: 'none',
+          position: 'absolute',
+          left: '-9999px',
+          width: '1px',
+          height: '1px',
+          overflow: 'hidden'
+        }}
+        aria-hidden="true"
+      ></div>
       {children}
     </AuthContext.Provider>
   );

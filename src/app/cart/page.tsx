@@ -81,25 +81,33 @@ function CartContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 sm:pb-0">
-      <div className="max-w-[1450px] mx-auto w-full px-0 sm:px-4 md:px-6 lg:px-8 pt-1">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
+    <div className="min-h-screen bg-white pb-24 sm:pb-0">
+      <div className="max-w-[1450px] mx-auto w-full">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
           {/* Cart Items and Order Summary - Combined on Mobile */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded shadow-sm border">
+            <div className="bg-white">
               {/* Cart Heading */}
-              <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-                <h1 className="text-lg sm:text-3xl font-bold text-gray-900">Shopping Cart</h1>
-                <p className="mt-1 sm:mt-2 text-sm sm:text-base text-gray-600">{cartItems.length} item(s) in your cart</p>
+              <div className="px-3 sm:px-4 py-3 sm:py-4">
+                <h1 className="text-sm sm:text-lg font-semibold text-gray-900">Shopping Cart</h1>
+                <p className="mt-1 text-xs sm:text-sm text-gray-600">{cartItems.length} item(s) in your cart</p>
               </div>
-              <div className="border-b border-gray-200 md:hidden"></div>
-              <div className="px-0 py-3 sm:py-4 border-b border-gray-200 hidden md:block">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900 px-3 sm:px-6">Cart Items</h2>
+              <div className="px-3 sm:px-4">
+                <div className="border-t border-gray-200"></div>
               </div>
-              <div className="divide-y divide-gray-200">
-                {cartItems.map((item) => (
-                  <div key={item.id} className="px-0 py-3 sm:py-6">
-                    <div className="flex items-stretch gap-3 sm:gap-4 px-3 sm:px-6">
+              <div className="px-3 sm:px-4 py-2 hidden md:block">
+                <h2 className="text-sm sm:text-base font-medium text-gray-900">Cart Items</h2>
+              </div>
+              <div>
+                {cartItems.map((item, index) => (
+                  <div key={item.id}>
+                    {index > 0 && (
+                      <div className="px-3 sm:px-4">
+                        <div className="border-t border-gray-200"></div>
+                      </div>
+                    )}
+                    <div className="px-3 sm:px-4 py-3 sm:py-4">
+                      <div className="flex items-stretch gap-3 sm:gap-4">
                       {/* Product Image - Left Column */}
                       <div className="flex-shrink-0 w-28 h-28 sm:w-32 sm:h-32 aspect-square">
                         <ImageWithFallback
@@ -189,13 +197,21 @@ function CartContent() {
                         </div>
                       </div>
                     </div>
+                    </div>
                   </div>
                 ))}
               </div>
 
+              {/* Separator before Order Summary - Mobile */}
+              <div className="lg:hidden">
+                <div className="px-3 sm:px-4">
+                  <div className="border-t border-gray-200"></div>
+                </div>
+              </div>
+
               {/* Order Summary - Mobile (Inside same frame) */}
-              <div className="lg:hidden border-t border-gray-200">
-                <div className="px-3 py-3 space-y-3">
+              <div className="lg:hidden">
+                <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-3">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
@@ -227,11 +243,14 @@ function CartContent() {
 
           {/* Order Summary - Desktop */}
           <div className="hidden lg:block lg:col-span-1">
-            <div className="bg-white rounded shadow-sm border sticky top-4">
-              <div className="px-0 py-3 sm:py-4 border-b border-gray-200">
-                <h2 className="text-base sm:text-lg font-medium text-gray-900 px-3 sm:px-6">Order Summary</h2>
+            <div className="bg-white sticky top-4">
+              <div className="px-3 sm:px-4 py-3 sm:py-4">
+                <h2 className="text-sm sm:text-lg font-semibold">Order Summary</h2>
               </div>
-              <div className="px-3 sm:px-6 py-2 sm:py-3 space-y-3 sm:space-y-4">
+              <div className="px-3 sm:px-4">
+                <div className="border-t border-gray-200"></div>
+              </div>
+              <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-3 sm:space-y-4">
                 <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>

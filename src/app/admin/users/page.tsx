@@ -22,7 +22,7 @@ interface User {
 interface Order {
   id: string;
   order_number: string;
-  total: number;
+  total_amount: number;
   status: string;
   created_at: string;
 }
@@ -610,7 +610,7 @@ export default function UsersPage() {
                           {userOrders.map((order) => (
                             <div key={order.id} className="flex justify-between items-center border p-2 rounded">
                               <span className="font-medium">#{order.order_number}</span>
-                              <span>{formatCurrency(order.total)}</span>
+                              <span>{formatCurrency(order.total_amount || 0)}</span>
                             </div>
                           ))}
                         </div>

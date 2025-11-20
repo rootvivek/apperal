@@ -26,7 +26,7 @@ interface Address {
   city: string;
   state: string;
   zip_code: string;
-  phone: string | null;
+  phone: number | null;
   is_default: boolean;
   created_at: string;
   updated_at: string;
@@ -56,6 +56,7 @@ function ProfileContent() {
     city: '',
     state: '',
     zip_code: '',
+    phone: '',
     is_default: false,
   });
   const [savingAddress, setSavingAddress] = useState(false);
@@ -103,9 +104,6 @@ function ProfileContent() {
             id: user.id,
             full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
             phone: user.phone || null,
-            // Temporary placeholder email until database migration removes NOT NULL constraint
-            // TODO: Remove this after running migrate-remove-email-constraint.sql
-            email: user.phone ? `phone_${user.phone.replace(/\D/g, '')}@placeholder.local` : `user_${user.id.substring(0, 8)}@placeholder.local`,
           })
           .select();
         
@@ -265,6 +263,7 @@ function ProfileContent() {
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
+            phone: addressForm.phone ? parseInt(addressForm.phone.replace(/^\+91\s*/, '').replace(/\D/g, ''), 10) : null,
             is_default: addressForm.is_default,
             updated_at: new Date().toISOString(),
           })
@@ -303,6 +302,7 @@ function ProfileContent() {
             city: addressForm.city.trim(),
             state: addressForm.state.trim(),
             zip_code: addressForm.zip_code.trim(),
+            phone: addressForm.phone ? parseInt(addressForm.phone.replace(/^\+91\s*/, '').replace(/\D/g, ''), 10) : null,
             is_default: addressForm.is_default,
           })
           .select();
@@ -322,6 +322,7 @@ function ProfileContent() {
         city: '',
         state: '',
         zip_code: '',
+        phone: '',
         is_default: false,
       });
       setShowAddressForm(false);
@@ -344,6 +345,7 @@ function ProfileContent() {
       city: address.city,
       state: address.state,
       zip_code: address.zip_code,
+      phone: address.phone ? String(address.phone) : '',
       is_default: address.is_default,
     });
     setShowAddressForm(true);
@@ -405,26 +407,30 @@ function ProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-8">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 pt-1 pb-8">
+    <div className="min-h-screen bg-white pb-8">
+      <div className="max-w-[1450px] mx-auto w-full">
 
         {/* Success Message */}
         {success && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
-            Profile updated successfully!
+          <div className="px-3 sm:px-4 pt-3 sm:pt-4">
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
+              Profile updated successfully!
+            </div>
           </div>
         )}
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
-            {error}
+          <div className="px-3 sm:px-4 pt-3 sm:pt-4">
+            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
+              {error}
+            </div>
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="bg-white">
           {/* Profile Form */}
-          <form onSubmit={handleSubmit} className="p-6">
+          <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-3 sm:py-4">
             <div className="space-y-6">
               {/* Full Name */}
               <div>
@@ -499,12 +505,17 @@ function ProfileContent() {
             </div>
           </form>
 
+          {/* Separator */}
+          <div className="px-3 sm:px-4">
+            <div className="border-t border-gray-200"></div>
+          </div>
+
           {/* Addresses Section */}
-          <div className="border-t border-gray-200">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center">
+          <div className="px-3 sm:px-4 py-3 sm:py-4">
+            <div className="flex justify-between items-center mb-4">
               <div>
-                <h2 className="text-xl font-bold text-gray-900">Addresses</h2>
-                <p className="mt-1 text-sm text-gray-600">Manage your shipping and billing addresses</p>
+                <h2 className="text-sm sm:text-lg font-semibold text-gray-900">Addresses</h2>
+                <p className="mt-1 text-xs sm:text-sm text-gray-600">Manage your shipping and billing addresses</p>
               </div>
               {addresses.length < 3 && (
                 <button
@@ -516,6 +527,7 @@ function ProfileContent() {
                       city: '',
                       state: '',
                       zip_code: '',
+                      phone: '',
                       is_default: false,
                     });
                     setShowAddressForm(!showAddressForm);
@@ -532,7 +544,11 @@ function ProfileContent() {
 
             {/* Address Form */}
             {showAddressForm && (
-              <form onSubmit={handleAddressSubmit} className="p-6 border-b border-gray-200">
+              <>
+                <div className="px-3 sm:px-4">
+                  <div className="border-t border-gray-200"></div>
+                </div>
+                <form onSubmit={handleAddressSubmit} className="px-3 sm:px-4 py-3 sm:py-4">
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -613,6 +629,28 @@ function ProfileContent() {
                     />
                   </div>
 
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={addressForm.phone}
+                      onChange={(e) => {
+                        // Remove +91 prefix if present, then remove all non-digits
+                        let value = e.target.value.replace(/^\+91\s*/, '').replace(/\D/g, '');
+                        // Limit to 10 digits
+                        if (value.length > 10) {
+                          value = value.slice(0, 10);
+                        }
+                        setAddressForm({ ...addressForm, phone: value });
+                      }}
+                      placeholder="1234567890 or +911234567890"
+                      maxLength={13}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center">
@@ -640,6 +678,7 @@ function ProfileContent() {
                         city: '',
                         state: '',
                         zip_code: '',
+                        phone: '',
                         is_default: false,
                       });
                     }}
@@ -657,10 +696,21 @@ function ProfileContent() {
                 </div>
               </div>
               </form>
+              {showAddressForm && (
+                <div className="px-3 sm:px-4">
+                  <div className="border-t border-gray-200"></div>
+                </div>
+              )}
+              </>
             )}
 
             {/* Addresses List */}
-            <div className="p-6">
+            {addresses.length > 0 && (
+              <div className="px-3 sm:px-4">
+                <div className="border-t border-gray-200"></div>
+              </div>
+            )}
+            <div className="px-3 sm:px-4 py-3 sm:py-4">
             {addresses.length === 0 ? (
               <EmptyState
                 icon="📍"
@@ -669,14 +719,20 @@ function ProfileContent() {
                 variant="compact"
               />
             ) : (
-              <div className="space-y-4">
-                {addresses.map((address) => (
-                  <div
-                    key={address.id}
-                    className={`border rounded-lg p-3 transition-colors ${
-                      address.is_default ? 'border-orange-600 bg-orange-50' : 'border-gray-200'
-                    }`}
-                  >
+              <div>
+                {addresses.map((address, index) => (
+                  <div key={address.id}>
+                    {index > 0 && (
+                      <div className="px-3 sm:px-4">
+                        <div className="border-t border-gray-200"></div>
+                      </div>
+                    )}
+                    <div className="px-3 sm:px-4 py-3 sm:py-4">
+                      <div
+                        className={`border rounded-lg p-3 transition-colors ${
+                          address.is_default ? 'border-orange-600 bg-orange-50' : 'border-gray-200'
+                        }`}
+                      >
                     {/* Action Buttons Row */}
                     <div className="flex items-center justify-end gap-2 mb-2 pb-2 border-b border-gray-200">
                       {!address.is_default && (
@@ -726,14 +782,21 @@ function ProfileContent() {
                       )}
                     </div>
                   </div>
+                    </div>
+                  </div>
                 ))}
               </div>
             )}
-            </div>
+          </div>
+          </div>
+
+          {/* Separator before Submit Buttons */}
+          <div className="px-3 sm:px-4">
+            <div className="border-t border-gray-200"></div>
           </div>
 
           {/* Profile Submit Buttons - At the end of all profile content */}
-          <div className="p-6 border-t border-gray-200 flex justify-end space-x-4">
+          <div className="px-3 sm:px-4 py-3 sm:py-4 flex justify-end space-x-4">
             <button
               type="button"
                 onClick={() => {

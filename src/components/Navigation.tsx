@@ -97,6 +97,7 @@ export default function Navigation() {
   const [currentSubcategorySlug, setCurrentSubcategorySlug] = useState<string | null>(null);
   const [isAllProductsPage, setIsAllProductsPage] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [pageTitle, setPageTitle] = useState<string | null>(null);
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [dropdownTimeout, setDropdownTimeout] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -184,11 +185,60 @@ export default function Navigation() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataFetched]);
 
+  // Get page title from pathname
+  const getPageTitle = (path: string): string | null => {
+    const normalizedPath = path.replace(/\/$/, ''); // Remove trailing slash
+    
+    // Page title mapping
+    const pageTitles: Record<string, string> = {
+      '/checkout': 'Checkout',
+      '/checkout/success': 'Order Success',
+      '/cart': 'Cart',
+      '/profile': 'My Profile',
+      '/orders': 'My Orders',
+      '/wishlist': 'Wishlist',
+      '/search': 'Search',
+      '/contact': 'Contact Us',
+      '/login': 'Sign In',
+      '/signup': 'Sign Up',
+      '/privacy': 'Privacy Policy',
+      '/terms': 'Terms & Conditions',
+      '/cookies': 'Cookie Policy',
+      '/returns': 'Returns Policy',
+      '/shipping': 'Shipping Information',
+      '/size-guide': 'Size Guide',
+      '/faq': 'FAQ',
+      '/track-order': 'Track Order',
+      '/products': 'All Products',
+    };
+    
+    // Check exact matches first
+    if (pageTitles[normalizedPath]) {
+      return pageTitles[normalizedPath];
+    }
+    
+    // Check dynamic routes
+    if (normalizedPath.startsWith('/orders/')) {
+      return 'Order Details';
+    }
+    
+    if (normalizedPath.startsWith('/product/')) {
+      return null; // Will be handled by product name
+    }
+    
+    return null;
+  };
+
   // Detect category/subcategory from pathname and fetch names
   useEffect(() => {
     const fetchCurrentCategoryInfo = async () => {
-      // Check if we're on the profile page
       const normalizedPath = pathname.replace(/\/$/, ''); // Remove trailing slash
+      
+      // Set page title first
+      const title = getPageTitle(pathname);
+      setPageTitle(title);
+      
+      // Check if we're on the profile page
       if (normalizedPath === '/profile') {
         setIsAllProductsPage(false);
         setCurrentCategoryName('My Profile');
@@ -556,8 +606,8 @@ export default function Navigation() {
                       <BackArrowIcon />
                     </button>
                     <Logo className="h-6 sm:h-8 w-auto" maxWidth="100px" />
-                    <span className="text-gray-900 text-sm sm:text-base font-medium truncate max-w-[120px] sm:max-w-[200px]">
-                      {isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName || 'Back')}
+                    <span className="text-gray-900 text-sm sm:text-base font-medium truncate max-w-[120px] sm:max-w-[200px] flex-shrink-0">
+                      {pageTitle || (isAllProductsPage ? 'All Products' : (currentSubcategoryName || currentCategoryName || 'Back'))}
                     </span>
                   </div>
                   

@@ -15,7 +15,6 @@ export const schemas = {
     { message: 'Invalid user ID format' }
   ),
   productId: z.string().uuid('Invalid product ID format'),
-  email: z.string().email('Invalid email format'),
   phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format'),
   url: z.string().url('Invalid URL format'),
   positiveNumber: z.number().positive('Must be a positive number'),

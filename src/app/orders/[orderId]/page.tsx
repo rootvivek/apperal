@@ -14,23 +14,38 @@ function OrderDetailContent() {
   const supabase = createClient();
   const { user } = useAuth();
   const orderId = params.orderId as string;
+  
+  const [orderItemId, setOrderItemId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [order, setOrder] = useState<OrderDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [customerName, setCustomerName] = useState<string>('');
+  const [customerPhone, setCustomerPhone] = useState<string>('');
+  const [shippingAddress, setShippingAddress] = useState<any>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const searchParams = new URLSearchParams(window.location.search);
+      const itemId = searchParams.get('item');
+      const expId = searchParams.get('expandedId');
+      setOrderItemId(itemId);
+      setExpandedId(expId);
+    }
+  }, []);
 
   useEffect(() => {
     if (user && orderId) {
       fetchOrderDetails();
     }
-  }, [user, orderId]);
+  }, [user, orderId, orderItemId]);
 
   const fetchOrderDetails = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch order
       const { data: orderData, error: orderError } = await supabase
         .from('orders')
         .select('*')
@@ -45,56 +60,54 @@ function OrderDetailContent() {
         return;
       }
 
-      // Fetch order items
       const { data: itemsData, error: itemsError } = await supabase
         .from('order_items')
-        .select('*, cancelled_quantity')
+        .select(`
+          *,
+          cancelled_quantity,
+          products:product_id (
+            name,
+            image_url
+          )
+        `)
         .eq('order_id', orderId);
 
       if (itemsError) throw itemsError;
 
-      // Fetch product images for each item
-      const itemsWithImages = await Promise.all(
-        (itemsData || []).map(async (item: any) => {
-          let productImage = item.product_image;
+      const itemsWithImages = (itemsData || []).map((item: any) => {
+        const product = item.products || {};
+        const cancelledQty = item.cancelled_quantity || 0;
+        const activeQty = item.quantity - cancelledQty;
+        const isFullyCancelled = activeQty === 0;
+        
+        return {
+          id: item.id,
+          product_id: item.product_id,
+          product_name: product.name || 'Product not found',
+          product_image: product.image_url || null,
+          product_price: item.product_price,
+          quantity: item.quantity,
+          total_price: item.product_price * activeQty,
+          size: item.size,
+          is_cancelled: isFullyCancelled,
+          cancelled_quantity: cancelledQty
+        };
+      });
 
-          // Fetch from products table if needed
-          if (item.product_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('image_url')
-              .eq('id', item.product_id)
-              .maybeSingle();
+      let activeItems = itemsWithImages.filter((item: any) => item !== null) as any[];
 
-            if (productData?.image_url) {
-              productImage = productData.image_url;
-            }
-          }
-
-          const cancelledQty = item.cancelled_quantity || 0;
-          const activeQty = item.quantity - cancelledQty;
-          
-          // Only return active items (non-cancelled)
-          if (activeQty > 0) {
-            return {
-              id: item.id,
-              product_id: item.product_id,
-              product_name: item.product_name,
-              product_image: productImage || null,
-              product_price: item.product_price,
-              quantity: activeQty, // Show only active quantity
-              total_price: item.product_price * activeQty,
-              size: item.size,
-              is_cancelled: false,
-              cancelled_quantity: cancelledQty
-            };
-          }
-          return null;
-        })
-      );
-
-      // Filter out null values (fully cancelled items)
-      const activeItems = itemsWithImages.filter(item => item !== null) as any[];
+      if (orderItemId) {
+        const orderItem = activeItems.find(item => item.id === orderItemId);
+        
+        if (orderItem) {
+          activeItems = [{
+            ...orderItem,
+            total_price: orderItem.product_price,
+          }];
+        } else {
+          activeItems = [];
+        }
+      }
 
       setOrder({
         id: orderData.id,
@@ -106,6 +119,34 @@ function OrderDetailContent() {
         created_at: orderData.created_at,
         items: activeItems
       });
+
+      if ((orderData as any).shipping_address_id) {
+        const { data: addressData } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('id', (orderData as any).shipping_address_id)
+          .single();
+
+        if (addressData) {
+          setShippingAddress(addressData);
+          setCustomerName(addressData.full_name || 'N/A');
+          setCustomerPhone(addressData.phone ? String(addressData.phone) : 'N/A');
+        }
+      } else {
+        const { data: addressData } = await supabase
+          .from('addresses')
+          .select('*')
+          .eq('user_id', user?.id)
+          .order('is_default', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (addressData) {
+          setShippingAddress(addressData);
+          setCustomerName(addressData.full_name || 'N/A');
+          setCustomerPhone(addressData.phone ? String(addressData.phone) : 'N/A');
+        }
+      }
     } catch (err: any) {
       console.error('Error fetching order details:', err);
       setError(err.message || 'Failed to load order details');
@@ -133,10 +174,14 @@ function OrderDetailContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-3 lg:px-4 py-8">
+      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-3 lg:px-4 py-4 sm:py-8">
         {/* Order Detail Component */}
         <OrderDetail 
           order={order} 
+          showCustomerInfo={true}
+          customerName={customerName}
+          customerPhone={customerPhone}
+          shippingAddress={shippingAddress}
           onOrderUpdate={(updatedOrder) => {
             setOrder(updatedOrder);
           }}

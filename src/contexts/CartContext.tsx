@@ -109,17 +109,12 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
           }
           
           // Try to create profile with minimal data
-          // Note: Database may still require email (NOT NULL constraint)
-          // Temporary placeholder until migration is run to make email nullable
           const { error: createError } = await supabase
             .from('user_profiles')
             .insert({
               id: userId,
               full_name: user.user_metadata?.full_name || 'User',
               phone: userPhone,
-              // Temporary placeholder email until database migration removes NOT NULL constraint
-              // TODO: Remove this after running migrate-remove-email-constraint.sql
-              email: userPhone ? `phone_${userPhone.replace(/\D/g, '')}@placeholder.local` : `user_${userId.substring(0, 8)}@placeholder.local`,
             })
             .select();
 

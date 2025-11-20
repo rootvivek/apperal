@@ -88,7 +88,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         
         // Check if user has admin access (last 10 digits must match)
         const hasAdminAccess = userLast10 === adminLast10 && userLast10.length === 10;
-        
+
         setIsAdmin(hasAdminAccess);
         setIsChecking(false);
       } catch {
@@ -103,7 +103,7 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   // Show loading while checking
   if (loading || isChecking) {
-    return <LoadingLogo fullScreen text="Loading..." />;
+      return <LoadingLogo fullScreen text="Loading..." />;
   }
 
   // Show 404 if: no user logged in OR user is not admin

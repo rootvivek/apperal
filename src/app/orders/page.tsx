@@ -59,9 +59,12 @@ function OrdersContent() {
         .eq('user_id', user?.id)
         .order('created_at', { ascending: false });
       
-      // Filter to ensure we only show truly paid orders
+      // Show all paid/completed orders, even if all items are cancelled
+      // This allows users to see their cancelled items separately
       const paidOrders = (data || []).filter((order: Order) => 
-        order.status === 'paid' || order.payment_status === 'completed'
+        order.status === 'paid' || 
+        order.payment_status === 'completed' ||
+        (order.status !== 'cancelled' && order.payment_status !== 'failed')
       );
       
       // Fetch all order items and expand them into separate entries
@@ -69,44 +72,35 @@ function OrdersContent() {
       
       for (const order of paidOrders) {
         try {
-          // Fetch all order items for this order
+          // Fetch all order items for this order with product data (JOIN)
           const { data: itemsData } = await supabase
             .from('order_items')
-            .select('*')
+            .select(`
+              *,
+              products:product_id (
+                name,
+                image_url
+              )
+            `)
             .eq('order_id', order.id);
           
           if (itemsData) {
-            // Fetch product images and subcategory info
-            const itemsWithImages = await Promise.all(
-              itemsData.map(async (item: any) => {
-                let productImage = item.product_image;
-                
-                // Fetch from products table if needed
-                if (item.product_id) {
-                  const { data: productData } = await supabase
-                    .from('products')
-                    .select('image_url')
-                    .eq('id', item.product_id)
-                    .maybeSingle();
-                  
-                  if (productData?.image_url) {
-                    productImage = productData.image_url;
-                  }
-                }
-                
-                return {
-                  ...item,
-                  product_image: productImage || null
-                };
-              })
-            );
+            // Process items with product data from JOIN
+            const itemsWithImages = itemsData.map((item: any) => {
+              const product = item.products || {};
+              return {
+                ...item,
+                product_name: product.name || 'Product not found',
+                product_image: product.image_url || null
+              };
+            });
             
-            // Expand items with quantity > 1 into separate entries
+            // Expand items with quantity > 1 into separate entries (one card per quantity)
             itemsWithImages.forEach((item: any) => {
               const cancelledQty = item.cancelled_quantity || 0;
               const activeQty = item.quantity - cancelledQty;
               
-              // Only expand active (non-cancelled) items
+              // Expand active items - one card per quantity
               for (let i = 0; i < activeQty; i++) {
                 allExpandedItems.push({
                   id: `${item.id}-${i}`,
@@ -117,7 +111,7 @@ function OrdersContent() {
                   product_name: item.product_name,
                   product_image: item.product_image,
                   product_price: item.product_price,
-                  quantity: 1,
+                  quantity: 1, // Each card represents 1 quantity
                   total_price: item.product_price,
                   size: item.size,
                   status: order.status,
@@ -127,7 +121,7 @@ function OrdersContent() {
                 });
               }
               
-              // Add cancelled items separately (if any)
+              // Expand cancelled items - one card per cancelled quantity
               for (let i = 0; i < cancelledQty; i++) {
                 allExpandedItems.push({
                   id: `${item.id}-cancelled-${i}`,
@@ -138,7 +132,7 @@ function OrdersContent() {
                   product_name: item.product_name,
                   product_image: item.product_image,
                   product_price: item.product_price,
-                  quantity: 1,
+                  quantity: 1, // Each card represents 1 quantity
                   total_price: item.product_price,
                   size: item.size,
                   status: 'cancelled',
@@ -198,11 +192,11 @@ function OrdersContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-3 lg:px-4 pb-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">My Orders</h1>
-          <p className="text-gray-600">
+    <div className="min-h-screen bg-white">
+      <div className="max-w-[1450px] mx-auto w-full">
+        <div className="px-3 sm:px-4 py-3 sm:py-4">
+          <h1 className="text-sm sm:text-lg font-semibold text-gray-900 mb-2">My Orders</h1>
+          <p className="text-xs sm:text-sm text-gray-600">
             {expandedOrderItems.length === 0 
               ? "You haven't placed any orders yet." 
               : `You have ${expandedOrderItems.length} item${expandedOrderItems.length === 1 ? '' : 's'}.`
@@ -211,23 +205,30 @@ function OrdersContent() {
         </div>
 
         {expandedOrderItems.length === 0 ? (
-          <EmptyState
-            icon="🛍️"
-            title="No orders yet"
-            description="Start shopping to see your orders here."
-            actionLabel="Browse Products"
-            actionHref="/products"
-            variant="default"
-            className="bg-white rounded-lg shadow-sm border border-gray-200"
-          />
+          <div className="px-3 sm:px-4">
+            <EmptyState
+              icon="🛍️"
+              title="No orders yet"
+              description="Start shopping to see your orders here."
+              actionLabel="Browse Products"
+              actionHref="/products"
+              variant="default"
+              className="bg-white"
+            />
+          </div>
         ) : (
-          <div className="space-y-3">
-            {expandedOrderItems.map((item) => (
-              <div 
-                key={item.id} 
-                className={`bg-white rounded-lg shadow-sm border border-gray-200 p-4 hover:shadow-md transition-shadow ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer'}`}
-                onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}`)}
-              >
+          <div>
+            {expandedOrderItems.map((item, index) => (
+              <div key={item.id}>
+                {index > 0 && (
+                  <div className="px-3 sm:px-4">
+                    <div className="border-t border-gray-200"></div>
+                  </div>
+                )}
+                <div 
+                  className={`px-3 sm:px-4 py-3 sm:py-4 hover:bg-gray-50 transition-colors ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer'}`}
+                  onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}?item=${item.order_item_id}&expandedId=${item.id}`)}
+                >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-4 flex-1">
                     <div className="flex-shrink-0">
@@ -272,9 +273,10 @@ function OrdersContent() {
                     <span className={`px-3 py-1 rounded-full text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
                       {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </span>
-                    <p className="text-lg font-bold text-blue-600">{formatCurrency(item.product_price)}</p>
+                    <p className="text-lg font-bold text-blue-600">{formatCurrency(item.total_price)}</p>
                     <p className="text-xs text-gray-500 mt-1">Price</p>
                   </div>
+                </div>
                 </div>
               </div>
             ))}

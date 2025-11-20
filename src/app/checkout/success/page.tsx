@@ -289,7 +289,7 @@ function CheckoutSuccessContent() {
               <div className="flex justify-between items-center">
                 <span className="text-lg sm:text-xl font-semibold text-gray-900">Total Amount</span>
                 <span className="text-xl sm:text-2xl font-bold text-brand">
-                  ₹{(order.total_amount || order.total || 0).toFixed(2)}
+                  ₹{(order.total_amount || 0).toFixed(2)}
                 </span>
               </div>
             </div>

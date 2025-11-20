@@ -64,8 +64,7 @@ export async function POST(request: NextRequest) {
     const paymentNote = `Payment ID: ${razorpay_payment_id}. Razorpay Order: ${razorpay_order_id}`;
     
     // Create order with paid status
-    // Note: orders table has both 'total' and 'total_amount' columns, both need to be set
-    // Build order data object with only required fields first
+    // Orders table uses normalized structure: only shipping_address_id, no customer_name/phone
     const orderTotal = orderData.total;
     const orderInsertData: any = {
       user_id: user.id,
@@ -74,24 +73,53 @@ export async function POST(request: NextRequest) {
       subtotal: orderData.subtotal || orderTotal,
       shipping_cost: orderData.shipping || 0,
       tax: 0, // Tax not calculated in current flow
-      total: orderTotal, // Use 'total' field from schema
-      total_amount: orderTotal, // Also set 'total_amount' if the column exists (required NOT NULL)
+      total_amount: orderTotal, // Use total_amount (total column removed)
       status: 'paid',
       payment_status: 'completed',
-      notes: paymentNote, // Keep for backward compatibility
-      razorpay_payment_id: razorpay_payment_id, // Store in dedicated column
-      razorpay_order_id: razorpay_order_id, // Store in dedicated column
+      notes: paymentNote,
+      razorpay_payment_id: razorpay_payment_id,
+      razorpay_order_id: razorpay_order_id,
     };
     
-    // Add customer information fields only if they exist in the table
-    // These columns might not exist if add-customer-info-to-orders.sql wasn't run
-    if (orderData.formData) {
-      if (orderData.formData.fullName) orderInsertData.customer_name = orderData.formData.fullName;
-      if (orderData.formData.phone) orderInsertData.customer_phone = orderData.formData.phone;
-      if (orderData.formData.address) orderInsertData.shipping_address = orderData.formData.address;
-      if (orderData.formData.city) orderInsertData.shipping_city = orderData.formData.city;
-      if (orderData.formData.state) orderInsertData.shipping_state = orderData.formData.state;
-      if (orderData.formData.zipCode) orderInsertData.shipping_zip_code = orderData.formData.zipCode;
+    // Do NOT add customer_name or customer_phone - fetch from user_profiles via user_id
+    
+    // Use shipping_address_id (normalized approach)
+    // All new orders must use shipping_address_id - no fallback to individual fields
+    if (orderData.shippingAddressId) {
+      orderInsertData.shipping_address_id = orderData.shippingAddressId;
+    } else if (orderData.formData) {
+      // Create address if shippingAddressId not provided
+      if (orderData.formData.address && orderData.formData.city && orderData.formData.state && orderData.formData.zipCode) {
+        const { data: newAddress, error: addressError } = await supabaseAdmin
+          .from('addresses')
+          .insert({
+            user_id: user.id,
+            address_line1: orderData.formData.address,
+            city: orderData.formData.city,
+            state: orderData.formData.state,
+            zip_code: orderData.formData.zipCode,
+            full_name: orderData.formData.fullName?.trim() || null,
+            phone: orderData.formData.phone ? parseInt(String(orderData.formData.phone), 10) : null,
+            is_default: false,
+          })
+          .select('id')
+          .single();
+
+        if (!addressError && newAddress) {
+          orderInsertData.shipping_address_id = newAddress.id;
+        } else {
+          // Address creation failed - return error instead of fallback
+          return NextResponse.json(
+            { error: 'Failed to save shipping address. Please try again.' },
+            { status: 500 }
+          );
+        }
+      } else {
+        return NextResponse.json(
+          { error: 'Shipping address information is required' },
+          { status: 400 }
+        );
+      }
     }
     
     const { data: createdOrder, error: createError } = await supabaseAdmin
@@ -141,29 +169,23 @@ export async function POST(request: NextRequest) {
     }
 
     // Create order items
-    // The order_items table requires: product_price (per unit) and total_price (line total)
+    // Normalized structure: only product_id, product_price (at time of purchase), total_price, quantity, size
+    // Product name and image are fetched from products table via JOIN
     const orderItemsToInsert = orderItems.map((item: any) => {
-      // Get the per-unit price
       const unitPrice = item.product_price || item.price || 0;
-      // Calculate total price (per unit * quantity)
       const lineTotal = item.total_price || (unitPrice * item.quantity);
       
       const orderItem: any = {
-      order_id: createdOrder.id,
-      product_id: item.product_id,
-      product_name: item.product_name,
-        product_price: unitPrice, // Per unit price (required)
-        total_price: lineTotal, // Line total = product_price * quantity (required NOT NULL)
-      quantity: item.quantity,
+        order_id: createdOrder.id,
+        product_id: item.product_id,
+        product_price: unitPrice, // Price at time of purchase (for historical accuracy)
+        total_price: lineTotal, // Line total = product_price * quantity
+        quantity: item.quantity,
       };
       
-      // Only include size if provided (column may or may not exist)
       if (item.size) {
         orderItem.size = item.size;
       }
-      
-      // Note: color column may not exist in the actual table, so we skip it
-      // If you need color, add the column to the order_items table first
       
       return orderItem;
     });

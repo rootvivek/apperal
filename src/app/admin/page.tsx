@@ -213,12 +213,17 @@ function AdminDashboardContent() {
           try {
             const { data: itemsData, error: itemsError } = await supabase
             .from('order_items')
-            .select('product_image')
+            .select(`
+              products:product_id (
+                image_url
+              )
+            `)
             .eq('order_id', order.id)
               .limit(1);
             
             if (!itemsError && itemsData && itemsData.length > 0) {
-              firstItemImage = itemsData[0]?.product_image || null;
+              const product = itemsData[0]?.products || {};
+              firstItemImage = product.image_url || null;
             }
           } catch (error) {
             // Silently handle error - firstItemImage remains null
@@ -258,55 +263,49 @@ function AdminDashboardContent() {
     setSelectedOrder(order);
     
     try {
-      // Fetch order items
+      // Fetch order items with product data (JOIN)
       const { data: itemsData } = await supabase
         .from('order_items')
-        .select('*')
+        .select(`
+          *,
+          products:product_id (
+            name,
+            image_url
+          )
+        `)
         .eq('order_id', order.id) as any;
       
-      // Fetch product images for each order item
-      const itemsWithImages = await Promise.all(
-        (itemsData || []).map(async (item: any) => {
-          let productImage = item.product_image;
-      
-          // If no product_image in order_items, fetch from products table
-          if (!productImage && item.product_id) {
-            const { data: productData } = await supabase
-              .from('products')
-              .select('image_url')
-              .eq('id', item.product_id)
-              .single();
-            
-            if (productData?.image_url) {
-              productImage = productData.image_url;
-            }
-          }
-          
-          return {
-            ...item,
-            product_image: productImage || null
-          };
-        })
-      );
+      // Process items with product data from JOIN
+      const itemsWithImages = (itemsData || []).map((item: any) => {
+        const product = item.products || {};
+        return {
+          ...item,
+          product_name: product.name || 'Product not found',
+          product_image: product.image_url || null
+        };
+      });
       
       setOrderItems(itemsWithImages);
       
       // Fetch user information if user_id exists
       if (order.user_id) {
-        // Fetch user profile (name, phone)
-        const { data: userProfile } = await supabase
-          .from('user_profiles')
-          .select('full_name, phone')
-          .eq('id', order.user_id)
-          .single() as any;
-        
-        // Prioritize order customer info (from checkout form) over profile data
-        // This ensures we show what was actually entered during checkout
-        setUserName((order as any).customer_name || userProfile?.full_name || 'N/A');
-        setUserPhone((order as any).customer_phone || userProfile?.phone || 'N/A');
-        
-        // Priority 1: Check if address is stored directly in the order
-        if ((order as any).shipping_address) {
+        // Priority 1: Check if order has shipping_address_id (new normalized approach)
+        // Fetch customer name and phone from the address used for the order
+        if ((order as any).shipping_address_id) {
+          const { data: addressData } = await supabase
+            .from('addresses')
+            .select('*')
+            .eq('id', (order as any).shipping_address_id)
+            .single() as any;
+          
+          setUserAddress(addressData || null);
+          
+          // Fetch customer info from address (this is what was used for the order)
+          setUserName(addressData?.full_name || 'N/A');
+          setUserPhone(addressData?.phone ? String(addressData.phone) : 'N/A');
+        } 
+        // Priority 2: Check if address is stored directly in the order (old orders - backward compatibility)
+        else if ((order as any).shipping_address) {
           setUserAddress({
             address_line1: (order as any).shipping_address || '',
             address_line2: (order as any).shipping_address_line2 || null,
@@ -315,16 +314,9 @@ function AdminDashboardContent() {
             zip_code: (order as any).shipping_zip_code || '',
             country: (order as any).shipping_country || 'India'
           });
-        } 
-        // Priority 2: Check if order has shipping_address_id
-        else if ((order as any).shipping_address_id) {
-          const { data: addressData } = await supabase
-            .from('addresses')
-            .select('*')
-            .eq('id', (order as any).shipping_address_id)
-            .single() as any;
-          
-          setUserAddress(addressData || null);
+          // Old orders don't have name/phone in address, show N/A
+          setUserName('N/A');
+          setUserPhone('N/A');
         } 
         // Priority 3: Try to fetch default shipping address for user
         else {
@@ -338,11 +330,14 @@ function AdminDashboardContent() {
             .maybeSingle() as any;
           
           setUserAddress(addressData || null);
+          // Fetch customer info from address
+          setUserName(addressData?.full_name || 'N/A');
+          setUserPhone(addressData?.phone ? String(addressData.phone) : 'N/A');
         }
       } else {
-        // Guest order - use customer information from order
-        setUserName((order as any).customer_name || 'Guest User');
-        setUserPhone((order as any).customer_phone || 'N/A');
+        // Guest order - no user_id means no address available
+        setUserName('Guest User');
+        setUserPhone('N/A');
         
         // Use shipping address from order if available
         if ((order as any).shipping_address) {
@@ -368,47 +363,50 @@ function AdminDashboardContent() {
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      // If cancelling, prompt for reason
-      let cancellationReason = '';
-      let updateData: any = { status: newStatus };
-      
+      // If cancelling, use the cancellation API
       if (newStatus === 'cancelled') {
-        const reason = prompt('Please provide a reason for cancellation:');
-        if (!reason || !reason.trim()) {
-          alert('Cancellation reason is required');
+        if (!confirm('Are you sure you want to cancel this order?')) {
           return;
         }
-        cancellationReason = reason;
-        updateData = {
-          status: 'cancelled',
-          cancellation_reason: cancellationReason.trim(),
-          cancelled_by: 'admin',
-          cancelled_at: new Date().toISOString()
-        };
+
+        const response = await fetch('/api/orders/cancel', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            order_id: orderId,
+          }),
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to cancel order');
+        }
+
+        // Update local state
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder({ ...selectedOrder, status: 'cancelled' });
+        }
+
+        alert('Order cancelled successfully!');
       } else {
-        // For other status updates, clear cancellation fields if they exist
-        updateData = {
-          status: newStatus,
-          cancellation_reason: null,
-          cancelled_by: null,
-          cancelled_at: null
-        };
+        // For other status updates, update directly
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: newStatus, updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+        
+        if (error) throw error;
+        
+        // Update local state
+        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+        if (selectedOrder && selectedOrder.id === orderId) {
+          setSelectedOrder({ ...selectedOrder, status: newStatus });
+        }
+        
+        alert('Order status updated successfully!');
       }
-      
-      const { error } = await supabase
-        .from('orders')
-        .update(updateData)
-        .eq('id', orderId);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus });
-      }
-      
-      alert('Order status updated successfully!');
     } catch (error: any) {
       alert('Failed to update order status: ' + (error.message || 'Unknown error'));
     }
@@ -744,10 +742,10 @@ function AdminDashboardContent() {
                   }
 
                   return filteredOrders.map((order) => {
-                    // For guest orders, show customer name if available, otherwise show "Guest User"
+                    // For guest orders, show "Guest User"
                     // For registered users, show user number or shortened ID
                     const userDisplayId = order.user_id === 'guest' || !order.user_id
-                      ? ((order as any).customer_name || 'Guest User')
+                      ? 'Guest User'
                       : (order.user_number || `User ID: ${order.user_id.substring(0, 8)}...`);
                     
                     return (
