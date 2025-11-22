@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { createClient } from '@/lib/supabase/client';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 interface AdminGuardProps {
   children: React.ReactNode;
@@ -103,7 +103,14 @@ export default function AdminGuard({ children }: AdminGuardProps) {
 
   // Show loading while checking
   if (loading || isChecking) {
-      return <LoadingLogo fullScreen text="Loading..." />;
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="text-center">
+            <Spinner className="size-12 text-blue-600 mx-auto" />
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      );
   }
 
   // Show 404 if: no user logged in OR user is not admin

@@ -5,9 +5,9 @@ import Link from 'next/link';
 import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
 import HeroCarousel from '@/components/HeroCarousel';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
-import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
+import { PRODUCT_GRID_CLASSES_RESPONSIVE } from '@/utils/layoutUtils';
 import { PRODUCT_LIMITS } from '@/constants';
 
 interface Product {
@@ -224,7 +224,14 @@ export default function Home() {
   }, [dataFetched, fetchData]);
 
   if (loading) {
-    return <LoadingLogo fullScreen text="Loading products..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading products...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -250,7 +257,7 @@ export default function Home() {
             </Link>
           </div>
           {allProducts.length > 0 ? (
-            <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP}`} style={{ touchAction: 'pan-x pan-y' }}>
+            <div className={`${PRODUCT_GRID_CLASSES_RESPONSIVE}`} style={{ touchAction: 'pan-x pan-y' }}>
               {allProducts.map((product) => (
                 <ProductCard key={product.id} product={product as any} />
               ))}
@@ -284,7 +291,7 @@ export default function Home() {
                 </Link>
               </div>
               {section.products.length > 0 ? (
-                <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP}`} style={{ touchAction: 'pan-x pan-y' }}>
+                <div className={`${PRODUCT_GRID_CLASSES_RESPONSIVE}`} style={{ touchAction: 'pan-x pan-y' }}>
                   {section.products.map((product) => (
                     <ProductCard key={product.id} product={product as any} />
                   ))}

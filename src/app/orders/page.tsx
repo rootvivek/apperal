@@ -6,8 +6,9 @@ import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import EmptyState from '@/components/EmptyState';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import ImageWithFallback from '@/components/ImageWithFallback';
+import { mobileTypography } from '@/utils/mobileTypography';
 
 interface Order {
   id: string;
@@ -188,15 +189,22 @@ function OrdersContent() {
   };
 
   if (ordersLoading) {
-    return <LoadingLogo fullScreen text="Loading your orders..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading your orders...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-[1450px] mx-auto w-full">
         <div className="px-3 sm:px-4 py-3 sm:py-4">
-          <h1 className="text-xs sm:text-base font-medium text-gray-900 mb-2">My Orders</h1>
-          <p className="text-xs sm:text-sm text-gray-600">
+          <h1 className={`${mobileTypography.title14Bold} sm:text-base text-gray-900 mb-2`}>My Orders</h1>
+          <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
             {expandedOrderItems.length === 0 
               ? "You haven't placed any orders yet." 
               : `You have ${expandedOrderItems.length} item${expandedOrderItems.length === 1 ? '' : 's'}.`
@@ -256,19 +264,19 @@ function OrdersContent() {
                     </div>
                     <div className="flex-1">
                       {/* Product Name */}
-                      <p className="text-sm sm:text-base font-semibold text-gray-900 mb-1 line-clamp-1">
+                      <p className={`${mobileTypography.title14Bold} sm:text-base text-gray-900 mb-1 line-clamp-1`}>
                         {item.product_name || 'Product'}
                       </p>
                       {/* Purchase Date */}
-                      <p className="text-xs sm:text-sm text-gray-600 mb-1">{formatDate(item.created_at)}</p>
+                      <p className={`${mobileTypography.body12} sm:text-sm text-gray-600 mb-1`}>{formatDate(item.created_at)}</p>
                       {/* Payment Method */}
-                      <p className="text-xs sm:text-sm text-gray-600">
+                      <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
                         {item.payment_method === 'cod' ? 'Cash on Delivery' : item.payment_method.charAt(0).toUpperCase() + item.payment_method.slice(1)}
                       </p>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end">
-                    <span className={`px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
+                    <span className={`px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full ${mobileTypography.cap10} sm:text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
                       {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
                     </span>
                     <p className="text-base sm:text-lg font-normal text-gray-900">{formatCurrency(item.total_price)}</p>

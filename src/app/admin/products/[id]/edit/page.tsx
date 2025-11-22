@@ -10,7 +10,7 @@ import { deleteImageFromSupabase } from '@/utils/imageUpload';
 import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
 import { toNullIfEmpty, toEmptyIfEmpty } from '@/utils/formUtils';
 import { useAuth } from '@/contexts/AuthContext';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 interface ProductImage {
   id?: string;
@@ -892,7 +892,7 @@ export default function EditProductPage() {
         <AdminLayout>
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
-              <LoadingLogo size="md" text="Loading product..." />
+              <Spinner className="size-12 text-blue-600 mx-auto" />
               <p className="mt-4 text-gray-600">Loading product...</p>
             </div>
           </div>

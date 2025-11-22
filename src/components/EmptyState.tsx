@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import Button from './Button';
+import { Button } from '@/components/ui/button';
 
 interface EmptyStateProps {
   icon?: string;
@@ -63,13 +63,13 @@ export default function EmptyState({
       )}
       {(actionLabel && actionHref) && (
         <Link href={actionHref}>
-          <Button variant="primary">
+          <Button variant="default">
             {actionLabel}
           </Button>
         </Link>
       )}
       {(actionLabel && onAction) && (
-        <Button variant="primary" onClick={onAction}>
+        <Button variant="default" onClick={onAction}>
           {actionLabel}
         </Button>
       )}

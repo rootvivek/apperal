@@ -6,7 +6,7 @@ import { useLoginModal } from '@/contexts/LoginModalContext';
 import { useEffect } from 'react';
 import ProductCard from '@/components/ProductCard';
 import EmptyState from '@/components/EmptyState';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 function WishlistContent() {
   const { wishlist, loading } = useWishlist();
@@ -27,7 +27,14 @@ function WishlistContent() {
   
   // Only show loading if user is logged in AND actually fetching wishlist data
   if (loading && user && !authLoading) {
-    return <LoadingLogo fullScreen text="Loading wishlist..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading wishlist...</p>
+        </div>
+      </div>
+    );
   }
 
   if (wishlist.length === 0) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { PRODUCT_GRID_CLASSES } from '@/utils/layoutUtils';
-import LoadingLogo from './LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 export default function HomePageSkeleton() {
   return (
@@ -39,7 +39,7 @@ export default function HomePageSkeleton() {
       <div className="w-full h-[50vh] bg-gray-200 animate-pulse">
         <div className="h-full flex items-center justify-center">
           <div className="text-center">
-            <LoadingLogo size="md" text="" />
+            <Spinner className="size-12 text-blue-600" />
             <p className="mt-4 text-gray-600">Loading featured products...</p>
           </div>
         </div>

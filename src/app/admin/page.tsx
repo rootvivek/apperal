@@ -7,7 +7,7 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import DashboardCard from '@/components/DashboardCard';
 import EmptyState from '@/components/EmptyState';
 import DataTable from '@/components/DataTable';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -222,8 +222,9 @@ function AdminDashboardContent() {
               .limit(1);
             
             if (!itemsError && itemsData && itemsData.length > 0) {
-              const product = itemsData[0]?.products || {};
-              firstItemImage = product.image_url || null;
+              const products = itemsData[0]?.products;
+              const product = Array.isArray(products) ? products[0] : products;
+              firstItemImage = (product as any)?.image_url || null;
             }
           } catch (error) {
             // Silently handle error - firstItemImage remains null
@@ -275,14 +276,14 @@ function AdminDashboardContent() {
         `)
         .eq('order_id', order.id) as any;
       
-      // Process items with product data from JOIN
       const itemsWithImages = (itemsData || []).map((item: any) => {
-        const product = item.products || {};
-          return {
-            ...item,
+        const products = item.products;
+        const product = Array.isArray(products) ? products[0] : products || {};
+        return {
+          ...item,
           product_name: product.name || 'Product not found',
           product_image: product.image_url || null
-          };
+        };
       });
       
       setOrderItems(itemsWithImages);
@@ -1272,7 +1273,14 @@ function AdminDashboardContent() {
 export default function AdminDashboard() {
   return (
     <AdminGuard>
-      <Suspense fallback={<LoadingLogo fullScreen text="Loading..." />}>
+      <Suspense fallback={
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+          <div className="text-center">
+            <Spinner className="size-12 text-blue-600 mx-auto" />
+            <p className="mt-4 text-gray-600">Loading...</p>
+          </div>
+        </div>
+      }>
         <AdminDashboardContent />
       </Suspense>
     </AdminGuard>

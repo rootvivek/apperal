@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -221,7 +221,14 @@ function SignUpPageContent() {
 
 export default function SignUpPage() {
   return (
-    <Suspense fallback={<LoadingLogo fullScreen text="Loading..." />}>
+    <Suspense fallback={
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
       <SignUpPageContent />
     </Suspense>
   );

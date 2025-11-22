@@ -6,6 +6,7 @@ const config = {
     './src/pages/**/*.{js,ts,jsx,tsx,mdx}',
     './src/components/**/*.{js,ts,jsx,tsx,mdx}',
     './src/app/**/*.{js,ts,jsx,tsx,mdx}',
+    './src/utils/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     container: {
@@ -16,6 +17,11 @@ const config = {
       },
     },
     extend: {
+      screens: {
+        'xs': '460px',
+        'xl-custom': '1440px',
+        '3xl': '1920px',
+      },
       fontFamily: {
         sans: ['Geist', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
       },

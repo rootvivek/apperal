@@ -6,9 +6,8 @@ import Link from 'next/link';
 import ProductCard from '@/components/ProductCard';
 import { createClient } from '@/lib/supabase/client';
 import EmptyState from '@/components/EmptyState';
-import LoadingSpinner from '@/components/LoadingSpinner';
-import LoadingLogo from '@/components/LoadingLogo';
-import Button from '@/components/Button';
+import { Spinner } from '@/components/ui/spinner';
+import { Button } from '@/components/ui/button';
 import Card from '@/components/Card';
 import ErrorState from '@/components/ErrorState';
 
@@ -285,7 +284,12 @@ function SearchPageContent() {
 
         {/* Search Results */}
         {loading ? (
-          <LoadingLogo fullScreen text="Searching..." />
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+            <div className="text-center">
+              <Spinner className="size-12 text-blue-600 mx-auto" />
+              <p className="mt-4 text-gray-600">Searching...</p>
+            </div>
+          </div>
         ) : error ? (
           <ErrorState
             icon="⚠️"
@@ -385,7 +389,14 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<LoadingLogo fullScreen text="Loading..." />}>
+    <Suspense fallback={
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
       <SearchPageContent />
     </Suspense>
   );

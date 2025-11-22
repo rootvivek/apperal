@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { memo, useMemo } from 'react';
 import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 import ImageWithFallback from './ImageWithFallback';
+import { cn } from '@/lib/utils';
 
 interface CardProps {
   href: string;
@@ -30,7 +31,6 @@ const aspectRatioClasses = {
   custom: '',
 };
 
-const baseCardClasses = 'group bg-white shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 overflow-hidden block';
 const baseImageClasses = 'w-full h-full object-cover group-hover:scale-105 transition-transform duration-300';
 
 const Card = memo(function Card({
@@ -56,16 +56,20 @@ const Card = memo(function Card({
   // Determine aspect ratio class
   const aspectClass = aspectRatioClasses[aspectRatio];
 
-  // Card classes - add default rounded-lg if no rounded class in className
-  const hasRoundedClass = className.includes('rounded');
-  const defaultRounded = hasRoundedClass ? '' : 'rounded-lg';
-  const cardClasses = `${baseCardClasses} ${defaultRounded} ${className}`;
-
   // Image container classes
   const imageContainerClasses = `${aspectClass} relative bg-gray-100 overflow-hidden ${aspectRatio === 'custom' ? '' : 'w-full'}`;
 
   // Image classes
   const finalImageClasses = `${baseImageClasses} ${imageClassName}`;
+  
+  // Card classes - base card styling
+  const hasRoundedClass = className.includes('rounded');
+  const defaultRounded = hasRoundedClass ? '' : 'rounded-lg';
+  const cardClasses = cn(
+    'group bg-white shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300 overflow-hidden block',
+    defaultRounded,
+    className
+  );
 
   // Title classes based on position
   const getTitleClasses = () => {

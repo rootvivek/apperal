@@ -1,20 +1,21 @@
 'use client';
 
-import { useState, useEffect, useRef, use } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import EmptyState from '@/components/EmptyState';
-import ImageWithFallback from '@/components/ImageWithFallback';
-import { PLACEHOLDER_PRODUCT } from '@/utils/imageUtils';
 import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { createClient } from '@/lib/supabase/client';
-import CartIcon from '@/components/CartIcon';
 import ProductCard from '@/components/ProductCard';
 import ProductReviews from '@/components/ProductReviews';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
+import ProductMedia from './ProductMedia';
+import ProductInfo from '@/components/ProductInfo';
+import ProductDetails from './ProductDetails';
+import ProductBottomActions from './ProductBottomActions';
 
 interface ProductCardProduct {
   id: string;
@@ -78,52 +79,38 @@ interface ProductDetailPageProps {
 }
 
 export default function ProductDetailPage({ params }: ProductDetailPageProps) {
-  // Unwrap params Promise (Next.js 15+)
-  const { slug } = use(params);
+  const [slug, setSlug] = useState<string>('');
+  
+  // Resolve params promise (Next.js 15+)
+  useEffect(() => {
+    const resolveParams = async () => {
+      const resolved = await params;
+      setSlug(resolved.slug);
+    };
+    resolveParams();
+  }, [params]);
   
   const [product, setProduct] = useState<ProductCardProduct | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<ProductCardProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [relatedLoading, setRelatedLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [productRating, setProductRating] = useState<number | null>(null);
-  const [productReviewCount, setProductReviewCount] = useState<number>(0);
   const [categorySlug, setCategorySlug] = useState<string>('');
   const [subcategorySlug, setSubcategorySlug] = useState<string>('');
   const { addToCart } = useCart();
   const { user } = useAuth();
-  const { wishlist, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist();
+  const { wishlist, addToWishlist, removeFromWishlist, isInWishlist, loading: wishlistLoading } = useWishlist();
   const { openModal: openLoginModal } = useLoginModal();
   const supabase = createClient();
 
   const [selectedImage, setSelectedImage] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [selectedSize, setSelectedSize] = useState<string>('');
+  const [selectedColor, setSelectedColor] = useState<string>('');
   const [isAddedToCart, setIsAddedToCart] = useState(false);
-  const [showZoomPreview, setShowZoomPreview] = useState(false);
-  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
-  const [touchStart, setTouchStart] = useState<number | null>(null);
-  const [touchEnd, setTouchEnd] = useState<number | null>(null);
   const [isSharing, setIsSharing] = useState(false);
-  const [imageContainerSize, setImageContainerSize] = useState({ width: 0, height: 0 });
-  const [zoomPreviewPosition, setZoomPreviewPosition] = useState({ left: 0, top: 0 });
-  const imageContainerRef = useRef<HTMLDivElement>(null);
   const previousSlugRef = useRef<string>('');
-
-  // Reset zoom preview when selected image changes
-  useEffect(() => {
-    if (showZoomPreview && product && product.images && product.images.length > 0) {
-      // Update zoom preview position and size when image changes
-      if (imageContainerRef.current) {
-        const rect = imageContainerRef.current.getBoundingClientRect();
-        setImageContainerSize({ width: rect.width, height: rect.height });
-        setZoomPreviewPosition({
-          left: rect.right + 16,
-          top: rect.top
-        });
-      }
-    }
-  }, [selectedImage, showZoomPreview, product]);
+  const wishlistProductRef = useRef<any>(null);
 
   const fetchRelatedProducts = async (categoryName: string, categoryId: string | null, currentProductId: string, subcategoryId?: string | null) => {
     try {
@@ -225,17 +212,35 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   };
 
   useEffect(() => {
-    // Restore selected size from localStorage on mount/refresh (only in browser)
+    // Restore selected size and color from localStorage on mount/refresh (only in browser)
     if (typeof window !== 'undefined') {
       const savedSize = localStorage.getItem(`selectedSize_${slug}`);
+      const savedColor = localStorage.getItem(`selectedColor_${slug}`);
       if (savedSize) {
         setSelectedSize(savedSize);
       }
+      if (savedColor) {
+        setSelectedColor(savedColor);
+      }
       
-      // Only reset size selection when product slug actually changes (not on refresh)
+      // Only reset selections when product slug actually changes (not on refresh)
       if (previousSlugRef.current !== slug) {
-        setSelectedSize(savedSize || '');
+        // Reset all selections to empty when navigating to a new product
+        setSelectedSize('');
+        setSelectedColor('');
+        // Clear localStorage for the previous product
+        if (previousSlugRef.current && typeof window !== 'undefined') {
+          localStorage.removeItem(`selectedSize_${previousSlugRef.current}`);
+          localStorage.removeItem(`selectedColor_${previousSlugRef.current}`);
+        }
         previousSlugRef.current = slug;
+        // Then restore saved values for the new product if they exist
+        if (savedSize) {
+          setSelectedSize(savedSize);
+        }
+        if (savedColor) {
+          setSelectedColor(savedColor);
+        }
       }
     }
     
@@ -365,11 +370,14 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
               : (product.product_accessories_details || undefined),
           };
           
-          setProduct(productWithImages as ProductCardProduct);
-          setProductRating(product.rating || null);
-          setProductReviewCount(product.review_count || 0);
+          const productWithRating = {
+            ...productWithImages,
+            rating: product.rating || null,
+            review_count: product.review_count || 0
+          };
+          setProduct(productWithRating as ProductCardProduct);
           
-          // Handle size selection: restore saved size or set default
+          // Handle size selection: restore saved size only (no auto-selection)
           if (productWithImages.product_apparel_details?.size) {
             const availableSizes = productWithImages.product_apparel_details.size
               .split(',')
@@ -378,20 +386,38 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
             
             if (availableSizes.length > 0) {
               const savedSize = typeof window !== 'undefined' ? localStorage.getItem(`selectedSize_${slug}`) : null;
-              const currentSize = selectedSize || savedSize;
               
-              // Validate saved size is still available, otherwise use default
-              if (currentSize && availableSizes.includes(currentSize)) {
-                setSelectedSize(currentSize);
-                if (typeof window !== 'undefined' && !savedSize) {
-                  localStorage.setItem(`selectedSize_${slug}`, currentSize);
-                }
+              // Only restore if saved size exists and is still available
+              if (savedSize && availableSizes.includes(savedSize)) {
+                setSelectedSize(savedSize);
               } else {
-                // Saved size is no longer available, use first available size
-                const defaultSize = availableSizes[0];
-                setSelectedSize(defaultSize);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem(`selectedSize_${slug}`, defaultSize);
+                // Clear selection if saved size is no longer available
+                setSelectedSize('');
+                if (typeof window !== 'undefined' && savedSize) {
+                  localStorage.removeItem(`selectedSize_${slug}`);
+                }
+              }
+            }
+          }
+          
+          // Handle color selection: restore saved color only (no auto-selection)
+          if (productWithImages.product_apparel_details?.color) {
+            const availableColors = productWithImages.product_apparel_details.color
+              .split(',')
+              .map((c: string) => c.trim())
+              .filter(Boolean);
+            
+            if (availableColors.length > 0) {
+              const savedColor = typeof window !== 'undefined' ? localStorage.getItem(`selectedColor_${slug}`) : null;
+              
+              // Only restore if saved color exists and is still available
+              if (savedColor && availableColors.includes(savedColor)) {
+                setSelectedColor(savedColor);
+              } else {
+                // Clear selection if saved color is no longer available
+                setSelectedColor('');
+                if (typeof window !== 'undefined' && savedColor) {
+                  localStorage.removeItem(`selectedColor_${slug}`);
                 }
               }
             }
@@ -493,14 +519,51 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     }
   }, [categorySlug, subcategorySlug]);
 
+  // Create wishlist product helper - matches ProductCard pattern
+  const createWishlistProduct = useCallback(() => {
+    if (!product) return null;
+    
+    const availableImages = product.images && product.images.length > 0
+      ? product.images.map(img => typeof img === 'string' ? img : img.image_url)
+      : (product.image_url ? [product.image_url] : []);
+    
+    const categoryId = typeof product.category === 'string' ? product.category.toLowerCase() : product.category?.id || '';
+    const categoryName = typeof product.category === 'string' ? product.category : product.category?.name || '';
+    const categorySlug = typeof product.category === 'string' ? product.category.toLowerCase() : product.category?.slug || '';
+    
+    return {
+      id: product.id,
+      name: product.name,
+      description: product.description || '',
+      price: product.price,
+      originalPrice: product.original_price || product.price,
+      images: availableImages,
+      category: { id: categoryId, name: categoryName, slug: categorySlug, description: '', image: '', subcategories: [] },
+      subcategories: product.subcategories || [],
+      brand: product.brand || '',
+      sizes: [],
+      colors: [],
+      inStock: product.is_active && product.stock_quantity > 0,
+      rating: product.rating || 0,
+      reviewCount: product.review_count || 0,
+      tags: [],
+      createdAt: new Date(product.created_at),
+      updatedAt: new Date(product.updated_at)
+    };
+  }, [product]);
+
+  // Stabilize wishlist product reference
+  useEffect(() => {
+    if (product) {
+      wishlistProductRef.current = createWishlistProduct();
+    }
+  }, [product, createWishlistProduct]);
+
   const handleAddToCart = () => {
     if (!product) return;
     
-    // Check if size is required for apparel products
-    if (product.product_apparel_details && !selectedSize) {
-      alert('Please select a size');
-      return;
-    }
+    // Validation is handled by the modal in ProductInfo/ProductBottomActions components
+    // This function is only called if all selections are valid
     
     // Do not block the click handler on network I/O
     // Show brief feedback but don't disable the button
@@ -512,11 +575,8 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
   const handleBuyNow = () => {
     if (!product) return;
     
-    // Check if size is required for apparel products
-    if (product.product_apparel_details && !selectedSize) {
-      alert('Please select a size');
-      return;
-    }
+    // Validation is handled by the modal in ProductInfo/ProductBottomActions components
+    // This function is only called if all selections are valid
     
     // Check if user is authenticated for checkout
     if (!user) {
@@ -539,76 +599,120 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     window.location.href = `/checkout?${params.toString()}`;
   };
 
-  const handleWishlistToggle = () => {
+  const handleWishlistToggle = useCallback(async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
+    if (!product) return;
+    if (wishlistLoading) return;
+    
     if (!user) {
+      try {
+        const pendingWishlist = localStorage.getItem('pending-wishlist-add');
+        const pendingItems = pendingWishlist ? JSON.parse(pendingWishlist) : [];
+        
+        if (!pendingItems.find((item: any) => item.id === product.id)) {
+          pendingItems.push(wishlistProductRef.current);
+          localStorage.setItem('pending-wishlist-add', JSON.stringify(pendingItems));
+        }
+      } catch {
+        // Error handled silently
+      }
       openLoginModal();
       return;
     }
     
-    if (product && wishlist) {
-      const inWishlist = isInWishlist(product.id);
-      if (inWishlist) {
-        removeFromWishlist(product.id);
-      } else {
-        addToWishlist(product as any);
+    const isWishlisted = isInWishlist(product.id);
+    if (isWishlisted) {
+      await removeFromWishlist(product.id);
+    } else {
+      if (wishlistProductRef.current) {
+        await addToWishlist(wishlistProductRef.current);
       }
     }
-  };
+  }, [product, user, wishlistLoading, isInWishlist, addToWishlist, removeFromWishlist, openLoginModal]);
 
-  const handleShare = async () => {
+  const handleShare = useCallback(async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    
     if (!product || isSharing) {
       return;
     }
 
     setIsSharing(true);
 
-    const shareData = {
-      title: product.name,
-      text: `Check out this product: ${product.name}`,
-      url: window.location.href,
+    const copyToClipboardFn = async () => {
+      if (typeof window === 'undefined' || typeof navigator === 'undefined') return;
+      
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+        // Show a more user-friendly notification
+        const notification = document.createElement('div');
+        notification.textContent = 'Product link copied to clipboard!';
+        notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
+        document.body.appendChild(notification);
+        
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 3000);
+      } catch (err) {
+        // Final fallback - show the URL in a prompt
+        if (typeof prompt !== 'undefined') {
+          prompt('Copy this link to share:', window.location.href);
+        }
+      }
     };
 
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // Fallback to clipboard if share was cancelled or failed
-        await copyToClipboard();
-      }
-    } else {
-      await copyToClipboard();
-    }
-
-    setIsSharing(false);
-  };
-
-  const copyToClipboard = async () => {
     try {
-      await navigator.clipboard.writeText(window.location.href);
-      // Show a more user-friendly notification
-      const notification = document.createElement('div');
-      notification.textContent = 'Product link copied to clipboard!';
-      notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50';
-      document.body.appendChild(notification);
-      
-      setTimeout(() => {
-        document.body.removeChild(notification);
-      }, 3000);
+      const shareData = {
+        title: product.name,
+        text: `Check out this product: ${product.name}`,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      };
+
+      if (typeof navigator !== 'undefined' && navigator.share && navigator.canShare && navigator.canShare(shareData)) {
+        try {
+          await navigator.share(shareData);
+        } catch (err: any) {
+          // User cancelled or share failed - fallback to clipboard
+          if (err.name !== 'AbortError') {
+            await copyToClipboardFn();
+          }
+        }
+      } else {
+        await copyToClipboardFn();
+      }
     } catch (err) {
-      // Final fallback - show the URL in a prompt
-      prompt('Copy this link to share:', window.location.href);
+      // Final fallback
+      await copyToClipboardFn();
+    } finally {
+      setIsSharing(false);
     }
-  };
+  }, [product, isSharing]);
 
   if (loading) {
-    return <LoadingLogo fullScreen text="Loading product..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading product...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error || !product) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center max-w-2xl mx-auto px-4">
-          <h1 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h1>
+          <h1 className="text-2xl font-medium text-gray-900 mb-4">Product Not Found</h1>
           <p className="text-gray-600 mb-4">The product you&apos;re looking for doesn&apos;t exist.</p>
           <p className="text-sm text-gray-500 mb-6">
             Slug: {slug}<br />
@@ -690,665 +794,47 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         </nav>
 
         <div className="bg-white mb-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-4 lg:gap-6 overflow-visible">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-1 md:gap-2 lg:gap-3 overflow-visible">
             {/* Product Images */}
-            <div className="w-full overflow-visible">
-            {/* Desktop: Thumbnails on Left, Main Image on Right */}
-            <div className="hidden md:flex gap-4 overflow-visible">
-              {/* Thumbnail Gallery - Left (Desktop only) */}
-              {product.images && product.images.length > 1 && (
-                <div className="flex flex-col gap-2 flex-shrink-0 max-h-[600px] overflow-y-auto pr-1">
-                  {product.images.map((image, index) => (
-                    <button
-                      key={image.id}
-                      onClick={() => setSelectedImage(index)}
-                      className={`flex-shrink-0 w-20 h-20 rounded transition-all duration-200 shadow-sm flex items-center justify-center bg-white ${
-                        selectedImage === index 
-                          ? 'scale-105 border border-brand/50' 
-                          : 'border-0 hover:shadow-md'
-                      }`}
-                      style={{ boxSizing: 'border-box' }}
-                    >
-                      <div className="w-full h-full overflow-hidden rounded">
-                        <ImageWithFallback
-                          src={image.image_url}
-                          alt={image.alt_text || `${product.name} ${index + 1}`}
-                          className="h-full w-full object-contain"
-                          loading="lazy"
-                          decoding="async"
-                          width={80}
-                          height={80}
-                          fallbackType="product"
-                        />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {/* Main Image Container - Desktop */}
-              <div className="flex-1 relative overflow-visible">
-              {/* Main Image */}
-            <div 
-              ref={imageContainerRef}
-              className="aspect-square rounded bg-white cursor-default md:cursor-crosshair relative w-full max-w-full overflow-hidden"
-              onTouchStart={(e) => {
-                setTouchStart(e.targetTouches[0].clientX);
-              }}
-              onTouchMove={(e) => {
-                setTouchEnd(e.targetTouches[0].clientX);
-              }}
-              onTouchEnd={() => {
-                if (!touchStart || !touchEnd) return;
-                
-                const distance = touchStart - touchEnd;
-                const isLeftSwipe = distance > 50;
-                const isRightSwipe = distance < -50;
-                
-                if (isLeftSwipe && product.images && selectedImage < product.images.length - 1) {
-                  setSelectedImage(selectedImage + 1);
-                }
-                if (isRightSwipe && selectedImage > 0) {
-                  setSelectedImage(selectedImage - 1);
-                }
-                
-                setTouchStart(null);
-                setTouchEnd(null);
-              }}
-              onMouseEnter={() => {
-                setShowZoomPreview(true);
-                if (imageContainerRef.current) {
-                  const rect = imageContainerRef.current.getBoundingClientRect();
-                  setImageContainerSize({ width: rect.width, height: rect.height });
-                  setZoomPreviewPosition({
-                    left: rect.right + 16,
-                    top: rect.top
-                  });
-                }
-              }}
-              onMouseLeave={() => setShowZoomPreview(false)}
-              onMouseMove={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const x = ((e.clientX - rect.left) / rect.width) * 100;
-                const y = ((e.clientY - rect.top) / rect.height) * 100;
-                setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
-                
-                // Update zoom preview position as mouse moves
-                if (imageContainerRef.current) {
-                  const containerRect = imageContainerRef.current.getBoundingClientRect();
-                  setZoomPreviewPosition({
-                    left: containerRect.right + 16,
-                    top: containerRect.top
-                  });
-                }
-              }}
-            >
-              {/* Product Badge - Top Left Corner */}
-              {product.badge && (() => {
-                const badgeStyle = (() => {
-                  switch (product.badge?.toUpperCase()) {
-                    case 'NEW':
-                      return 'bg-green-500 text-white';
-                    case 'SALE':
-                      return 'bg-red-500 text-white';
-                    case 'HOT':
-                      return 'bg-brand-400 text-white';
-                    case 'FEATURED':
-                      return 'bg-brand-400 text-white';
-                    case 'LIMITED':
-                      return 'bg-purple-500 text-white';
-                    default:
-                      return 'bg-gray-500 text-white';
-                  }
-                })();
-                return (
-                  <div className="absolute top-0 left-0 z-30 pointer-events-none m-0">
-                    <span className={`px-3 py-2 text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
-                      {product.badge}
-                    </span>
-                  </div>
-                );
-              })()}
-              
-              {/* Wishlist and Share Icons */}
-              <div className="absolute top-2 right-2 z-30 flex flex-col gap-3">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleWishlistToggle();
-                  }}
-                  onMouseEnter={(e) => e.stopPropagation()}
-                  className="p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
-                >
-                  <svg 
-                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
-                      product && isInWishlist(product.id) 
-                        ? 'text-red-500 fill-current' 
-                        : 'text-gray-600 hover:text-red-500'
-                    }`} 
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleShare();
-                  }}
-                  onMouseEnter={(e) => e.stopPropagation()}
-                  disabled={isSharing}
-                  className={`p-2.5 sm:p-3 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg transition-all duration-200 ${
-                    isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:scale-110'
-                  }`}
-                  title="Share this product"
-                >
-                  <svg 
-                    className={`w-4 h-4 sm:w-5 sm:h-5 transition-colors ${
-                      isSharing 
-                        ? 'text-brand' 
-                        : 'text-gray-600 hover:text-brand'
-                    }`}
-                    fill="none" 
-                    stroke="currentColor" 
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                  </svg>
-                </button>
-              </div>
-
-              <ImageWithFallback
-                key={`main-image-${selectedImage}`}
-                src={product.images && product.images.length > 0 
-                  ? product.images[selectedImage]?.image_url 
-                  : product.image_url || PLACEHOLDER_PRODUCT}
-                alt={product.name}
-                className="h-full w-full object-cover"
-                loading="eager"
-                decoding="async"
-                width={1200}
-                height={1200}
-                fetchPriority="high"
-                fallbackType="product"
-                responsive={true}
-                responsiveSizes={[640, 800, 1200]}
-                quality={85}
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 800px"
-              />
-              
-              {/* Magnifying Glass Overlay */}
-              {showZoomPreview && (
-                <div 
-                  className="hidden md:block absolute w-20 h-20 border-2 border-brand bg-white bg-opacity-50 rounded-full pointer-events-none z-10"
-                  style={{
-                    left: `${mousePosition.x}%`,
-                    top: `${mousePosition.y}%`,
-                    transform: 'translate(-50%, -50%)'
-                  }}
-                >
-                  <div className="w-full h-full rounded-full overflow-hidden">
-                    <ImageWithFallback
-                      key={`zoom-overlay-${selectedImage}`}
-                      src={product.images && product.images.length > 0 
-                        ? product.images[selectedImage]?.image_url 
-                        : product.image_url || PLACEHOLDER_PRODUCT}
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                      style={{
-                        transform: `scale(3)`,
-                        transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
-                      }}
-                      fallbackType="product"
-                    />
-                  </div>
-                </div>
-              )}
-              
-            </div>
-            
-            {/* Zoomed Image Preview - Right Side */}
-            {showZoomPreview && imageContainerSize.width > 0 && (
-              <div 
-                className="hidden md:block fixed bg-white rounded shadow-2xl z-50 overflow-hidden aspect-square"
-                style={{
-                  width: `${imageContainerSize.width}px`,
-                  height: `${imageContainerSize.height}px`,
-                  left: `${zoomPreviewPosition.left}px`,
-                  top: `${zoomPreviewPosition.top}px`
-                }}
-              >
-                <ImageWithFallback
-                  key={`zoom-preview-${selectedImage}`}
-                  src={product.images && product.images.length > 0 
-                    ? product.images[selectedImage]?.image_url 
-                    : product.image_url || PLACEHOLDER_PRODUCT}
-                  alt={product.name}
-                  className="w-full h-full object-contain"
-                  style={{
-                    transform: `scale(3)`,
-                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`
-                  }}
-                  fallbackType="product"
-                />
-              </div>
-            )}
-              </div>
-            </div>
-            
-            {/* Mobile: Main Image Container */}
-            <div className="md:hidden w-full relative">
-              {/* Main Image */}
-              <div 
-                ref={imageContainerRef}
-                className="aspect-square rounded bg-white cursor-default w-full max-w-full overflow-hidden relative"
-                onTouchStart={(e) => {
-                  setTouchStart(e.targetTouches[0].clientX);
-                }}
-                onTouchMove={(e) => {
-                  setTouchEnd(e.targetTouches[0].clientX);
-                }}
-                onTouchEnd={() => {
-                  if (!touchStart || !touchEnd) return;
-                  
-                  const distance = touchStart - touchEnd;
-                  const isLeftSwipe = distance > 50;
-                  const isRightSwipe = distance < -50;
-                  
-                  if (isLeftSwipe && product.images && selectedImage < product.images.length - 1) {
-                    setSelectedImage(selectedImage + 1);
-                  }
-                  if (isRightSwipe && selectedImage > 0) {
-                    setSelectedImage(selectedImage - 1);
-                  }
-                  
-                  setTouchStart(null);
-                  setTouchEnd(null);
-                }}
-              >
-                {/* Product Badge - Top Left Corner */}
-                {product.badge && (() => {
-                  const badgeStyle = (() => {
-                    switch (product.badge?.toUpperCase()) {
-                      case 'NEW':
-                        return 'bg-green-500 text-white';
-                      case 'SALE':
-                        return 'bg-red-500 text-white';
-                      case 'HOT':
-                        return 'bg-brand-400 text-white';
-                      case 'FEATURED':
-                        return 'bg-brand-400 text-white';
-                      case 'LIMITED':
-                        return 'bg-purple-500 text-white';
-                      default:
-                        return 'bg-gray-500 text-white';
-                    }
-                  })();
-                  return (
-                    <div className="absolute top-0 left-0 z-20 m-0">
-                      <span className={`px-3 py-2 text-[10px] sm:text-xs font-medium ${badgeStyle}`}>
-                        {product.badge}
-                      </span>
-                    </div>
-                  );
-                })()}
-                
-                {/* Wishlist and Share Icons */}
-                <div className="absolute top-2 right-2 z-20 flex flex-col gap-3">
-                  <button
-                    onClick={handleWishlistToggle}
-                    className="p-2.5 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-110"
-                  >
-                    <svg 
-                      className={`w-4 h-4 transition-colors ${
-                        product && isInWishlist(product.id) 
-                          ? 'text-red-500 fill-current' 
-                          : 'text-gray-600 hover:text-red-500'
-                      }`} 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={handleShare}
-                    disabled={isSharing}
-                    className={`p-2.5 bg-white bg-opacity-95 hover:bg-opacity-100 rounded-full shadow-lg transition-all duration-200 ${
-                      isSharing ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl hover:scale-110'
-                    }`}
-                    title="Share this product"
-                  >
-                    <svg 
-                      className={`w-4 h-4 transition-colors ${
-                        isSharing 
-                          ? 'text-blue-500' 
-                          : 'text-gray-600 hover:text-blue-500'
-                      }`}
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-                    </svg>
-                  </button>
-                </div>
-
-                <ImageWithFallback
-                  key={`mobile-main-image-${selectedImage}`}
-                  src={product.images && product.images.length > 0 
-                    ? product.images[selectedImage]?.image_url 
-                    : product.image_url || PLACEHOLDER_PRODUCT}
-                  alt={product.name}
-                  className="h-full w-full object-cover"
-                  loading="eager"
-                  decoding="async"
-                  width={800}
-                  height={800}
-                  fetchPriority="high"
-                  fallbackType="product"
-                  responsive={true}
-                  responsiveSizes={[640, 800]}
-                  quality={85}
-                  sizes="100vw"
-                />
-              </div>
-            </div>
-            
-            {/* Thumbnail Gallery - Bottom (Mobile only) */}
-            {product.images && product.images.length > 1 && (
-              <div 
-                className="md:hidden flex gap-1.5 sm:gap-2 overflow-x-auto pb-2 pt-2 mt-0.5 sm:mt-3 scrollbar-hide items-center px-1"
-                style={{ touchAction: 'pan-x pan-y' }}
-              >
-                {product.images.map((image, index) => (
-                  <button
-                    key={image.id}
-                    onClick={() => setSelectedImage(index)}
-                    className={`flex-shrink-0 w-20 h-20 rounded transition-all duration-200 shadow-sm flex items-center justify-center bg-white ${
-                      selectedImage === index 
-                        ? 'scale-105 border border-brand/50' 
-                        : 'border-0 hover:shadow-md'
-                    }`}
-                    style={{ boxSizing: 'border-box' }}
-                  >
-                    <div className="w-full h-full overflow-hidden rounded">
-                      <ImageWithFallback
-                        src={image.image_url}
-                        alt={image.alt_text || `${product.name} ${index + 1}`}
-                        className="h-full w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
-                        width={80}
-                        height={80}
-                        fallbackType="product"
-                        responsive={true}
-                        responsiveSizes={[80, 160]}
-                        quality={85}
-                      />
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-            </div>
+            <ProductMedia
+              product={product}
+              selectedImage={selectedImage}
+              setSelectedImage={setSelectedImage}
+              handleWishlistToggle={handleWishlistToggle}
+              handleShare={handleShare}
+              isInWishlist={isInWishlist}
+              wishlistLoading={wishlistLoading}
+              isSharing={isSharing}
+            />
 
           {/* Product Info */}
           <div className="space-y-3 sm:space-y-6">
-            <div>
-              {/* Brand Name - Always shown before product name */}
-              {(product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand) && (
-                <div className="mb-1">
-                  <span className="text-sm sm:text-lg font-semibold text-gray-600 uppercase tracking-wide">
-                    {product.brand || product.product_apparel_details?.brand || product.product_cover_details?.brand}
-                  </span>
-                </div>
-              )}
-              <h1 className="text-base sm:text-xl font-semibold text-gray-900 mb-4 leading-tight">{product.name}</h1>
-              <div className="mt-3 flex flex-wrap items-center gap-2 sm:gap-4">
-                <div className="flex items-baseline gap-3">
-                  <span className="text-lg sm:text-xl font-semibold text-brand">₹{product.price.toFixed(2)}</span>
-                  {product.original_price && product.original_price > product.price && (
-                    <>
-                      <span className="text-sm text-gray-500 line-through">₹{product.original_price.toFixed(2)}</span>
-                      <span className="text-sm font-semibold text-green-600">
-                        ({Math.round(((product.original_price - product.price) / product.original_price) * 100)}% OFF)
-                      </span>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Quantity Selector */}
-              <div className="mt-4">
-                <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-2">
-                  Quantity
-                </label>
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <select
-                      value={quantity}
-                      onChange={(e) => setQuantity(parseInt(e.target.value))}
-                      className="w-16 h-10 px-1.5 pr-10 border border-gray-300 rounded font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-brand focus:border-brand bg-white cursor-pointer text-center appearance-none"
-                    >
-                      {Array.from({ length: Math.min(product.stock_quantity || 99, 99) }, (_, i) => i + 1).map((num) => (
-                        <option key={num} value={num}>
-                          {num}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none">
-                      <svg className="w-4 h-4 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </div>
-                  </div>
-                  <span className="text-sm text-gray-600">
-                    {product.stock_quantity > 0 ? `${product.stock_quantity} available` : 'Out of stock'}
-                  </span>
-                </div>
-              </div>
-
-              {(productRating !== null && productRating !== undefined) && (
-                <div className="mt-3 flex items-center gap-1.5 sm:gap-2">
-                  <span className="flex items-center text-yellow-500">
-                    {'⭐'.repeat(Math.round(productRating))}
-                  </span>
-                  <span className="text-sm text-gray-600">
-                    {productRating.toFixed(1)} ({productReviewCount} reviews)
-                  </span>
-                </div>
-              )}
-
-            {/* Size Selection and Actions - Moved after price */}
-            <div className="space-y-3 sm:space-y-5 mt-4">
-              {/* Size Selection - Only show for apparel products - Chip buttons */}
-              {product.product_apparel_details && (() => {
-                // Parse available sizes from comma-separated string
-                const availableSizes = product.product_apparel_details.size
-                  ? product.product_apparel_details.size.split(',').map((s: string) => s.trim()).filter(Boolean)
-                  : [];
-                
-                // Only show if there are available sizes
-                if (availableSizes.length === 0) return null;
-                
-                return (
-                  <div>
-                    <label className="block text-sm sm:text-base font-semibold text-gray-900 mb-3">
-                      Select Size <span className="text-red-500">*</span>
-                    </label>
-                    <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                      {availableSizes.map((size) => (
-                        <button
-                          key={size}
-                          type="button"
-                          onClick={() => {
-                            setSelectedSize(size);
-                            if (typeof window !== 'undefined') {
-                              localStorage.setItem(`selectedSize_${slug}`, size);
-                            }
-                          }}
-                          className={`px-4 py-2 rounded font-semibold text-sm transition-all duration-200 ${
-                            selectedSize === size
-                              ? 'bg-black text-white border border-gray-200 shadow-md'
-                              : 'bg-white text-gray-700 border border-gray-200 hover:border-gray-300'
-                          }`}
-                        >
-                          {size}
-                        </button>
-                      ))}
-                    </div>
-                    {!selectedSize && (
-                      <p className="mt-2 text-sm text-red-600 font-medium">Please select a size</p>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {/* Desktop Buttons */}
-              <div className="hidden sm:flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleAddToCart}
-                  disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-                  className="flex-1 bg-yellow-500 text-white py-4 px-6 rounded font-semibold hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-3 shadow hover:shadow-sm transform hover:scale-[1.02]"
-                >
-                  <CartIcon className="w-5 h-5 flex-shrink-0" />
-                  <span className="text-base">
-                    {isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
-                  </span>
-                </button>
-                <button
-                  onClick={handleBuyNow}
-                  disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-                  className="flex-1 bg-orange-500 text-white py-4 px-6 rounded font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
-                >
-                  {!user ? 'Login to Buy' : 'Buy Now'}
-                </button>
-              </div>
-
-              {product.stock_quantity === 0 && (
-                <div className="text-center p-4 bg-red-50 border-2 border-red-200 rounded">
-                  <p className="text-gray-900 font-semibold">This product is currently out of stock</p>
-                </div>
-              )}
-            </div>
-            </div>
-
-            {/* Combined Details - All product details in one section */}
-            {(product.product_cover_details || product.product_accessories_details || product.product_apparel_details || product.description) && (
-              <div>
-                <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">Product Details</h3>
-                <div className="space-y-1">
-                  {/* Phone Cover Details */}
-                  {product.product_cover_details?.brand && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.brand}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details?.compatible_model && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Compatible Model:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.compatible_model}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details?.type && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Type:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.type}</span>
-                    </div>
-                  )}
-                  {product.product_cover_details?.color && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_cover_details.color}</span>
-                    </div>
-                  )}
-
-                  {/* Accessories Details */}
-                  {product.product_accessories_details?.accessory_type && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Accessory Type:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.accessory_type}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details?.compatible_with && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Compatible With:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.compatible_with}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details?.material && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.material}</span>
-                    </div>
-                  )}
-                  {product.product_accessories_details?.color && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_accessories_details.color}</span>
-                    </div>
-                  )}
-
-                  {/* Apparel Details */}
-                  {product.product_apparel_details?.brand && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Brand:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.brand}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details?.material && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Material:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.material}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details?.fit_type && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Fit Type:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.fit_type}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details?.color && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Color:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.color}</span>
-                    </div>
-                  )}
-                  {product.product_apparel_details?.size && (
-                    <div className="flex items-center gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Size:</span>
-                      <span className="text-gray-900 text-xs sm:text-base">{product.product_apparel_details.size}</span>
-                    </div>
-                  )}
-                  
-                  {/* Description */}
-                  {product.description && (
-                    <div className="flex items-start gap-1.5 sm:gap-3">
-                      <span className="font-semibold text-gray-700 min-w-[90px] sm:min-w-[120px] text-xs sm:text-base">Description:</span>
-                      <span className="text-gray-900 leading-relaxed text-xs sm:text-base">{product.description}</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
+            <ProductInfo
+              product={product}
+              quantity={quantity}
+              setQuantity={setQuantity}
+              selectedSize={selectedSize}
+              setSelectedSize={setSelectedSize}
+              selectedColor={selectedColor}
+              setSelectedColor={setSelectedColor}
+              handleAddToCart={handleAddToCart}
+              handleBuyNow={handleBuyNow}
+              isAddedToCart={isAddedToCart}
+              user={user}
+              slug={slug}
+            />
+            
+            {/* Product Details */}
+            <ProductDetails product={product} />
           </div>
         </div>
-        </div>
+      </div>
 
-        {/* Product Reviews Section */}
+      {/* Product Reviews Section */}
         {product && (
           <ProductReviews
             productId={product.id}
             onRatingUpdate={(avgRating, reviewCount) => {
-              setProductRating(avgRating);
-              setProductReviewCount(reviewCount);
-              // Also update the product state
               setProduct(prev => prev ? {
                 ...prev,
                 rating: avgRating,
@@ -1361,13 +847,16 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
         {/* Related Products Section - Edge to Edge */}
         <div className="mt-6 mb-8 -mx-1 sm:-mx-2 md:-mx-4 lg:-mx-6">
           <div className="text-center mb-6 px-1 sm:px-2 md:px-4 lg:px-6">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 mb-3">Related Products</h2>
+            <h2 className="text-xl sm:text-3xl font-medium text-gray-900 mb-3">Related Products</h2>
             <p className="text-gray-600 text-sm sm:text-lg">You might also like these products</p>
           </div>
           
           {relatedLoading ? (
             <div className="flex justify-center items-center py-12">
-              <LoadingLogo size="md" text="Loading related products..." />
+              <div className="text-center py-12">
+                <Spinner className="size-12 text-blue-600 mx-auto" />
+                <p className="mt-4 text-gray-600">Loading related products...</p>
+              </div>
             </div>
           ) : relatedProducts.length > 0 ? (
             <div className={`${PRODUCT_GRID_CLASSES_SMALL_GAP} px-1 sm:px-2 md:px-4 lg:px-6`}>
@@ -1395,27 +884,20 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       </div>
 
       {/* Sticky Buttons - Mobile Only */}
-      <div className="fixed bottom-0 left-0 right-0 w-full bg-white/50 backdrop-blur-md border-t border-gray-200/30 shadow-lg z-50 sm:hidden" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        <div className="px-3 pt-2 pb-1 flex gap-2" style={{ paddingBottom: 'max(4px, env(safe-area-inset-bottom))' }}>
-          <button
-            onClick={handleAddToCart}
-            disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-            className="flex-1 bg-yellow-500 text-white py-4 px-4 rounded-md font-semibold hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-sm"
-          >
-            <CartIcon className="w-4 h-4 flex-shrink-0" />
-            <span>
-              {isAddedToCart ? 'Added!' : 'Add to Cart'}
-            </span>
-          </button>
-          <button
-            onClick={handleBuyNow}
-            disabled={product.stock_quantity === 0 || (product.product_apparel_details && !selectedSize)}
-            className="flex-1 bg-orange-500 text-white py-4 px-4 rounded-md font-semibold hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm"
-          >
-            {!user ? 'Login to Buy' : 'Buy Now'}
-          </button>
-        </div>
-      </div>
+      {product && (
+        <ProductBottomActions
+          product={product}
+          selectedSize={selectedSize}
+          setSelectedSize={setSelectedSize}
+          selectedColor={selectedColor}
+          setSelectedColor={setSelectedColor}
+          handleAddToCart={handleAddToCart}
+          handleBuyNow={handleBuyNow}
+          isAddedToCart={isAddedToCart}
+          user={user}
+          slug={slug}
+        />
+      )}
     </div>
   );
 }

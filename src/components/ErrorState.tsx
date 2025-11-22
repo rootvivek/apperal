@@ -1,6 +1,6 @@
 'use client';
 
-import Button from './Button';
+import { Button } from '@/components/ui/button';
 
 interface ErrorStateProps {
   icon?: string;
@@ -61,7 +61,7 @@ export default function ErrorState({
         {message}
       </p>
       {actionLabel && onAction && (
-        <Button variant="primary" onClick={onAction}>
+        <Button variant="default" onClick={onAction}>
           {actionLabel}
         </Button>
       )}

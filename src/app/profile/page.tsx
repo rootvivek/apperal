@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import { getAuth, updateProfile } from 'firebase/auth';
 import EmptyState from '@/components/EmptyState';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 
 interface UserProfile {
   id: string;
@@ -49,6 +49,7 @@ function ProfileContent() {
   
   // Address form state
   const [showAddressForm, setShowAddressForm] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [addressForm, setAddressForm] = useState({
     address_line1: '',
@@ -339,6 +340,7 @@ function ProfileContent() {
 
   const handleEditAddress = (address: Address) => {
     setEditingAddress(address);
+    // Pre-fill with address data when editing
     setAddressForm({
       address_line1: address.address_line1,
       full_name: address.full_name || '',
@@ -399,7 +401,14 @@ function ProfileContent() {
   };
 
   if (authLoading || loading) {
-    return <LoadingLogo fullScreen text="Loading profile..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading profile...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -718,75 +727,132 @@ function ProfileContent() {
                 description="Add your first address above"
                 variant="compact"
               />
-            ) : (
-              <div>
-                {addresses.map((address, index) => (
-                  <div key={address.id}>
-                    {index > 0 && (
+            ) : (() => {
+              // Find default address or use first address
+              const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+              const displayAddress = selectedAddressId 
+                ? addresses.find(addr => addr.id === selectedAddressId) || defaultAddress
+                : defaultAddress;
+              
+              return (
+                <div>
+                  <div className="px-3 sm:px-4 py-3 sm:py-4">
+                    <div className="border rounded-lg p-3 border-gray-200">
+                      {/* Address Details Row */}
+                      <div className="flex items-start">
+                        <div className="flex-1">
+                          <p className="font-medium text-gray-900 mb-1">{displayAddress.full_name || 'Address'}</p>
+                          <p className="text-gray-700 text-sm">
+                            {displayAddress.address_line1}
+                          </p>
+                          <p className="text-gray-700 text-sm">
+                            {displayAddress.city}, {displayAddress.state} {displayAddress.zip_code}
+                          </p>
+                          {displayAddress.phone && (
+                            <p className="text-gray-700 text-sm mt-1">Phone: {displayAddress.phone}</p>
+                          )}
+                        </div>
+                        {displayAddress.is_default && (
+                          <svg className="w-5 h-5 text-orange-600 ml-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+                        setSelectedAddressId(defaultAddress?.id || null);
+                        setShowAddressForm(true);
+                      }}
+                      className="mt-3 w-full px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      Change Address
+                    </button>
+                  </div>
+                  
+                  {/* Show all addresses when changing */}
+                  {showAddressForm && (
+                    <>
                       <div className="px-3 sm:px-4">
                         <div className="border-t border-gray-200"></div>
                       </div>
-                    )}
-                    <div className="px-3 sm:px-4 py-3 sm:py-4">
-                      <div
-                        className={`border rounded-lg p-3 transition-colors ${
-                          address.is_default ? 'border-orange-600 bg-orange-50' : 'border-gray-200'
-                        }`}
-                      >
-                    {/* Action Buttons Row */}
-                    <div className="flex items-center justify-end gap-2 mb-2 pb-2 border-b border-gray-200">
-                      {!address.is_default && (
+                      <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-3">
+                        {addresses.map((address) => (
+                          <div
+                            key={address.id}
+                            className={`border rounded-lg p-3 transition-colors cursor-pointer ${
+                              selectedAddressId === address.id
+                                ? 'border-gray-400 bg-gray-50'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                            onClick={() => {
+                              setSelectedAddressId(address.id);
+                              const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+                              if (address.id === defaultAddress?.id) {
+                                setShowAddressForm(false);
+                              }
+                            }}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1">
+                                <p className="font-medium text-gray-900 mb-1">{address.full_name || 'Address'}</p>
+                                <p className="text-gray-700 text-sm">
+                                  {address.address_line1}
+                                </p>
+                                <p className="text-gray-700 text-sm">
+                                  {address.city}, {address.state} {address.zip_code}
+                                </p>
+                                {address.phone && (
+                                  <p className="text-gray-700 text-sm mt-1">Phone: {address.phone}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 ml-4">
+                                {selectedAddressId === address.id && (
+                                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditAddress(address);
+                                  }}
+                                  className="px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors whitespace-nowrap"
+                                >
+                                  Edit
+                                </button>
+                                {!address.is_default && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteAddress(address.id);
+                                    }}
+                                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors whitespace-nowrap"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                         <button
-                          onClick={() => handleSetDefaultAddress(address.id)}
-                          className="px-3 py-1 text-sm text-orange-600 hover:bg-orange-50 rounded transition-colors whitespace-nowrap"
-                          title="Set as default"
+                          onClick={() => {
+                            setShowAddressForm(false);
+                            const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
+                            setSelectedAddressId(defaultAddress?.id || null);
+                          }}
+                          className="w-full px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
                         >
-                          Set Default
+                          Cancel
                         </button>
-                      )}
-                      <button
-                        onClick={() => handleEditAddress(address)}
-                        className="px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors whitespace-nowrap"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteAddress(address.id)}
-                        className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors whitespace-nowrap"
-                      >
-                        Delete
-                      </button>
-                    </div>
-                    
-                    {/* Address Details Row */}
-                    <div className="flex items-start">
-                      <div className="flex-1">
-                        {address.is_default && (
-                          <span className="inline-block mb-2 px-2 py-1 text-xs font-semibold text-orange-600 bg-orange-100 rounded">
-                            Default
-                          </span>
-                        )}
-                        <p className="font-medium text-gray-900 mb-1">{address.full_name || 'Address'}</p>
-                        <p className="text-gray-700 text-sm">{address.address_line1}</p>
-                        <p className="text-gray-700 text-sm">
-                          {address.city}, {address.state} {address.zip_code}
-                        </p>
-                        {address.phone && (
-                          <p className="text-gray-700 text-sm mt-1">Phone: {address.phone}</p>
-                        )}
                       </div>
-                      {address.is_default && (
-                        <svg className="w-5 h-5 text-orange-600 ml-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                    </div>
-                  </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                    </>
+                  )}
+                </div>
+              );
+            })()}
           </div>
           </div>
 
@@ -836,7 +902,8 @@ export default function ProfilePage() {
       fallback={
         <div className="min-h-screen bg-gray-50 flex items-center justify-center">
           <div className="text-center">
-            <LoadingLogo size="md" text="Loading..." />
+            <Spinner className="size-12 text-blue-600" />
+            <p className="mt-4 text-gray-600">Loading...</p>
             <p className="mt-4 text-gray-600">Loading...</p>
           </div>
         </div>

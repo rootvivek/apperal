@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, memo } from 'react';
-import SubcategoryCard from './SubcategoryCard';
+import Card from './Card';
+import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 
 interface Category {
   id: string;
@@ -110,11 +111,18 @@ function CategoryGrid({ categories }: CategoryGridProps) {
           <div className="-mx-1.5 px-1.5">
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide" style={SCROLL_STYLE}>
               {row1Subcategories.map(({ sub, slug }) => (
-                <SubcategoryCard
+                <Card
                   key={sub.id}
-                  subcategory={sub}
-                  categorySlug={slug}
-                  variant="mobile"
+                  href={`/products/${slug}/${sub.slug}`}
+                  imageUrl={sub.image_url || PLACEHOLDER_CATEGORY}
+                  title={sub.name}
+                  variant="subcategory"
+                  aspectRatio="5/6"
+                  showOverlay={true}
+                  overlayStyle="gradient"
+                  titlePosition="overlay"
+                  className="flex-shrink-0 rounded-[4px]"
+                  mobileWidth="calc((100vw - 2rem) / 3 - 0.33rem)"
                 />
               ))}
             </div>
@@ -126,11 +134,18 @@ function CategoryGrid({ categories }: CategoryGridProps) {
           <div className="-mx-1.5 px-1.5">
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide" style={SCROLL_STYLE}>
               {coverCategory.subcategories.map((sub) => (
-                <SubcategoryCard
+                <Card
                   key={sub.id}
-                  subcategory={sub}
-                  categorySlug={coverCategory.slug}
-                  variant="mobile"
+                  href={`/products/${coverCategory.slug}/${sub.slug}`}
+                  imageUrl={sub.image_url || PLACEHOLDER_CATEGORY}
+                  title={sub.name}
+                  variant="subcategory"
+                  aspectRatio="5/6"
+                  showOverlay={true}
+                  overlayStyle="gradient"
+                  titlePosition="overlay"
+                  className="flex-shrink-0 rounded-[4px]"
+                  mobileWidth="calc((100vw - 2rem) / 3 - 0.33rem)"
                 />
               ))}
             </div>
@@ -147,11 +162,17 @@ function CategoryGrid({ categories }: CategoryGridProps) {
         ) : (
           <div className="grid grid-cols-5 gap-2 max-w-full">
             {desktopSubcategories.map((subcategory) => (
-              <SubcategoryCard
+              <Card
                 key={subcategory.id}
-                subcategory={subcategory}
-                categorySlug={subcategory.category_slug || ''}
-                variant="desktop"
+                href={`/products/${subcategory.category_slug || ''}/${subcategory.slug}`}
+                imageUrl={subcategory.image_url || PLACEHOLDER_CATEGORY}
+                title={subcategory.name}
+                variant="subcategory"
+                aspectRatio="3/3.2"
+                showOverlay={true}
+                overlayStyle="glass"
+                titlePosition="overlay"
+                className="rounded-[4px]"
               />
             ))}
           </div>

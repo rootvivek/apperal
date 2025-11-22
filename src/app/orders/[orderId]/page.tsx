@@ -5,8 +5,8 @@ import { useParams } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import OrderDetail, { OrderDetailData } from '@/components/OrderDetail';
-import LoadingLogo from '@/components/LoadingLogo';
+import OrderDetail, { OrderDetailData } from '@/components/orders/OrderDetail';
+import { Spinner } from '@/components/ui/spinner';
 import ErrorState from '@/components/ErrorState';
 
 function OrderDetailContent() {
@@ -156,7 +156,14 @@ function OrderDetailContent() {
   };
 
   if (loading) {
-    return <LoadingLogo fullScreen text="Loading order details..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading order details...</p>
+        </div>
+      </div>
+    );
   }
 
   if (error || !order) {

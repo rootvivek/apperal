@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProductListing from '@/components/ProductListing';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -104,7 +104,14 @@ export default function ProductsPage() {
   };
 
   if (loading) {
-    return <LoadingLogo fullScreen text="Loading products..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading products...</p>
+        </div>
+      </div>
+    );
   }
 
   return (

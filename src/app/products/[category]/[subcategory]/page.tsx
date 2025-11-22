@@ -2,7 +2,7 @@
 
 import { notFound } from 'next/navigation';
 import ProductListing from '@/components/ProductListing';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
 import { useState, useEffect, use } from 'react';
 
@@ -342,7 +342,14 @@ export default function SubcategoryPage({ params }: SubcategoryPageProps) {
   }, [categorySlug, subcategorySlug]);
 
   if (loading) {
-    return <LoadingLogo fullScreen text="Loading subcategory..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading subcategory...</p>
+        </div>
+      </div>
+    );
   }
 
   if (!category || !subcategory) {

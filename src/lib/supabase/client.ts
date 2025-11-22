@@ -1,6 +1,7 @@
 import { createBrowserClient } from '@supabase/ssr'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
-export function createClient() {
+export function createClient(): SupabaseClient<any, 'public', any> {
   // Check if environment variables are available
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -19,7 +20,7 @@ export function createClient() {
   return createBrowserClient(supabaseUrl, supabaseAnonKey)
 }
 
-function createMockClient() {
+function createMockClient(): SupabaseClient<any, 'public', any> {
   let authStateCallback: ((event: string, session: any) => void) | null = null;
   
   // Create a chainable query builder that returns a Promise
@@ -102,6 +103,14 @@ function createMockClient() {
         message: 'RPC functions not available in mock mode. Please set up your Supabase project first.' 
       } 
     }),
+    functions: {
+      invoke: () => Promise.resolve({ 
+        data: null, 
+        error: { 
+          message: 'Edge Functions not available in mock mode. Please set up your Supabase project first.' 
+        } 
+      }),
+    },
     storage: {
       from: () => ({
         upload: () => Promise.resolve({ 
@@ -115,5 +124,5 @@ function createMockClient() {
         }),
       }),
     },
-  }
+  } as unknown as SupabaseClient<any, 'public', any>;
 }

@@ -7,8 +7,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 import EmptyState from '@/components/EmptyState';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
 import ImageWithFallback from '@/components/ImageWithFallback';
+import { mobileTypography } from '@/utils/mobileTypography';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
@@ -60,7 +61,14 @@ function CartContent() {
   // Only show loading if user is logged in AND cart is loading
   // Guest users don't need to wait for cart loading since it's from localStorage
   if (cartLoading && user && !authLoading) {
-    return <LoadingLogo fullScreen text="Loading cart..." />;
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Loading cart...</p>
+        </div>
+      </div>
+    );
   }
 
   if (cartItems.length === 0) {
@@ -89,14 +97,14 @@ function CartContent() {
             <div className="bg-white">
               {/* Cart Heading */}
               <div className="px-3 sm:px-4 py-3 sm:py-4">
-                <h1 className="text-sm sm:text-lg font-semibold text-gray-900">Shopping Cart</h1>
-                <p className="mt-1 text-xs sm:text-sm text-gray-600">{cartItems.length} item(s) in your cart</p>
+                <h1 className={`${mobileTypography.h3} sm:text-lg text-gray-900`}>Shopping Cart</h1>
+                <p className={`mt-1 ${mobileTypography.body12} sm:text-sm text-gray-600`}>{cartItems.length} item(s) in your cart</p>
               </div>
               <div className="px-3 sm:px-4">
                 <div className="border-t border-gray-200"></div>
               </div>
               <div className="px-3 sm:px-4 py-2 hidden md:block">
-                <h2 className="text-sm sm:text-base font-medium text-gray-900">Cart Items</h2>
+                <h2 className={`${mobileTypography.title14Bold} sm:text-base text-gray-900`}>Cart Items</h2>
               </div>
               <div>
                 {cartItems.map((item, index) => (
@@ -139,10 +147,10 @@ function CartContent() {
                         </button>
 
                         <div className="pr-6">
-                          <h3 className="text-sm sm:text-lg font-medium text-gray-900 line-clamp-2">
+                          <h3 className={`${mobileTypography.title14} sm:text-lg text-gray-900 line-clamp-2`}>
                             {item.product.name}
                           </h3>
-                          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+                          <p className={`${mobileTypography.body12} sm:text-sm text-gray-500 mt-1`}>
                             Stock: {item.product.stock_quantity} available
                           </p>
                           {(() => {
@@ -154,7 +162,7 @@ function CartContent() {
                             // Only show size for apparel products
                             if (detailType === 'apparel' && item.size) {
                               return (
-                                <p className="text-xs sm:text-sm text-gray-500">
+                                <p className={`${mobileTypography.body12} sm:text-sm text-gray-500`}>
                                   Size: {item.size}
                                 </p>
                               );

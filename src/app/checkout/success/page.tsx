@@ -4,7 +4,8 @@ import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
-import LoadingLogo from '@/components/LoadingLogo';
+import { Spinner } from '@/components/ui/spinner';
+import { mobileTypography, mobileTypographyStyles } from '@/utils/mobileTypography';
 
 interface OrderItem {
   id: string;
@@ -106,7 +107,8 @@ function CheckoutSuccessContent() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <LoadingLogo size="md" text="Verifying payment..." />
+          <Spinner className="size-12 text-blue-600" />
+          <p className="mt-4 text-gray-600">Verifying payment...</p>
         </div>
       </div>
     );
@@ -122,49 +124,41 @@ function CheckoutSuccessContent() {
   };
 
   const getPaymentMethodLabel = (method: string) => {
-    return method === 'cod' ? 'Cash on Delivery' : 'Credit/Debit Card';
+    if (method === 'cod') return 'Cash on Delivery';
+    if (method === 'razorpay') return 'UPI Payment';
+    return 'Online Payment';
   };
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-[1440px] mx-auto w-full px-[10px] sm:px-[100px] py-[50px]">
+      <div className="max-w-[1440px] mx-auto w-full px-[10px] sm:px-[100px] pt-0 pb-[50px]">
         <div className="flex flex-col items-center space-y-5">
           <div className="flex flex-col items-center space-y-[10px]">
-            <div className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] flex-shrink-0">
-              <div className="w-full h-full bg-brand-100 rounded-full flex items-center justify-center">
-                <svg
-                  className="w-10 h-10 sm:w-12 sm:h-12 text-brand"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M5 13l4 4L19 7"
-                  />
-                </svg>
-              </div>
+            <div className="flex-shrink-0">
+              <img
+                src="/check-icon.svg"
+                alt="Order Placed Successfully"
+                className="w-[80px] h-[80px] sm:w-[100px] sm:h-[100px] object-contain"
+              />
             </div>
-            <h1 className="text-[22px] sm:text-[28px] font-semibold sm:font-medium text-black leading-[32px] tracking-[-0.18px] sm:tracking-[-0.24px]" style={{ fontFamily: 'Geist, sans-serif' }}>
-              Order Place Successfully!
+            <h1 className={`${mobileTypography.h2} sm:text-[28px] sm:font-medium text-black sm:leading-[32px] sm:tracking-[-0.24px]`} style={{ ...mobileTypographyStyles.h2, fontFamily: 'Geist, sans-serif' }}>
+              Order Placed Successfully!
             </h1>
-            <p className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] text-center max-w-[872px]" style={{ fontFamily: 'Geist, sans-serif' }}>
-              Thanks you for your order. We&apos;ve received your order and will begin processing it right away.
+            <p className={`${mobileTypography.title14} sm:text-[18px] text-black sm:leading-[28px] text-center max-w-[872px]`} style={{ ...mobileTypographyStyles.title14, fontFamily: 'Geist, sans-serif' }}>
+              Thank you for your order. We&apos;ve received your order and will begin processing it right away.
             </p>
           </div>
 
           {order && orderItems.length > 0 && (
-            <div className="w-full bg-[#F8FAFC] border border-[#CBD5E1] rounded-sm p-[10px] sm:p-5 flex flex-col gap-[22px] sm:gap-[30px]">
+            <div className="w-full max-w-[600px] mx-auto bg-[#F8FAFC] border border-[#CBD5E1] rounded-sm p-[10px] sm:p-5 flex flex-col gap-[22px] sm:gap-[30px]">
               <div className="flex flex-col gap-2 sm:gap-[24px]">
-                <h2 className="text-[16px] sm:text-[24px] font-semibold sm:font-medium text-black leading-[24px] sm:leading-[32px] sm:tracking-[-0.21px]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <h2 className={`${mobileTypography.h3} sm:text-[24px] sm:font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]`} style={{ ...mobileTypographyStyles.h3, fontFamily: 'Geist, sans-serif' }}>
                   Order items
                 </h2>
-                <div className="space-y-[10px]">
+                <div className="space-y-[14px] sm:space-y-[18px]">
                   {orderItems.map((item) => (
-                    <div key={item.id} className="flex items-start gap-1.5 sm:gap-[12px]">
-                      <div className="w-[64px] h-[64px] sm:w-[120px] sm:h-[120px] flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
+                    <div key={item.id} className="flex items-start gap-2 sm:gap-[14px]">
+                      <div className="w-[56px] h-[56px] sm:w-[96px] sm:h-[96px] flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
                         {item.product_image ? (
                           <img
                             src={item.product_image}
@@ -185,14 +179,23 @@ function CheckoutSuccessContent() {
                       
                       <div className="flex-1 flex flex-col justify-start space-y-1 sm:space-y-[6px]">
                         <div className="flex justify-between items-start gap-[10px]">
-                          <h3 className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] flex-1" style={{ fontFamily: 'Geist, sans-serif' }}>
+                          <h3
+                            className="text-[14px] font-medium text-black flex-1"
+                            style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
+                          >
                             {item.product_name}
                           </h3>
-                          <span className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] whitespace-nowrap" style={{ fontFamily: 'Geist, sans-serif' }}>
+                          <span
+                            className="text-[14px] font-medium text-black whitespace-nowrap"
+                            style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
+                          >
                             Price : ₹{item.total_price.toFixed(2)}
                           </span>
                         </div>
-                        <p className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>
+                        <p
+                          className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                        >
                           {getPaymentMethodLabel(order?.payment_method || 'cod').toLowerCase()}
                         </p>
                       </div>
@@ -203,29 +206,63 @@ function CheckoutSuccessContent() {
 
               <div className="w-full h-[1px] bg-[#D9D9D9]"></div>
               <div className="flex flex-col gap-2 sm:gap-[24px]">
-                <h2 className="text-[16px] sm:text-[24px] font-semibold sm:font-medium text-black leading-[24px] sm:leading-[32px] sm:tracking-[-0.21px]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                <h2 className={`${mobileTypography.h3} sm:text-[24px] sm:font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]`} style={{ ...mobileTypographyStyles.h3, fontFamily: 'Geist, sans-serif' }}>
                   Order Details
                 </h2>
                 <div className="space-y-1 sm:space-y-[6px]">
                   <div className="flex justify-between items-center gap-[10px]">
-                    <span className="text-[14px] sm:text-[18px] font-medium text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>Order Number :</span>
-                    <span className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>ORD-ID:{order.order_number}</span>
+                    <span
+                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
+                      Order Number :
+                    </span>
+                    <span
+                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
+                      {order.order_number}
+                    </span>
                   </div>
                   <div className="flex justify-between items-center gap-[10px]">
-                    <span className="text-[14px] sm:text-[18px] font-medium text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>Date :</span>
-                    <span className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] text-right" style={{ fontFamily: 'Geist, sans-serif' }}>
+                    <span
+                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
+                      Date :
+                    </span>
+                    <span
+                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right`}
+                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
                       {formatDate(order.created_at)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center gap-[10px]">
-                    <span className="text-[14px] sm:text-[18px] font-medium text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>Payment Method :</span>
-                    <span className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] text-right" style={{ fontFamily: 'Geist, sans-serif' }}>
+                    <span
+                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
+                      Payment Method :
+                    </span>
+                    <span
+                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right`}
+                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
                       {getPaymentMethodLabel(order.payment_method)}
                     </span>
                   </div>
                   <div className="flex justify-between items-center gap-[10px]">
-                    <span className="text-[14px] sm:text-[18px] font-medium text-black leading-[20px] sm:leading-[28px]" style={{ fontFamily: 'Geist, sans-serif' }}>Status :</span>
-                    <span className="text-[14px] sm:text-[18px] font-normal text-black leading-[20px] sm:leading-[28px] text-right capitalize" style={{ fontFamily: 'Geist, sans-serif' }}>
+                    <span
+                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
+                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
+                      Status :
+                    </span>
+                    <span
+                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right capitalize`}
+                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                    >
                       {order.status}
                     </span>
                   </div>
@@ -234,17 +271,19 @@ function CheckoutSuccessContent() {
             </div>
           )}
 
-          <div className="w-full space-y-[10px] sm:space-y-[20px]">
+          <div className="w-full max-w-[600px] mx-auto space-y-[10px] sm:space-y-[20px]">
             <Link
               href="/"
-              className="w-full h-[42px] sm:h-[52px] bg-[#0F172A] text-white px-4 py-2 rounded-md font-medium text-[14px] leading-[24px] hover:bg-[#1E293B] transition-colors flex items-center justify-center"
+              className={`w-full h-[42px] sm:h-[52px] bg-[#0F172A] text-white px-4 py-2 rounded-md font-medium ${mobileTypography.title14} sm:leading-[24px] hover:bg-[#1E293B] transition-colors flex items-center justify-center`}
+              style={{ ...mobileTypographyStyles.title14, fontFamily: 'Inter, sans-serif' }}
             >
               Continue Shopping
             </Link>
             {order && (
               <Link
                 href={`/orders/${order.id}`}
-                className="w-full h-[42px] sm:h-[52px] bg-white border border-[#E2E8F0] text-[#0F172A] px-4 py-2 rounded-md font-medium text-[14px] leading-[24px] hover:bg-gray-50 transition-colors flex items-center justify-center"
+                className={`w-full h-[42px] sm:h-[52px] bg-white border border-[#E2E8F0] text-[#0F172A] px-4 py-2 rounded-md font-medium ${mobileTypography.title14} sm:leading-[24px] hover:bg-gray-50 transition-colors flex items-center justify-center`}
+                style={{ ...mobileTypographyStyles.title14, fontFamily: 'Inter, sans-serif' }}
               >
                 View Order
               </Link>
@@ -260,7 +299,10 @@ export default function CheckoutSuccessPage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <LoadingLogo size="md" text="Verifying payment..." />
+        <div className="text-center">
+          <Spinner className="size-12 text-blue-600 mx-auto" />
+          <p className="mt-4 text-gray-600">Verifying payment...</p>
+        </div>
       </div>
     }>
       <CheckoutSuccessContent />

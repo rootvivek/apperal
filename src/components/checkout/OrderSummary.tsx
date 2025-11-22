@@ -24,9 +24,10 @@ interface OrderSummaryProps {
   total: number;
   productSubcategories: Record<string, { name: string | null; slug: string | null; detail_type: string | null }>;
   loading?: boolean;
+  isDirectPurchase?: boolean;
 }
 
-export function OrderSummary({ items, subtotal, shipping, total, productSubcategories, loading }: OrderSummaryProps) {
+export function OrderSummary({ items, subtotal, shipping, total, productSubcategories, loading, isDirectPurchase }: OrderSummaryProps) {
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   const tax = 0; // Tax is currently 0, but can be calculated if needed
 

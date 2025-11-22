@@ -384,12 +384,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
             price: item.products.price,
             image_url: item.products.image_url,
             stock_quantity: item.products.stock_quantity,
-            subcategory: item.products.subcategories ? {
-              id: item.products.subcategories.id,
-              name: item.products.subcategories.name,
-              slug: item.products.subcategories.slug,
-              detail_type: item.products.subcategories.detail_type || null,
-            } : null,
+            subcategory: (() => {
+              const subcats = item.products.subcategories;
+              if (!subcats) return null;
+              const subcat = Array.isArray(subcats) ? subcats[0] : subcats;
+              return subcat ? {
+                id: subcat.id,
+                name: subcat.name,
+                slug: subcat.slug,
+                detail_type: subcat.detail_type || null,
+              } : null;
+            })(),
           }
         };
       }) || [];
@@ -474,12 +479,17 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
               price: product.price,
               image_url: product.image_url,
               stock_quantity: product.stock_quantity,
-              subcategory: product.subcategories ? {
-                id: product.subcategories.id,
-                name: product.subcategories.name,
-                slug: product.subcategories.slug,
-                detail_type: product.subcategories.detail_type || null,
-              } : null,
+              subcategory: (() => {
+                const subcats = product.subcategories;
+                if (!subcats) return null;
+                const subcat = Array.isArray(subcats) ? subcats[0] : subcats;
+                return subcat ? {
+                  id: subcat.id,
+                  name: subcat.name,
+                  slug: subcat.slug,
+                  detail_type: subcat.detail_type || null,
+                } : null;
+              })(),
             }
           };
           updatedCart = [...existingCart, newItem];
