@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,6 +9,7 @@ import {
   DialogDescription,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ModalProps {
   isOpen: boolean;
@@ -44,6 +45,9 @@ export default function Modal({
   onPointerDownOutside,
   overlayClassName,
 }: ModalProps) {
+  // Lock body scroll when modal is open
+  useBodyScrollLock(isOpen);
+
   const handleEscapeKeyDown = (e: KeyboardEvent) => {
     if (preventClose) {
       e.preventDefault();

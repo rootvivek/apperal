@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface ProductImage {
   id?: string;
@@ -34,7 +35,12 @@ export default function MultiImageUpload({
   const [uploading, setUploading] = useState(false);
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [deletingImageId, setDeletingImageId] = useState<string | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  
+  // Lock body scroll when options modal is open
+  useBodyScrollLock(showOptions);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   
   // Keep a ref of current images to avoid stale closures
   const imagesRef = useRef<ProductImage[]>(currentImages);
@@ -110,6 +116,8 @@ export default function MultiImageUpload({
         const folder = stableProductId || 'products';
         // Use unique filename for products (not fixed) to allow multiple images
         // Pass user ID for admin authentication
+        // All images (camera and gallery) go through uploadImageToSupabase which uses
+        // the API route that handles compression and WebP conversion automatically
         const result = await uploadImageToSupabase(file, 'product-images', folder, false, currentUserId);
         
         if (result.success && result.url) {
@@ -157,8 +165,23 @@ export default function MultiImageUpload({
     handleFiles(e.target.files);
   };
 
-  const onButtonClick = () => {
-    fileInputRef.current?.click();
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // Camera images go through the same compression and conversion process as gallery images
+    // via uploadImageToSupabase -> API route (/api/admin/upload-image)
+    handleFiles(e.target.files);
+    // Reset camera input so same image can be captured again
+    if (cameraInputRef.current) {
+      cameraInputRef.current.value = '';
+    }
+  };
+
+  const onButtonClick = (useCamera: boolean = false) => {
+    if (useCamera) {
+      cameraInputRef.current?.click();
+    } else {
+      fileInputRef.current?.click();
+    }
+    setShowOptions(false);
   };
 
   const removeImage = async (index: number) => {
@@ -372,6 +395,7 @@ export default function MultiImageUpload({
       {/* Upload Area */}
       {canAddMore && (
         <div className="relative">
+          {/* Gallery input (no capture attribute) */}
           <input
             ref={fileInputRef}
             type="file"
@@ -381,8 +405,18 @@ export default function MultiImageUpload({
             className="hidden"
           />
           
+          {/* Camera input (with capture attribute) */}
+          <input
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleCameraCapture}
+            className="hidden"
+          />
+          
           <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+            className={`border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer transition-colors ${
               dragActive 
                 ? 'border-blue-500 bg-blue-50' 
                 : 'border-gray-300 hover:border-gray-400'
@@ -391,7 +425,7 @@ export default function MultiImageUpload({
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
             onDrop={handleDrop}
-            onClick={uploading ? undefined : onButtonClick}
+            onClick={uploading ? undefined : () => setShowOptions(true)}
           >
             {uploading ? (
               <div className="space-y-4">
@@ -413,9 +447,52 @@ export default function MultiImageUpload({
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                   </svg>
                 </div>
+                <p className="text-xs sm:text-sm text-gray-600">Click to add images</p>
               </div>
             )}
           </div>
+
+          {/* Camera/Gallery Options Modal */}
+          {showOptions && (
+            <>
+              <div 
+                className="fixed inset-0 bg-black bg-opacity-50 z-40"
+                onClick={() => setShowOptions(false)}
+              />
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-4 sm:p-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Select Image Source</h3>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => onButtonClick(true)}
+                      className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Take Photo</span>
+                    </button>
+                    <button
+                      onClick={() => onButtonClick(false)}
+                      className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span>Choose from Gallery</span>
+                    </button>
+                    <button
+                      onClick={() => setShowOptions(false)}
+                      className="w-full px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

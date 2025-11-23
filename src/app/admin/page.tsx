@@ -10,6 +10,7 @@ import DataTable from '@/components/DataTable';
 import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface User {
   id: string;
@@ -49,7 +50,6 @@ interface Order {
   razorpay_order_id?: string;
   first_item_image?: string;
   item_count?: number;
-  user_number?: string;
 }
 
 interface OrderItem {
@@ -107,6 +107,9 @@ function AdminDashboardContent() {
   const [showProductEdit, setShowProductEdit] = useState(false);
   const [editProductLoading, setEditProductLoading] = useState(false);
   const [editFormData, setEditFormData] = useState<Product | null>(null);
+  
+  // Lock body scroll when any modal is open
+  useBodyScrollLock(showProductEdit || showOrderDetails || showUserDetails);
 
   useEffect(() => {
     const initialTab = searchParams.get('tab') as 'overview' | 'products' | 'orders' | null;
@@ -184,26 +187,6 @@ function AdminDashboardContent() {
         .select('*')
         .order('created_at', { ascending: false }) as any;
       
-      // Get unique user IDs
-      const userIds = Array.from(new Set((data || []).map((o: Order) => o.user_id).filter(Boolean)));
-      
-      // Fetch user numbers for all users
-      const userNumberMap: { [key: string]: string } = {};
-      if (userIds.length > 0) {
-        const { data: userProfiles } = await supabase
-          .from('user_profiles')
-          .select('id, user_number')
-          .in('id', userIds);
-        
-        if (userProfiles) {
-          userProfiles.forEach((profile: any) => {
-            if (profile.user_number) {
-              userNumberMap[profile.id] = profile.user_number;
-            }
-          });
-        }
-      }
-      
       // Fetch first item image for each order
       const ordersWithImages = await Promise.all(
         (data || []).map(async (order: Order) => {
@@ -246,8 +229,7 @@ function AdminDashboardContent() {
           return {
             ...order,
             first_item_image: firstItemImage,
-            item_count: itemCount,
-            user_number: userNumberMap[order.user_id] || null
+            item_count: itemCount
           };
         })
       );
@@ -573,16 +555,16 @@ function AdminDashboardContent() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-3 sm:space-y-4 md:space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-gray-600">Manage users, products, and orders all in one place</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+          <p className="text-sm sm:text-base text-gray-600">Manage users, products, and orders all in one place</p>
         </div>
 
         {/* Tab Navigation */}
         <div className="bg-white rounded-lg shadow border-b border-gray-200">
-          <div className="flex space-x-1 px-6">
+          <div className="flex space-x-1 px-2 sm:px-4 md:px-6 overflow-x-auto">
             {[
               { id: 'overview', label: '📊 Overview' },
               { id: 'products', label: '📦 Products' },
@@ -591,7 +573,7 @@ function AdminDashboardContent() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-3 font-medium border-b-2 transition-colors ${
+                className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 font-medium border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -605,8 +587,8 @@ function AdminDashboardContent() {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="space-y-3 sm:space-y-4 md:space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
               <DashboardCard title="Total Users" value={users.length} icon="👥" color="blue" />
               <DashboardCard title="Total Products" value={products.length} icon="📦" color="blue" />
               <DashboardCard title="Total Orders" value={orders.length} icon="🛒" color="amber" />
@@ -622,8 +604,8 @@ function AdminDashboardContent() {
 
         {/* Products Tab */}
         {activeTab === 'products' && (
-          <div className="bg-white rounded-lg shadow p-6 space-y-4">
-            <div className="flex items-center space-x-2">
+          <div className="bg-white rounded-lg shadow p-1 flex flex-col flex-1 min-h-0 space-y-1">
+            <div className="flex items-center gap-1 flex-shrink-0">
               <input
                 type="text"
                 placeholder="Search products..."
@@ -633,8 +615,9 @@ function AdminDashboardContent() {
               />
               <span className="text-sm text-gray-600">Found {filteredProducts.length} products</span>
             </div>
-            <DataTable
-              columns={[
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+              <DataTable
+                columns={[
                 {
                   key: 'image_url' as const,
                   label: 'Image',
@@ -698,30 +681,31 @@ function AdminDashboardContent() {
                   ),
                 },
               ]}
-              data={filteredProducts}
-              rowKey="id"
-              isLoading={productsLoading}
-              itemsPerPage={10}
-            />
+                data={filteredProducts}
+                rowKey="id"
+                isLoading={productsLoading}
+                itemsPerPage={10}
+              />
+            </div>
           </div>
         )}
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-lg shadow p-6 space-y-4">
-            <div className="flex items-center space-x-2">
+          <div className="bg-white rounded-lg shadow p-1 space-y-1">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1">
               <input
                 type="text"
                 placeholder="Search orders by number..."
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm sm:text-base"
               />
-              <span className="text-sm text-gray-600">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
+              <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
             </div>
             
             {/* Individual Orders View */}
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-3">
                 {ordersLoading ? (
                   <div className="text-center py-12">
                     <p className="text-gray-600">Loading orders...</p>
@@ -747,40 +731,56 @@ function AdminDashboardContent() {
                     // For registered users, show user number or shortened ID
                     const userDisplayId = order.user_id === 'guest' || !order.user_id
                       ? 'Guest User'
-                      : (order.user_number || `User ID: ${order.user_id.substring(0, 8)}...`);
+                      : `User ID: ${order.user_id.substring(0, 8)}...`;
                     
                     return (
                         <div 
                           key={order.id} 
-                        className="border rounded-lg bg-white hover:shadow-md transition-shadow cursor-pointer"
-                          onClick={() => handleOrderClick(order)}
+                        className="border rounded-lg bg-white hover:shadow-md transition-shadow md:cursor-pointer"
+                          onClick={(e) => {
+                            // On mobile, only click if clicking directly on the card (not on buttons)
+                            const target = e.target as HTMLElement;
+                            if (target.closest('button')) {
+                              return; // Let button handle its own click
+                            }
+                            // On desktop (md+), allow card click
+                            if (window.matchMedia('(min-width: 768px)').matches) {
+                              handleOrderClick(order);
+                            }
+                          }}
                         >
-                        <div className="px-6 py-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-4 flex-1">
+                        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+                          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+                            <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
                               {order.first_item_image && (
                                 <img
                                   src={order.first_item_image}
                                   alt="Product"
-                                  className="w-12 h-12 object-cover rounded"
+                                  className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0"
                                   onError={(e) => {
                                     (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
                                   }}
                                 />
                               )}
-                              <div>
-                                <div className="flex items-center space-x-3">
-                                <button className="text-blue-600 hover:text-blue-900 font-medium">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3">
+                                <button 
+                                  className="text-blue-600 hover:text-blue-900 font-medium text-sm sm:text-base"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleOrderClick(order);
+                                  }}
+                                >
                                   #{order.order_number}
                                 </button>
-                                  <span className="text-sm text-gray-500">•</span>
-                                  <span className="text-sm text-gray-600">{userDisplayId}</span>
+                                  <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">•</span>
+                                  <span className="text-xs sm:text-sm text-gray-600 truncate">{userDisplayId}</span>
                                 </div>
-                                <p className="text-sm text-gray-600 mt-1 font-medium">{formatDate(order.created_at)}</p>
+                                <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 font-medium">{formatDate(order.created_at)}</p>
                               </div>
                             </div>
-                            <div className="flex items-center space-x-6">
-                              <span className={`px-3 py-1 rounded text-xs font-medium ${
+                            <div className="flex items-center gap-2 sm:gap-4 md:gap-6 w-full sm:w-auto justify-between sm:justify-end">
+                              <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs font-medium whitespace-nowrap ${
                                 order.status === 'delivered' ? 'bg-green-100 text-green-800' :
                                 order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
                                 order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
@@ -789,7 +789,7 @@ function AdminDashboardContent() {
                               }`}>
                                 {order.status}
                               </span>
-                              <span className="font-semibold w-24 text-right">
+                              <span className="font-semibold text-sm sm:text-base whitespace-nowrap">
                                 {formatCurrency(order.total_amount)}
                               </span>
                             </div>

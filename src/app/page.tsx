@@ -5,6 +5,7 @@ import Link from 'next/link';
 import CategoryGrid from '@/components/CategoryGrid';
 import ProductCard from '@/components/ProductCard';
 import HeroCarousel from '@/components/HeroCarousel';
+import Banner from '@/components/Banner';
 import { Spinner } from '@/components/ui/spinner';
 import { createClient } from '@/lib/supabase/client';
 import { PRODUCT_GRID_CLASSES_RESPONSIVE } from '@/utils/layoutUtils';
@@ -241,13 +242,20 @@ export default function Home() {
 
       {/* Categories Section - Show after carousel */}
       <section className="pt-3 pb-3 sm:pt-8 sm:pb-4 bg-white h-auto" style={{ touchAction: 'pan-x pan-y' }}>
-        <CategoryGrid categories={categories} />
+        <div className="w-full px-1.5 sm:px-6 lg:px-8">
+          <Banner sectionName="categories" />
+          <div className="flex items-center justify-between mb-2 sm:mb-4 mt-2 sm:mt-4">
+            <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">Shop by Category</h2>
+          </div>
+          <CategoryGrid categories={categories} />
+        </div>
       </section>
 
       {/* All Products Section */}
       <section className="pt-3 pb-3 sm:pt-8 sm:pb-4 bg-white" style={{ touchAction: 'pan-x pan-y' }}>
         <div className="w-full px-1.5 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-2 sm:mb-4">
+          <Banner sectionName="all-products" />
+          <div className="flex items-center justify-between mb-2 sm:mb-4 mt-2 sm:mt-4">
             <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">All Products</h2>
             <Link
               href="/products"
@@ -277,11 +285,18 @@ export default function Home() {
       {/* Dynamic Category Sections */}
       {categorySections.map((section, index) => {
         const bgColor = 'bg-white';
+        // Use "accessories" banner section name if category slug or name contains "accessories"
+        const isAccessories = section.category.slug?.toLowerCase() === 'accessories' || 
+                             section.category.name?.toLowerCase().includes('accessories');
+        const bannerSectionName = isAccessories 
+          ? 'accessories' 
+          : `category-${section.category.slug}`;
         
         return (
           <section key={section.category.id} className={`pt-3 pb-3 sm:pt-8 sm:pb-4 ${bgColor}`} style={{ touchAction: 'pan-x pan-y' }}>
             <div className="w-full px-1.5 sm:px-6 lg:px-8">
-              <div className="flex items-center justify-between mb-2 sm:mb-4">
+              <Banner sectionName={bannerSectionName} />
+              <div className="flex items-center justify-between mb-2 sm:mb-4 mt-2 sm:mt-4">
                 <h2 className="text-lg sm:text-2xl font-semibold text-gray-900">{section.category.name}</h2>
                 <Link
                   href={`/products/${section.category.slug}`}

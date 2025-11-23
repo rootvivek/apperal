@@ -141,7 +141,7 @@ export default function ProductListing({
 
   const hasFilterSidebar = showFilter && filterType !== 'none';
   const productsGrid = filteredProducts.length > 0 ? (
-    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-1.5 sm:gap-2 px-2 lg:px-0">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 px-2 lg:px-0">
       {filteredProducts.map((product) => (
         <ProductCard key={product.id} product={product as any} />
       ))}

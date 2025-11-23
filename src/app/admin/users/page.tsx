@@ -6,13 +6,14 @@ import AdminGuard from '@/components/admin/AdminGuard';
 import DataTable from '@/components/DataTable';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface User {
   id: string;
   full_name: string;
   phone: string;
   created_at: string;
-  user_number?: string;
+  is_admin?: boolean;
   total_orders?: number;
   isAdmin?: boolean;
   is_active?: boolean;
@@ -46,6 +47,9 @@ export default function UsersPage() {
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
   const [reactivatingUserId, setReactivatingUserId] = useState<string | null>(null);
+  
+  // Lock body scroll when modal is open
+  useBodyScrollLock(showUserDetails);
 
   useEffect(() => {
     // Wait for auth to finish loading before fetching users
@@ -273,15 +277,15 @@ export default function UsersPage() {
   return (
     <AdminGuard>
       <AdminLayout>
-        <div className="space-y-6">
+        <div className="space-y-1">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
             <p className="text-gray-600">View and manage all registered users</p>
           </div>
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-1">
             {error && (
-              <div className="mb-4 bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
+              <div className="mb-1 bg-red-50 border border-red-200 text-red-800 px-1 py-0.5 rounded-md text-xs">
                 <p className="font-semibold">Error loading users</p>
                 <p className="text-sm">{error}</p>
                 <button
@@ -294,7 +298,7 @@ export default function UsersPage() {
             )}
             
             {success && (
-              <div className="mb-4 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
+              <div className="mb-1 bg-green-50 border border-green-200 text-green-800 px-1 py-0.5 rounded-md text-xs">
                 {activeTab === 'deleted' 
                   ? 'User account reactivated successfully! User can now log in again.'
                   : 'User deleted successfully!'}
@@ -303,13 +307,13 @@ export default function UsersPage() {
             
             {/* Tabs for Active/Deleted Users */}
             <div className="mb-6 border-b border-gray-200">
-              <nav className="flex space-x-8" aria-label="Tabs">
+              <nav className="flex gap-1" aria-label="Tabs">
                 <button
                   onClick={() => {
                     setActiveTab('active');
                     setSearch('');
                   }}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-1 px-0.5 border-b-2 font-medium text-xs ${
                     activeTab === 'active'
                       ? 'border-blue-500 text-blue-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -322,7 +326,7 @@ export default function UsersPage() {
                     setActiveTab('deleted');
                     setSearch('');
                   }}
-                  className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                  className={`py-1 px-0.5 border-b-2 font-medium text-xs ${
                     activeTab === 'deleted'
                       ? 'border-red-500 text-red-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -334,7 +338,7 @@ export default function UsersPage() {
             </div>
             
             <div className="flex items-center justify-between mb-4">
-              <div className={`px-4 py-2 rounded-lg ${
+              <div className={`px-1 py-0.5 rounded-lg ${
                 activeTab === 'active' ? 'bg-blue-50' : 'bg-red-50'
               }`}>
                 <p className="text-sm text-gray-600">
@@ -351,7 +355,7 @@ export default function UsersPage() {
                 placeholder="Search users..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 max-w-md px-4 py-2 border border-gray-300 rounded-lg"
+                className="flex-1 max-w-md px-1 py-0.5 border border-gray-300 rounded-lg text-xs"
               />
             </div>
 
@@ -362,14 +366,14 @@ export default function UsersPage() {
                   label: 'User',
                   sortable: true,
                   render: (value: string, row: User) => (
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center gap-1">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
                         row.isAdmin ? 'bg-red-600' : 'bg-blue-600'
                       } text-white`}>
                         {row.full_name?.[0]?.toUpperCase() || 'U'}
                       </div>
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center gap-0.5">
                           <p className="font-medium text-gray-900">{row.full_name || 'Unnamed'}</p>
                           {row.isAdmin && (
                             <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
@@ -383,12 +387,16 @@ export default function UsersPage() {
                   ),
                 },
                 {
-                  key: 'user_number',
-                  label: 'User ID',
+                  key: 'is_admin',
+                  label: 'Admin',
                   sortable: false,
                   render: (value: string, row: User) => (
-                    <span className="text-sm font-mono text-gray-700">
-                      {row.user_number || row.id.substring(0, 8) + '...'}
+                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
+                      row.is_admin 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {row.is_admin ? 'Yes' : 'No'}
                     </span>
                   ),
                 },
@@ -542,15 +550,15 @@ export default function UsersPage() {
           {showUserDetails && selectedUser && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                <div className="p-1 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
                   <h2 className="text-xl font-bold">{selectedUser.full_name}</h2>
                   <button onClick={() => setShowUserDetails(false)} className="text-2xl">✕</button>
                 </div>
                 
-                <div className="flex space-x-1 px-6 pt-4 border-b border-gray-200">
+                <div className="flex gap-0.5 px-1 pt-1 border-b border-gray-200">
                   <button
                     onClick={() => setUserDetailsTab('orders')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
                       userDetailsTab === 'orders'
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -560,7 +568,7 @@ export default function UsersPage() {
                   </button>
                   <button
                     onClick={() => setUserDetailsTab('cart')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
                       userDetailsTab === 'cart'
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -570,7 +578,7 @@ export default function UsersPage() {
                   </button>
                   <button
                     onClick={() => setUserDetailsTab('wishlist')}
-                    className={`px-4 py-2 font-medium border-b-2 transition-colors ${
+                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
                       userDetailsTab === 'wishlist'
                         ? 'border-blue-600 text-blue-600'
                         : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -580,35 +588,35 @@ export default function UsersPage() {
                   </button>
                 </div>
                 
-                <div className="p-6 space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
+                <div className="p-1 space-y-1">
+                  <div className="grid grid-cols-2 gap-1">
                     <div>
-                      <p className="text-gray-600 text-sm">Phone</p>
-                      <p className="font-medium">{selectedUser.phone || '-'}</p>
+                      <p className="text-gray-600 text-xs">Phone</p>
+                      <p className="font-medium text-xs">{selectedUser.phone || '-'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm">User ID</p>
-                      <p className="font-medium font-mono">{selectedUser.user_number || selectedUser.id.substring(0, 8) + '...'}</p>
+                      <p className="text-gray-600 text-xs">User ID</p>
+                      <p className="font-medium font-mono text-xs">{selectedUser.id.substring(0, 8) + '...'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm">Joined</p>
-                      <p className="font-medium">{formatDate(selectedUser.created_at)}</p>
+                      <p className="text-gray-600 text-xs">Joined</p>
+                      <p className="font-medium text-xs">{formatDate(selectedUser.created_at)}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm">Total Orders</p>
-                      <p className="font-medium">{userOrders.length}</p>
+                      <p className="text-gray-600 text-xs">Total Orders</p>
+                      <p className="font-medium text-xs">{userOrders.length}</p>
                     </div>
                   </div>
                   
                   {userDetailsTab === 'orders' && (
                     <div>
-                      <h3 className="font-semibold mb-2">Recent Orders</h3>
+                      <h3 className="font-semibold mb-1 text-xs">Recent Orders</h3>
                       {userOrders.length === 0 ? (
-                        <p className="text-gray-600">No orders</p>
+                        <p className="text-gray-600 text-xs">No orders</p>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-0.5">
                           {userOrders.map((order) => (
-                            <div key={order.id} className="flex justify-between items-center border p-2 rounded">
+                            <div key={order.id} className="flex justify-between items-center border p-0.5 rounded text-xs">
                               <span className="font-medium">#{order.order_number}</span>
                               <span>{formatCurrency(order.total_amount || 0)}</span>
                             </div>
@@ -620,13 +628,13 @@ export default function UsersPage() {
                   
                   {userDetailsTab === 'cart' && (
                     <div>
-                      <h3 className="font-semibold mb-2">Shopping Cart</h3>
+                      <h3 className="font-semibold mb-1 text-xs">Shopping Cart</h3>
                       {userCartItems.length === 0 ? (
-                        <p className="text-gray-600">Cart is empty</p>
+                        <p className="text-gray-600 text-xs">Cart is empty</p>
                       ) : (
-                        <div className="space-y-2">
+                        <div className="space-y-0.5">
                           {userCartItems.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center border p-2 rounded">
+                            <div key={item.id} className="flex justify-between items-center border p-0.5 rounded text-xs">
                               <div>
                                 <p className="font-medium">{item.product?.name}</p>
                                 <p className="text-sm text-gray-600">Qty: {item.quantity}</p>

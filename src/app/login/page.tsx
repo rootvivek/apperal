@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 function LoginPageContent() {
   const router = useRouter();
@@ -32,6 +33,9 @@ function LoginPageContent() {
     const redirectTo = searchParams.get('redirect') || '/';
     router.push(redirectTo);
   };
+
+  // Lock body scroll when modal is open (login page is always modal-like)
+  useBodyScrollLock(true);
 
   // Close modal on ESC key
   useEffect(() => {

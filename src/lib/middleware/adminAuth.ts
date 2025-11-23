@@ -2,10 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@/lib/supabase/server';
 import { createServerAuthClient } from '@/lib/supabase/server-auth';
 
-// Admin phone number - must match AdminGuard
-// Check at runtime instead of module load to avoid build-time errors
-const ADMIN_PHONE = process.env.ADMIN_PHONE;
-
 /**
  * Middleware to verify if the authenticated user is an admin
  * This should be used in all admin API routes
@@ -99,28 +95,23 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
 
 async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdmin: boolean; userId?: string; error?: string }> {
   try {
-    // Fetch user profile to get phone number
+    // Check is_admin from user_profiles table (for Firebase phone auth)
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
-      .select('phone')
+      .select('is_admin')
       .eq('id', userId)
       .maybeSingle();
 
-    if (profileError || !profile) {
+    if (profileError) {
+      return { isAdmin: false, error: 'Failed to fetch user profile' };
+    }
+
+    if (!profile) {
       return { isAdmin: false, error: 'User profile not found' };
     }
 
-    // Check if phone number matches admin phone
-    if (!ADMIN_PHONE) {
-      return { isAdmin: false, error: 'Admin phone not configured' };
-    }
-
-    const userPhone = profile.phone || '';
-    const normalizedUserPhone = userPhone.replace(/\D/g, '');
-    const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-    const userLast10 = normalizedUserPhone.slice(-10);
-    const adminLast10 = normalizedAdminPhone.slice(-10);
-    const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
+    // Check is_admin from user_profiles table
+    const isAdmin = profile.is_admin === true;
 
     return { isAdmin, userId };
   } catch (error: any) {
@@ -131,15 +122,19 @@ async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdm
 /**
  * Wrapper function for admin API routes with rate limiting
  * Usage: export const POST = withAdminAuth(async (request, { userId }) => { ... })
+ * For dynamic routes: export const PUT = withAdminAuth(async (request, { userId, params }) => { ... })
  * Options: { rateLimit?: { windowMs: number; maxRequests: number } | false }
  */
-export function withAdminAuth(
-  handler: (request: NextRequest, context: { userId: string }) => Promise<NextResponse>,
+export function withAdminAuth<T extends Record<string, any> = {}>(
+  handler: (request: NextRequest, context: { userId: string; params?: Promise<T> }) => Promise<NextResponse>,
   options?: { 
     rateLimit?: { windowMs: number; maxRequests: number } | false;
   }
 ) {
-  return async (request: NextRequest) => {
+  return async (
+    request: NextRequest, 
+    context?: { params?: Promise<T> } | { params: Promise<T> }
+  ) => {
     // Apply rate limiting if specified (default: 60 requests per minute)
     if (options?.rateLimit !== false) {
       const { rateLimit } = await import('@/lib/middleware/rateLimit');
@@ -169,7 +164,12 @@ export function withAdminAuth(
     }
 
     try {
-      return await handler(request, { userId: verification.userId });
+      // Extract params from context (handles both optional and required params)
+      const params = context && 'params' in context ? context.params : undefined;
+      return await handler(request, { 
+        userId: verification.userId,
+        params
+      });
     } catch (handlerError: any) {
       console.error('Error in admin handler:', handlerError);
       return NextResponse.json(

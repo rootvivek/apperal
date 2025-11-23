@@ -1521,18 +1521,18 @@ export default function EditProductPage() {
                   Product Images
                 </label>
                 
-                {/* Only render MultiImageUpload when we have the actual product ID from database */}
-                {actualProductIdRef.current && (
+                {/* Render MultiImageUpload - use productId from params if actualProductIdRef not set yet */}
+                {productId && (
                   <MultiImageUpload
                     onImagesChange={handleImagesChange}
                     currentImages={formData.images}
                     maxImages={5}
                     className="w-full"
-                    productId={actualProductIdRef.current}
+                    productId={actualProductIdRef.current || productId}
                     userId={user?.id || null}
                   />
                 )}
-                {!actualProductIdRef.current && (
+                {!productId && (
                   <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
                     <p className="text-sm text-gray-500">Loading product information...</p>
                   </div>

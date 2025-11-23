@@ -5,6 +5,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import { createClient } from '@/lib/supabase/client';
 import DataTable from '@/components/DataTable';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface AdminLog {
   id: string;
@@ -27,6 +28,9 @@ export default function AdminLogsPage() {
   const [search, setSearch] = useState('');
   const [selectedLog, setSelectedLog] = useState<AdminLog | null>(null);
   const [showLogDetails, setShowLogDetails] = useState(false);
+  
+  // Lock body scroll when modal is open
+  useBodyScrollLock(showLogDetails);
 
   useEffect(() => {
     fetchLogs();
@@ -98,21 +102,21 @@ export default function AdminLogsPage() {
   return (
     <AdminGuard>
       <AdminLayout>
-        <div className="space-y-6">
+        <div className="space-y-1">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Admin Activity Logs</h1>
             <p className="text-gray-600">Audit trail of all admin actions</p>
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
+            <div className="bg-red-50 border border-red-200 text-red-800 px-1 py-0.5 rounded-md text-xs">
               {error}
             </div>
           )}
 
-          <div className="bg-white rounded-lg shadow p-6">
+          <div className="bg-white rounded-lg shadow p-1">
             <div className="flex items-center justify-between mb-4">
-              <div className="px-4 py-2 bg-blue-50 rounded-lg">
+              <div className="px-1 py-0.5 bg-blue-50 rounded-lg text-xs">
                 <p className="text-sm text-gray-600">Total Logs</p>
                 <p className="text-2xl font-bold text-blue-600">{logs.length}</p>
               </div>
@@ -121,7 +125,7 @@ export default function AdminLogsPage() {
                 placeholder="Search logs..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 max-w-md px-4 py-2 border border-gray-300 rounded-lg"
+                className="flex-1 max-w-md px-1 py-0.5 border border-gray-300 rounded-lg text-xs"
               />
             </div>
 
@@ -188,8 +192,8 @@ export default function AdminLogsPage() {
           {showLogDetails && selectedLog && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
               <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-                  <h2 className="text-xl font-bold">Log Details</h2>
+                <div className="p-1 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+                  <h2 className="text-sm font-bold">Log Details</h2>
                   <button 
                     onClick={() => setShowLogDetails(false)} 
                     className="text-2xl hover:text-gray-600"
@@ -198,9 +202,9 @@ export default function AdminLogsPage() {
                   </button>
                 </div>
                 
-                <div className="p-6 space-y-4">
+                <div className="p-1 space-y-1">
                   <div>
-                    <p className="text-sm text-gray-600">Time</p>
+                    <p className="text-xs text-gray-600">Time</p>
                     <p className="font-medium">{formatDate(selectedLog.created_at)}</p>
                   </div>
                   
@@ -231,7 +235,7 @@ export default function AdminLogsPage() {
                   {selectedLog.details && (
                     <div>
                       <p className="text-sm text-gray-600">Details</p>
-                      <pre className="bg-gray-50 p-3 rounded text-sm overflow-auto">
+                      <pre className="bg-gray-50 p-1 rounded text-xs overflow-auto">
                         {JSON.stringify(selectedLog.details, null, 2)}
                       </pre>
                     </div>
@@ -252,10 +256,10 @@ export default function AdminLogsPage() {
                   )}
                 </div>
                 
-                <div className="p-6 border-t border-gray-200">
+                <div className="p-1 border-t border-gray-200">
                   <button
                     onClick={() => setShowLogDetails(false)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="w-full px-1 py-0.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs"
                   >
                     Close
                   </button>

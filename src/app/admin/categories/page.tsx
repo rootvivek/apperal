@@ -199,7 +199,7 @@ export default function CategoriesPage() {
   return (
     <AdminGuard>
       <AdminLayout>
-        <div className="space-y-6">
+        <div className="space-y-1">
           <ErrorBanner error={categoriesError} onDismiss={handleDismissError} />
           <SuccessBanner message={successMessage} onDismiss={handleDismissSuccess} />
 
@@ -221,21 +221,21 @@ export default function CategoriesPage() {
           )}
 
           {/* Accordion View */}
-          <div className="bg-white rounded-lg shadow p-6 space-y-4">
+          <div className="bg-white rounded-lg shadow p-1 space-y-1">
             {/* Header with Add Button and Search */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1">
               <button
                 onClick={() => {
                   resetForm();
                   setShowEditModal(true);
                 }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium"
+                className="px-1 py-0.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition font-medium text-xs"
               >
                 ➕ Add Category
               </button>
               <button
                 onClick={() => refreshCategories()}
-                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
+                className="px-1 py-0.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium text-xs"
                 title="Refresh categories from database"
               >
                 🔄 Refresh
@@ -245,7 +245,7 @@ export default function CategoriesPage() {
                 placeholder="Search categories..."
                 value={categorySearch}
                 onChange={(e) => setCategorySearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="flex-1 px-1 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs"
               />
               <span className="text-sm text-gray-600 whitespace-nowrap">
                 {filteredCategories.length} found

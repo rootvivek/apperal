@@ -255,10 +255,15 @@ export async function POST(request: NextRequest) {
       review: reviewData,
       message: existingReview ? 'Review updated successfully' : 'Review submitted successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error in POST /api/reviews:', error);
+    console.error('Error stack:', error?.stack);
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { 
+        error: 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined,
+        stack: process.env.NODE_ENV === 'development' ? error?.stack : undefined
+      },
       { status: 500 }
     );
   }

@@ -2,6 +2,7 @@
 
 import { useMemo, memo } from 'react';
 import Card from './Card';
+import Banner from './Banner';
 import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 
 interface Category {
@@ -71,7 +72,7 @@ function CategoryGrid({ categories }: CategoryGridProps) {
     return { accessoriesCategory: accessories, apparelCategory: apparel, coverCategory: cover };
   }, [categoriesWithSubcats]);
 
-  // Memoize row 1 subcategories
+  // Memoize row 1 subcategories (limit to 12 items total)
   const row1Subcategories = useMemo(() => {
     const apparelSubs = apparelCategory?.subcategories?.map(sub => ({ 
       sub, 
@@ -83,7 +84,7 @@ function CategoryGrid({ categories }: CategoryGridProps) {
       slug: accessoriesCategory.slug 
     })) || [];
     
-    return [...apparelSubs, ...accessoriesSubs];
+    return [...apparelSubs, ...accessoriesSubs].slice(0, 12);
   }, [apparelCategory, accessoriesCategory]);
 
   // Memoize desktop subcategories
@@ -95,20 +96,24 @@ function CategoryGrid({ categories }: CategoryGridProps) {
           category_slug: category.slug
         })) || []
       )
-      .slice(0, 10),
+      .slice(0, 12),
     [categoriesWithSubcats]
   );
 
-  return (
-    <div className="pb-0 sm:py-0 px-1.5 sm:px-6 lg:px-8 h-auto">
-      <div className="text-center mb-1 sm:mb-2">
-        <h2 className="text-xl sm:text-2xl font-semibold text-gray-900">Categories</h2>
-      </div>
+  // Check if accessories section exists
+  const hasAccessories = accessoriesCategory && accessoriesCategory.subcategories && accessoriesCategory.subcategories.length > 0;
 
+  return (
+    <div className="pb-0 sm:py-0 h-auto">
+      {/* Banner before Accessories Section */}
+      {hasAccessories && (
+        <Banner sectionName="accessories" />
+      )}
+      
       {/* Mobile: Row 1 - Gen-z Collections + Accessories */}
       <div className="sm:hidden flex flex-col gap-1.5">
         {row1Subcategories.length > 0 && (
-          <div className="-mx-1.5 px-1.5">
+          <div>
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide" style={SCROLL_STYLE}>
               {row1Subcategories.map(({ sub, slug }) => (
                 <Card
@@ -129,11 +134,11 @@ function CategoryGrid({ categories }: CategoryGridProps) {
           </div>
         )}
 
-        {/* Mobile: Row 2 - Cover */}
+        {/* Mobile: Row 2 - Cover (show remaining items up to 12 total) */}
         {coverCategory && coverCategory.subcategories && coverCategory.subcategories.length > 0 && (
-          <div className="-mx-1.5 px-1.5">
+          <div>
             <div className="flex flex-nowrap gap-1.5 overflow-x-auto scrollbar-hide" style={SCROLL_STYLE}>
-              {coverCategory.subcategories.map((sub) => (
+              {coverCategory.subcategories.slice(0, Math.max(0, 12 - row1Subcategories.length)).map((sub) => (
                 <Card
                   key={sub.id}
                   href={`/products/${coverCategory.slug}/${sub.slug}`}
@@ -151,7 +156,7 @@ function CategoryGrid({ categories }: CategoryGridProps) {
             </div>
           </div>
         )}
-        </div>
+      </div>
 
       {/* Desktop: Subcategories Grid */}
       <div className="hidden sm:block">
@@ -160,7 +165,7 @@ function CategoryGrid({ categories }: CategoryGridProps) {
             No subcategories available
           </div>
         ) : (
-          <div className="grid grid-cols-5 gap-2 max-w-full">
+          <div className="grid grid-cols-6 gap-2 max-w-full">
             {desktopSubcategories.map((subcategory) => (
               <Card
                 key={subcategory.id}

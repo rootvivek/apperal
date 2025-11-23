@@ -518,7 +518,7 @@ function ProductCard({
           )}
         </div>
         
-        <div className="flex items-center space-x-1">
+        <div className="flex items-center space-x-2">
           <span className="text-xs sm:text-sm font-normal text-gray-900" style={{ textShadow: '0.5px 0.5px 1px rgba(0,0,0,0.1)' }}>
             ₹{formattedPrice}
           </span>

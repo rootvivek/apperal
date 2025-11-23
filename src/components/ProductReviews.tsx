@@ -105,19 +105,25 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText || `Server error: ${response.status}` };
-        }
-        const errorMessage = errorData.error || errorData.details || `Failed to submit rating (${response.status})`;
-        throw new Error(errorMessage);
+      // Read response once - check if it's ok first
+      const responseText = await response.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        // If not JSON, treat as plain text error
+        const errorMessage = responseText || `Server error: ${response.status}`;
+        alert(errorMessage);
+        return;
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        const errorMessage = data.error || data.details || `Failed to submit rating (${response.status})`;
+        console.error('Review submission error:', data);
+        alert(errorMessage);
+        return;
+      }
 
       if (data.success) {
         setRating(selectedRating);
@@ -170,23 +176,36 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
         }),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch {
-          errorData = { error: errorText || `Server error: ${response.status}` };
-        }
-        throw new Error(errorData.error || errorData.details || `Failed to submit review (${response.status})`);
+      // Read response once - check if it's ok first
+      const responseText = await response.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        // If not JSON, treat as plain text error
+        const errorMessage = responseText || `Server error: ${response.status}`;
+        console.error('Review submission error (non-JSON):', responseText);
+        alert(errorMessage);
+        return;
       }
 
-      const data = await response.json();
+      if (!response.ok) {
+        // Show detailed error message
+        const errorMessage = data.error || data.details || `Failed to submit review (${response.status})`;
+        console.error('Review submission error:', data);
+        alert(errorMessage);
+        return;
+      }
 
       if (data.success) {
         // Refresh reviews
         await fetchReviews();
         setShowReviewForm(false);
+        
+        // Clear form
+        setComment('');
+        setRating(0);
         
         // Notify parent component of rating update
         if (onRatingUpdate) {
@@ -197,10 +216,12 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
         }
       } else {
         const errorMessage = data.error || data.details || 'Failed to submit review';
+        console.error('Review submission failed:', data);
         alert(errorMessage);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit review';
+      console.error('Review submission exception:', error);
       alert(errorMessage);
     } finally {
       setSubmitting(false);

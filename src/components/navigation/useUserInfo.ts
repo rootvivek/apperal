@@ -3,13 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 
-const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
-
 interface User {
   id: string;
   phone?: string | null;
   user_metadata?: {
     phone?: string;
+    is_admin?: boolean;
   };
 }
 
@@ -18,41 +17,53 @@ export function useUserInfo(user: User | null) {
   const [isAdmin, setIsAdmin] = useState(false);
   const supabase = createClient();
 
-  // Check if user is admin
-  useEffect(() => {
-    const checkAdminStatus = async () => {
-      if (!user || !ADMIN_PHONE) {
+  // Check if user is admin - from user_profiles table (for Firebase phone auth)
+  const checkAdminStatus = useCallback(async () => {
+    if (!user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    try {
+      const { data: profile, error } = await supabase
+        .from('user_profiles')
+        .select('is_admin')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) {
         setIsAdmin(false);
         return;
       }
 
-      try {
-        const { data: profile, error } = await supabase
-          .from('user_profiles')
-          .select('phone')
-          .eq('id', user.id)
-          .maybeSingle();
+      // Check is_admin from user_profiles table
+      const adminStatus = profile?.is_admin === true;
+      setIsAdmin(adminStatus);
+    } catch (error) {
+      setIsAdmin(false);
+    }
+  }, [user, supabase]);
 
-        if (error) {
-          setIsAdmin(false);
-          return;
-        }
+  useEffect(() => {
+    checkAdminStatus();
+  }, [checkAdminStatus]);
 
-        const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
-        const normalizedUserPhone = userPhone.replace(/\D/g, '');
-        const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-        const userLast10 = normalizedUserPhone.slice(-10);
-        const adminLast10 = normalizedAdminPhone.slice(-10);
-        
-        const hasAdminAccess = userLast10 === adminLast10 && userLast10.length === 10;
-        setIsAdmin(hasAdminAccess);
-      } catch (error) {
-        setIsAdmin(false);
+  // Listen for profile updates
+  useEffect(() => {
+    const handleProfileUpdate = (event: CustomEvent) => {
+      // Re-check admin status when profile is updated
+      if (event.detail?.is_admin !== undefined) {
+        checkAdminStatus();
       }
     };
 
-    checkAdminStatus();
-  }, [user, supabase]);
+    if (typeof window !== 'undefined') {
+      window.addEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      return () => {
+        window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      };
+    }
+  }, [checkAdminStatus]);
 
   // Fetch user's full name from Supabase profile
   const fetchUserFullName = useCallback(async () => {

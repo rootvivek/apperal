@@ -10,9 +10,6 @@ interface AdminGuardProps {
   children: React.ReactNode;
 }
 
-// Admin phone number - only this user can access admin panel
-const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
-
 // 404 Page Component
 function NotFoundPage({ router }: { router: any }) {
   return (
@@ -48,51 +45,31 @@ export default function AdminGuard({ children }: AdminGuardProps) {
         return;
       }
 
-      // If no user logged in, deny access (will show 404)
+      // If no user logged in, deny access
       if (!user) {
         setIsAdmin(false);
         setIsChecking(false);
         return;
       }
 
-      // If no admin phone configured, deny access
-      if (!ADMIN_PHONE) {
-        setIsAdmin(false);
-        setIsChecking(false);
-        return;
-      }
-
       try {
-        // Fetch user profile to get phone number
+        // Check is_admin from user_profiles table (for Firebase phone auth)
         const { data: profile, error } = await supabase
           .from('user_profiles')
-          .select('phone')
+          .select('is_admin')
           .eq('id', user.id)
           .maybeSingle();
 
-        // If error fetching profile, deny access
         if (error) {
           setIsAdmin(false);
           setIsChecking(false);
           return;
         }
 
-        // Get user phone from profile or user metadata
-        const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
-        
-        // Normalize phone numbers (remove non-digits) and compare last 10 digits
-        const normalizedUserPhone = userPhone.replace(/\D/g, '');
-        const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-        const userLast10 = normalizedUserPhone.slice(-10);
-        const adminLast10 = normalizedAdminPhone.slice(-10);
-        
-        // Check if user has admin access (last 10 digits must match)
-        const hasAdminAccess = userLast10 === adminLast10 && userLast10.length === 10;
-
-        setIsAdmin(hasAdminAccess);
+        const adminStatus = profile?.is_admin === true;
+        setIsAdmin(adminStatus);
         setIsChecking(false);
       } catch {
-        // Any error means access is denied
         setIsAdmin(false);
         setIsChecking(false);
       }

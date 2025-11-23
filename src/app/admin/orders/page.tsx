@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import { createClient } from '@/lib/supabase/client';
+import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface Order {
   id: string;
@@ -17,7 +18,6 @@ interface Order {
   razorpay_order_id?: string;
   first_item_image?: string;
   item_count?: number;
-  user_number?: string;
 }
 
 interface OrderItem {
@@ -40,6 +40,9 @@ export default function OrdersPage() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  
+  // Lock body scroll when modal is open
+  useBodyScrollLock(showOrderDetails);
   const [userName, setUserName] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string>('');
   const [userAddress, setUserAddress] = useState<any>(null);
@@ -56,26 +59,6 @@ export default function OrdersPage() {
         .from('orders')
         .select('*')
         .order('created_at', { ascending: false }) as any;
-      
-      // Get unique user IDs
-      const userIds = Array.from(new Set((data || []).map((o: Order) => o.user_id).filter(Boolean)));
-      
-      // Fetch user numbers for all users
-      const userNumberMap: { [key: string]: string } = {};
-      if (userIds.length > 0) {
-        const { data: userProfiles } = await supabase
-          .from('user_profiles')
-          .select('id, user_number')
-          .in('id', userIds);
-        
-        if (userProfiles) {
-          userProfiles.forEach((profile: any) => {
-            if (profile.user_number) {
-              userNumberMap[profile.id] = profile.user_number;
-            }
-          });
-        }
-      }
       
       const ordersWithImages = await Promise.all(
         (data || []).map(async (order: Order) => {
@@ -112,8 +95,7 @@ export default function OrdersPage() {
           return {
             ...order,
             first_item_image: firstItemImage,
-            item_count: itemCount,
-            user_number: userNumberMap[order.user_id] || null
+            item_count: itemCount
           };
         })
       );
@@ -286,25 +268,25 @@ export default function OrdersPage() {
 
   return (
     <AdminLayout>
-      <div className="space-y-6">
+      <div className="space-y-1">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Orders Management</h1>
-          <p className="text-gray-600">View and manage all orders</p>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Orders Management</h1>
+          <p className="text-sm sm:text-base text-gray-600">View and manage all orders</p>
         </div>
 
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <div className="flex items-center space-x-2">
+        <div className="bg-white rounded-lg shadow p-1 space-y-1">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1">
             <input
               type="text"
               placeholder="Search orders by number..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+              className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm sm:text-base"
             />
-            <span className="text-sm text-gray-600">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
+            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
           </div>
           
-          <div className="space-y-4">
+          <div className="space-y-2 sm:space-y-3">
             {ordersLoading ? (
               <div className="text-center py-12">
                 <p className="text-gray-600">Loading orders...</p>
@@ -321,38 +303,54 @@ export default function OrdersPage() {
                 // For registered users, show user number or shortened ID
                 const userDisplayId = order.user_id === 'guest' || !order.user_id
                   ? ((order as any).customer_name || 'Guest User')
-                  : (order.user_number || `User ID: ${order.user_id.substring(0, 8)}...`);
+                  : `User ID: ${order.user_id.substring(0, 8)}...`;
 
                 return (
                   <div 
                     key={order.id} 
-                    className="border rounded-lg bg-white hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => handleOrderClick(order)}
+                    className="border rounded-lg bg-white hover:shadow-md transition-shadow md:cursor-pointer"
+                    onClick={(e) => {
+                      // On mobile, only click if clicking directly on the card (not on buttons)
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button')) {
+                        return; // Let button handle its own click
+                      }
+                      // On desktop (md+), allow card click
+                      if (window.matchMedia('(min-width: 768px)').matches) {
+                        handleOrderClick(order);
+                      }
+                    }}
                   >
-                    <div className="px-6 py-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-4 flex-1">
+                    <div className="px-1 py-1">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
+                        <div className="flex items-center gap-1 flex-1 min-w-0">
                           {order.first_item_image && (
                             <img 
                               src={order.first_item_image} 
                               alt="Product" 
-                              className="w-12 h-12 object-cover rounded" 
+                              className="w-10 h-10 sm:w-12 sm:h-12 object-cover rounded flex-shrink-0" 
                               onError={(e) => (e.target as HTMLImageElement).src = '/placeholder-product.jpg'} 
                             />
                           )}
-                          <div>
-                            <div className="flex items-center space-x-3">
-                              <button className="text-blue-600 hover:text-blue-900 font-medium">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-0.5">
+                              <button 
+                                className="text-blue-600 hover:text-blue-900 font-medium text-xs"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOrderClick(order);
+                                }}
+                              >
                                 #{order.order_number}
                               </button>
-                              <span className="text-sm text-gray-500">•</span>
-                              <span className="text-sm text-gray-600">{userDisplayId}</span>
+                              <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">•</span>
+                              <span className="text-xs sm:text-sm text-gray-600 truncate">{userDisplayId}</span>
                             </div>
-                            <p className="text-sm text-gray-600 mt-1 font-medium">{formatDate(order.created_at)}</p>
+                            <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1 font-medium">{formatDate(order.created_at)}</p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-6">
-                          <span className={`px-3 py-1 rounded text-xs font-medium ${
+                        <div className="flex items-center gap-1 w-full sm:w-auto justify-between sm:justify-end">
+                          <span className={`px-1 py-0 rounded text-xs font-medium whitespace-nowrap ${
                             order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
                             order.status === 'shipped' ? 'bg-blue-100 text-blue-800' : 
                             order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' : 
@@ -361,7 +359,7 @@ export default function OrdersPage() {
                           }`}>
                             {order.status}
                           </span>
-                          <span className="font-semibold w-24 text-right">{formatCurrency(order.total_amount)}</span>
+                          <span className="font-semibold text-xs whitespace-nowrap">{formatCurrency(order.total_amount)}</span>
                         </div>
                       </div>
                     </div>
@@ -373,32 +371,32 @@ export default function OrdersPage() {
         </div>
 
         {showOrderDetails && selectedOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
             <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
+              <div className="p-1 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
                 <div>
-                  <h2 className="text-xl font-bold">Order #{selectedOrder.order_number}</h2>
+                  <h2 className="text-lg sm:text-xl font-bold">Order #{selectedOrder.order_number}</h2>
                 </div>
-                <button onClick={() => setShowOrderDetails(false)} className="text-2xl">✕</button>
+                <button onClick={() => setShowOrderDetails(false)} className="text-xl sm:text-2xl">✕</button>
               </div>
               
-              <div className="p-6 space-y-6">
+              <div className="p-1 space-y-1">
                 {/* Customer Information */}
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold mb-4 text-gray-900">Customer Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-gray-50 rounded-lg p-1">
+                  <h3 className="font-semibold mb-0.5 text-gray-900 text-xs">Customer Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
                     <div>
-                      <p className="text-gray-600 text-sm mb-1">Name</p>
-                      <p className="font-medium">{userName || 'N/A'}</p>
+                      <p className="text-gray-600 text-xs mb-0.5">Name</p>
+                      <p className="font-medium text-xs">{userName || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm mb-1">Phone Number</p>
-                      <p className="font-medium">{userPhone || 'N/A'}</p>
+                      <p className="text-gray-600 text-xs mb-0.5">Phone Number</p>
+                      <p className="font-medium text-xs">{userPhone || 'N/A'}</p>
                     </div>
                     <div>
-                      <p className="text-gray-600 text-sm mb-1">Address</p>
+                      <p className="text-gray-600 text-xs mb-0.5">Address</p>
                       {userAddress ? (
-                        <div className="font-medium text-sm">
+                        <div className="font-medium text-xs">
                           <p>{userAddress.address_line1 || ''}</p>
                           {userAddress.address_line2 && <p>{userAddress.address_line2}</p>}
                           <p>{userAddress.city || ''}, {userAddress.state || ''} {userAddress.zip_code || ''}</p>
@@ -411,11 +409,11 @@ export default function OrdersPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-gray-600 text-sm">Date</p><p className="font-medium">{formatDate(selectedOrder.created_at)}</p></div>
-                  <div><p className="text-gray-600 text-sm">Payment Method</p><p className="font-medium capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p></div>
-                  <div><p className="text-gray-600 text-sm">Total Amount</p><p className="font-bold text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p></div>
-                  <div><p className="text-gray-600 text-sm">Status</p><select value={selectedOrder.status} onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)} className="mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
+                  <div><p className="text-gray-600 text-xs sm:text-sm">Date</p><p className="font-medium text-sm sm:text-base">{formatDate(selectedOrder.created_at)}</p></div>
+                  <div><p className="text-gray-600 text-xs sm:text-sm">Payment Method</p><p className="font-medium text-sm sm:text-base capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p></div>
+                  <div><p className="text-gray-600 text-xs sm:text-sm">Total Amount</p><p className="font-bold text-base sm:text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p></div>
+                  <div><p className="text-gray-600 text-xs sm:text-sm mb-1">Status</p><select value={selectedOrder.status} onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)} className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></div>
                   {selectedOrder.payment_method === 'razorpay' && (
                     <>
                       {selectedOrder.razorpay_payment_id && (
@@ -435,36 +433,36 @@ export default function OrdersPage() {
                 </div>
 
                 <div>
-                  <h3 className="font-semibold mb-4">Order Items</h3>
-                  {orderItems.length === 0 ? <p className="text-gray-600">No items found</p> : (
-                    <div className="space-y-3">
+                  <h3 className="font-semibold mb-2 sm:mb-3 md:mb-4 text-sm sm:text-base">Order Items</h3>
+                  {orderItems.length === 0 ? <p className="text-gray-600 text-sm sm:text-base">No items found</p> : (
+                    <div className="space-y-1">
                       {orderItems.map((item) => (
-                        <div key={item.id} className="border rounded-lg p-4">
-                          <div className="flex items-start space-x-4">
+                        <div key={item.id} className="border rounded-lg p-1">
+                          <div className="flex items-start gap-2 sm:gap-3 md:gap-4">
                             {item.product_image ? (
                               <img 
                                 src={item.product_image} 
                                 alt={item.product_name} 
-                                className="w-20 h-20 object-cover rounded-lg" 
+                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0" 
                                 onError={(e) => {
                                   (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
                                 }} 
                               />
                             ) : (
-                              <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                 </svg>
                               </div>
                             )}
-                            <div className="flex-1">
-                              <h4 className="font-medium">{item.product_name}</h4>
-                              <p className="text-sm text-gray-600">
-                                Price: {formatCurrency(item.product_price)} × Quantity: {item.quantity}
-                                <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="font-medium text-sm sm:text-base">{item.product_name}</h4>
+                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">
+                                Price: {formatCurrency(item.product_price)} × {item.quantity}
+                                <span className="ml-1 sm:ml-2">| Size: {item.size || 'N/A'}</span>
                               </p>
                             </div>
-                            <div className="text-right"><p className="font-semibold">{formatCurrency(item.total_price)}</p></div>
+                            <div className="text-right flex-shrink-0"><p className="font-semibold text-sm sm:text-base">{formatCurrency(item.total_price)}</p></div>
                           </div>
                         </div>
                       ))}
@@ -472,16 +470,16 @@ export default function OrdersPage() {
                   )}
                 </div>
 
-                <div className="border-t pt-4">
+                <div className="border-t pt-3 sm:pt-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-lg font-semibold">Total</span>
-                    <span className="text-2xl font-bold text-blue-600">{formatCurrency(selectedOrder.total_amount)}</span>
+                    <span className="text-base sm:text-lg font-semibold">Total</span>
+                    <span className="text-xl sm:text-2xl font-bold text-blue-600">{formatCurrency(selectedOrder.total_amount)}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="p-6 border-t border-gray-200">
-                <button onClick={() => setShowOrderDetails(false)} className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700">Close</button>
+              <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200">
+                <button onClick={() => setShowOrderDetails(false)} className="w-full px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base">Close</button>
               </div>
             </div>
           </div>

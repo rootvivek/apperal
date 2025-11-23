@@ -14,7 +14,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
     // Build query based on whether we want deleted or active users
     let query = supabase
       .from('user_profiles')
-      .select('id, full_name, phone, created_at, user_number, is_active, deleted_at');
+      .select('id, full_name, phone, created_at, is_admin, is_active, deleted_at');
     
     if (includeDeleted) {
       // Get only deleted users (deleted_at is not null)
@@ -40,16 +40,7 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
       );
     }
 
-    // Admin phone number - must match AdminGuard
-    const ADMIN_PHONE = process.env.ADMIN_PHONE;
-    if (!ADMIN_PHONE) {
-      return NextResponse.json(
-        { error: 'Server configuration error' },
-        { status: 500 }
-      );
-    }
-
-    // Fetch order counts for each user and check admin status
+    // Fetch order counts for each user
     const usersWithOrderCounts = await Promise.all(
       (users || []).map(async (user: any) => {
         try {
@@ -58,32 +49,16 @@ async function handler(request: NextRequest, { userId }: { userId: string }) {
             .select('*', { count: 'exact', head: true })
             .eq('user_id', user.id);
           
-          // Check if user is admin based on phone number (last 10 digits)
-          const userPhone = user.phone || '';
-          const normalizedUserPhone = userPhone.replace(/\D/g, '');
-          const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-          const userLast10 = normalizedUserPhone.slice(-10);
-          const adminLast10 = normalizedAdminPhone.slice(-10);
-          const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
-          
           return {
             ...user,
             total_orders: count || 0,
-            isAdmin
+            isAdmin: user.is_admin === true
           };
         } catch (err) {
-          // Check admin status even if order count fails (last 10 digits)
-          const userPhone = user.phone || '';
-          const normalizedUserPhone = userPhone.replace(/\D/g, '');
-          const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '');
-          const userLast10 = normalizedUserPhone.slice(-10);
-          const adminLast10 = normalizedAdminPhone.slice(-10);
-          const isAdmin = userLast10 === adminLast10 && userLast10.length === 10;
-          
           return {
             ...user,
             total_orders: 0,
-            isAdmin
+            isAdmin: user.is_admin === true
           };
         }
       })

@@ -13,7 +13,7 @@ interface UserProfile {
   id: string;
   full_name: string | null;
   phone: string | null;
-  user_number?: string | null;
+  is_admin?: boolean | null;
   created_at: string;
   updated_at: string;
 }
@@ -105,6 +105,7 @@ function ProfileContent() {
             id: user.id,
             full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
             phone: user.phone || null,
+            is_admin: false,
           })
           .select();
         
@@ -126,11 +127,11 @@ function ProfileContent() {
           } else {
             // Profile doesn't exist and couldn't be created - set defaults
             setProfile({
-              id: user.id,
-              full_name: user.user_metadata?.full_name || null,
-              phone: user.phone || null,
-              user_number: null,
-              created_at: new Date().toISOString(),
+            id: user.id,
+            full_name: user.user_metadata?.full_name || null,
+            phone: user.phone || null,
+            is_admin: false,
+            created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             });
             setFullName(user.user_metadata?.full_name || '');
@@ -478,20 +479,6 @@ function ProfileContent() {
                 />
               </div>
 
-              {/* User Number (Read-only) */}
-              {profile?.user_number && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    User ID
-                  </label>
-                  <input
-                    type="text"
-                    value={profile.user_number}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                </div>
-              )}
 
               {/* Account Created Date */}
               {profile?.created_at && (
