@@ -13,6 +13,7 @@ import ErrorState from '@/components/ErrorState';
 
 import { PLACEHOLDER_CATEGORY } from '@/utils/imageUtils';
 import { CATEGORY_GRID_CLASSES, PRODUCT_GRID_CLASSES } from '@/utils/layoutUtils';
+import { Search } from 'lucide-react';
 
 // Helper Functions
 const sanitizeQuery = (query: string): string => query.replace(/[%_\\]/g, '');
@@ -83,7 +84,6 @@ function SearchPageContent() {
 
   const handleSearchResult = useCallback((result: any, setter: (data: any) => void, errorMessage?: string) => {
     if (result.error) {
-      console.error(errorMessage || 'Search error:', result.error);
       if (errorMessage) setError(errorMessage);
     } else {
       setter(result.data || []);
@@ -268,16 +268,13 @@ function SearchPageContent() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-4 md:px-6 lg:px-8 py-2">
         {/* Search Header */}
-        <div className="mb-2">
+        <div className="mb-2 text-center">
           <h1 className="text-xl sm:text-2xl font-semibold text-gray-900 mb-1">
             {query ? `Search Results for "${query}"` : 'Search Products'}
           </h1>
-          {query && !loading && (
+          {query && !loading && hasResults && (
             <p className="text-gray-600">
-              {hasResults 
-                ? `${totalResults} result${totalResults !== 1 ? 's' : ''} found`
-                : 'No results found'
-              }
+              {`${totalResults} result${totalResults !== 1 ? 's' : ''} found`}
             </p>
           )}
         </div>
@@ -355,23 +352,10 @@ function SearchPageContent() {
               )}
             </div>
           ) : (
-            <EmptyState
-              icon="🔍"
-              title="No results found"
-              description={
-                <>
-                  <p className="mb-2">
-                    We couldn&apos;t find any categories, subcategories, or products matching &quot;{query}&quot;
-                  </p>
-                  <div className="space-y-1 text-sm text-gray-400">
-                    <p>Try searching with different keywords or check your spelling</p>
-                    <p>You can search by category name, subcategory name, or product name</p>
-                  </div>
-                </>
-              }
-              actionLabel="Browse All Products"
-              actionHref="/products"
-            />
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-200px)]">
+              <Search className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400 mb-4" />
+              <p className="text-gray-600 text-center">No results found</p>
+            </div>
           )
         ) : (
           <EmptyState

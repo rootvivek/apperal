@@ -1,73 +1,66 @@
 'use client';
 
-import { ArrowLeft, User, ChevronDown, Search, List, LogOut, Settings, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  Search,
+  ChevronDown,
+  User,
+  PackageSearch,
+  LogOut,
+  ShieldCheck,
+  X,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface IconComponentProps {
-  className?: string;
-  size?: number | string;
+type IconProps = React.SVGProps<SVGSVGElement>;
+
+interface ChevronDownIconProps extends IconProps {
+  rotated?: boolean;
 }
 
-export const BackArrowIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <ArrowLeft 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function BackArrowIcon(props: IconProps) {
+  return <ArrowLeft {...props} />;
+}
 
-export const UserIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <User 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function SearchIcon(props: IconProps) {
+  return <Search {...props} />;
+}
 
-export const ChevronDownIcon = ({ 
-  className, 
-  size = 20,
-  rotated = false 
-}: IconComponentProps & { rotated?: boolean }) => (
-  <ChevronDown 
-    className={cn(
-      "text-current transition-transform",
-      rotated && "rotate-180",
-      className
-    )} 
-    size={size}
-  />
-);
+export function ChevronDownIcon({
+  rotated,
+  className,
+  ...props
+}: ChevronDownIconProps) {
+  return (
+    <ChevronDown
+      className={cn(
+        'transition-transform duration-150',
+        rotated ? 'rotate-180' : '',
+        className,
+      )}
+      {...props}
+    />
+  );
+}
 
-export const SearchIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <Search 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function UserIcon(props: IconProps) {
+  return <User {...props} />;
+}
 
-export const OrdersIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <List 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function OrdersIcon(props: IconProps) {
+  return <PackageSearch {...props} />;
+}
 
-export const SignOutIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <LogOut 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function SignOutIcon(props: IconProps) {
+  return <LogOut {...props} />;
+}
 
-export const AdminIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <Settings 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function AdminIcon(props: IconProps) {
+  return <ShieldCheck {...props} />;
+}
 
-export const CrossIcon = ({ className, size = 20 }: IconComponentProps) => (
-  <X 
-    className={cn("text-current", className)} 
-    size={size}
-  />
-);
+export function CrossIcon(props: IconProps) {
+  return <X {...props} />;
+}
+
+

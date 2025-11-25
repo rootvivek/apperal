@@ -5,6 +5,7 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import { createClient } from '@/lib/supabase/client';
 import DataTable from '@/components/DataTable';
+import { Input } from '@/components/ui/input';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
 
 interface AdminLog {
@@ -120,12 +121,12 @@ export default function AdminLogsPage() {
                 <p className="text-sm text-gray-600">Total Logs</p>
                 <p className="text-2xl font-bold text-blue-600">{logs.length}</p>
               </div>
-              <input
+              <Input
                 type="text"
                 placeholder="Search logs..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 max-w-md px-1 py-0.5 border border-gray-300 rounded-lg text-xs"
+                className="flex-1 max-w-md"
               />
             </div>
 

@@ -8,8 +8,8 @@ import { useCategoryForm } from '@/hooks/admin/useCategoryForm';
 import { useCategoryMedia } from '@/hooks/admin/useCategoryMedia';
 import CategoryAccordion from '@/components/admin/categories/CategoryAccordion';
 import CategoryFormModal from '@/components/admin/categories/CategoryFormModal';
-import ErrorBanner from '@/components/admin/categories/ErrorBanner';
-import SuccessBanner from '@/components/admin/categories/SuccessBanner';
+import Alert from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { Category } from '@/hooks/admin/useCategories';
 
@@ -17,6 +17,7 @@ export default function CategoriesPage() {
   const supabase = createClient();
   const [showEditModal, setShowEditModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const {
@@ -43,12 +44,21 @@ export default function CategoriesPage() {
 
   const handleFormSuccess = useCallback(() => {
     setShowEditModal(false);
+    setFormError(null);
     setSuccessMessage('Category saved successfully');
     refreshCategories();
   }, [refreshCategories]);
 
   const handleFormError = useCallback((error: string) => {
-    // Error is handled by the form hook
+    // Early return if error is empty or only whitespace
+    if (!error || !error.trim()) {
+      setFormError(null);
+      return;
+    }
+    
+    // Only set and show error if it has content
+    setFormError(error);
+    alert(error);
   }, []);
 
   const {
@@ -121,13 +131,27 @@ export default function CategoriesPage() {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) {
-        handleFormError('User not authenticated');
+      // Get user ID from localStorage
+      let userId: string | null = null;
+      
+      if (typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            userId = user.id;
+          } catch {
+            // Invalid stored user
+          }
+        }
+      }
+      
+      if (!userId) {
+        handleFormError('User not authenticated. Please sign in again.');
         return;
       }
 
-      await deleteCategory(categoryId, user.id);
+      await deleteCategory(categoryId, userId);
       setSuccessMessage('Category deleted successfully');
       await refreshCategories();
       
@@ -146,13 +170,27 @@ export default function CategoriesPage() {
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) {
-        handleFormError('User not authenticated');
+      // Get user ID from localStorage
+      let userId: string | null = null;
+      
+      if (typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            userId = user.id;
+          } catch {
+            // Invalid stored user
+          }
+        }
+      }
+      
+      if (!userId) {
+        handleFormError('User not authenticated. Please sign in again.');
         return;
       }
 
-      await deleteSubcategory(subcategoryId, user.id);
+      await deleteSubcategory(subcategoryId, userId);
       setSuccessMessage('Subcategory deleted successfully');
       await refreshCategories();
     } catch (err: any) {
@@ -200,8 +238,26 @@ export default function CategoriesPage() {
     <AdminGuard>
       <AdminLayout>
         <div className="space-y-1">
-          <ErrorBanner error={categoriesError} onDismiss={handleDismissError} />
-          <SuccessBanner message={successMessage} onDismiss={handleDismissSuccess} />
+          {(categoriesError || formError) && (
+            <Alert 
+              message={categoriesError || formError || ''} 
+              variant="error" 
+              onClose={() => { 
+                if (categoriesError) handleDismissError();
+                if (formError) setFormError(null);
+              }} 
+              className="mb-4"
+            />
+          )}
+          {successMessage && (
+            <Alert 
+              message={successMessage} 
+              variant="success" 
+              onClose={handleDismissSuccess}
+              autoDismiss={3000}
+              className="mb-4"
+            />
+          )}
 
           {showEditModal && (
             <CategoryFormModal
@@ -240,12 +296,12 @@ export default function CategoriesPage() {
               >
                 🔄 Refresh
               </button>
-              <input
+              <Input
                 type="text"
                 placeholder="Search categories..."
                 value={categorySearch}
                 onChange={(e) => setCategorySearch(e.target.value)}
-                className="flex-1 px-1 py-0.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-xs"
+                className="flex-1"
               />
               <span className="text-sm text-gray-600 whitespace-nowrap">
                 {filteredCategories.length} found
@@ -275,3 +331,4 @@ export default function CategoriesPage() {
     </AdminGuard>
   );
 }
+

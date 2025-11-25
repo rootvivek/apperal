@@ -1,8 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useAuth } from './AuthContext';
 import { createClient } from '@/lib/supabase/client';
+import { CART, DB_ERROR_CODES } from '@/constants';
+import { loadGuestCart, saveGuestCart, clearGuestCart } from '@/utils/cart/guestCart';
+import { getOrCreateCart, transformCartItem } from '@/utils/cart/cartOperations';
+import { ensureUserProfileExists } from '@/utils/cart/userProfile';
+import { transferGuestCartToUser } from '@/utils/cart/guestCartTransfer';
 
 export interface CartItem {
   id: string;
@@ -52,113 +57,14 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   // Load guest cart from localStorage ONLY on initial mount
   useEffect(() => {
     if (!user) {
-      try {
-        const guestCart = localStorage.getItem('guest-cart');
-        if (guestCart) {
-          const parsed = JSON.parse(guestCart);
-          setCartItems(parsed);
-        }
-      } catch (error) {
-        // Failed to load guest cart
+      const guestCart = loadGuestCart();
+      if (guestCart.length > 0) {
+        setCartItems(guestCart);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
 
-  // Helper function to ensure user profile exists before cart operations
-  const ensureUserProfileExists = async (userId: string, maxRetries = 15): Promise<boolean> => {
-    for (let i = 0; i < maxRetries; i++) {
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('id')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (profile) {
-        return true;
-      }
-
-      if (error && error.code !== 'PGRST116') {
-        // Continue retrying even on error (might be transient)
-        if (i < maxRetries - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500 * (i + 1)));
-        }
-        continue;
-      }
-
-      // If profile doesn't exist and we have user info, try to create it
-      // Try creating on retries 1, 3, 5, 7, etc. to give AuthContext time first
-      if (!profile && i > 0 && i % 2 === 1 && user) {
-        try {
-          // Check for soft-deleted profiles with same phone (like AuthContext does)
-          const userPhone = user.phone || null;
-          if (userPhone) {
-            const { data: profilesWithPhone } = await supabase
-              .from('user_profiles')
-              .select('id, deleted_at')
-              .eq('phone', userPhone)
-              .maybeSingle();
-
-            if (profilesWithPhone?.deleted_at) {
-              // Hard delete the soft-deleted profile
-              await supabase
-                .from('user_profiles')
-                .delete()
-                .eq('id', profilesWithPhone.id);
-            }
-          }
-          
-          // Try to create profile with minimal data
-          const { error: createError } = await supabase
-            .from('user_profiles')
-            .insert({
-              id: userId,
-              full_name: user.user_metadata?.full_name || 'User',
-              phone: userPhone,
-            })
-            .select();
-
-          if (!createError) {
-            // Profile created successfully, verify it exists
-            await new Promise(resolve => setTimeout(resolve, 200));
-            const { data: verifyProfile } = await supabase
-              .from('user_profiles')
-              .select('id')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (verifyProfile) {
-              return true;
-            }
-          } else if (createError.code === '23505') {
-            // Duplicate key - profile was created by another process (likely AuthContext)
-            // Wait a bit and verify it exists
-            await new Promise(resolve => setTimeout(resolve, 300));
-            const { data: verifyProfile } = await supabase
-              .from('user_profiles')
-              .select('id')
-              .eq('id', userId)
-              .maybeSingle();
-            
-            if (verifyProfile) {
-              return true;
-            }
-          } else if (createError.code === '23503') {
-            // Foreign key constraint - might be a transient issue, continue retrying
-          }
-        } catch {
-          // Error handled silently - will retry
-        }
-      }
-
-      // Wait before retrying (exponential backoff with longer initial wait)
-      if (i < maxRetries - 1) {
-        const waitTime = i === 0 ? 1000 : 500 * (i + 1); // Start with 1 second
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-      }
-    }
-    return false;
-  };
 
   const fetchCartItems = async () => {
     if (!user) {
@@ -171,170 +77,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       
       // Ensure user profile exists before creating cart
-      const profileExists = await ensureUserProfileExists(user.id);
+      const profileExists = await ensureUserProfileExists(user.id, user);
       if (!profileExists) {
         // Retry after a delay - profile might be created by AuthContext
         setTimeout(() => {
           fetchCartItems();
-        }, 2000);
+        }, CART.FETCH_RETRY_DELAY);
         return;
       }
       
       // Transfer guest cart items to user cart after login
-      const guestCartStr = localStorage.getItem('guest-cart');
-      if (guestCartStr) {
+      const guestCart = loadGuestCart();
+      if (guestCart.length > 0) {
         try {
-          const guestCart: CartItem[] = JSON.parse(guestCartStr);
-          if (guestCart.length > 0) {
-            // Get or create user's cart
-            let { data: cartData, error: cartError } = await supabase
-              .from('carts')
-              .select('id')
-              .eq('user_id', user.id)
-              .maybeSingle();
-
-            let cart = cartData;
-
-            if (cartError && cartError.code !== 'PGRST116') {
-              // Error handled silently
-            }
-
-            if (!cart) {
-              // Create cart if it doesn't exist
-              const { data: newCartData, error: createError } = await supabase
-                .from('carts')
-                .insert({ user_id: user.id })
-                .select('id');
-
-              if (createError) {
-                // If foreign key error, wait a bit and retry once
-                if (createError.code === '23503') {
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  const retryResult = await supabase
-                    .from('carts')
-                    .insert({ user_id: user.id })
-                    .select('id');
-                  if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
-                    cart = retryResult.data[0];
-                  }
-                }
-              } else if (newCartData && newCartData.length > 0) {
-                cart = newCartData[0];
-              }
-            }
-
-            if (cart) {
-              // Transfer each guest cart item to user cart
-              let transferredCount = 0;
-              for (const guestItem of guestCart) {
-                try {
-                  // Check if item already exists in user cart (same product_id AND same size)
-                  const { data: existingItem, error: checkError } = await supabase
-                    .from('cart_items')
-                    .select('id, quantity')
-                    .eq('cart_id', cart.id)
-                    .eq('product_id', guestItem.product_id)
-                    .eq('size', guestItem.size || null)
-                    .maybeSingle();
-
-                  if (checkError && checkError.code !== 'PGRST116') {
-                    continue; // Skip this item if there's an error
-                  }
-
-                  if (existingItem) {
-                    // Update quantity if item exists
-                    const { error: updateError } = await supabase
-                      .from('cart_items')
-                      .update({ quantity: existingItem.quantity + guestItem.quantity })
-                      .eq('id', existingItem.id);
-
-                    if (!updateError) {
-                      transferredCount++;
-                    }
-                  } else {
-                    // Add new item
-                    const { error: insertError } = await supabase
-                      .from('cart_items')
-                      .insert({
-                        cart_id: cart.id,
-                        product_id: guestItem.product_id,
-                        quantity: guestItem.quantity,
-                        size: guestItem.size || null
-                      })
-                      .select();
-
-                    if (!insertError) {
-                      transferredCount++;
-                    }
-                  }
-                } catch {
-                  // Continue with other items
-                }
-              }
-
-              // Clear guest cart after successful transfer
-              if (transferredCount > 0) {
-                localStorage.removeItem('guest-cart');
-              }
-            }
-          }
+          await transferGuestCartToUser(user.id, guestCart);
         } catch {
           // Clear invalid localStorage data
-          localStorage.removeItem('guest-cart');
+          clearGuestCart();
         }
       }
       
-      // Get user's cart
-      let { data: cart, error: cartError } = await supabase
-        .from('carts')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (cartError && cartError.code !== 'PGRST116') {
-        return;
-      }
-
+      // Get or create user's cart
+      const cart = await getOrCreateCart(user.id);
       if (!cart) {
-        // Ensure user profile exists before creating cart
-        const profileExists = await ensureUserProfileExists(user.id);
-        if (!profileExists) {
-          // Profile is being created by AuthContext, retry after a delay
-          setTimeout(() => {
-            fetchCartItems();
-          }, 2000);
-          return;
-        }
-
-        // Create cart if it doesn't exist
-        const { data: newCartData, error: createError } = await supabase
-          .from('carts')
-          .insert({ user_id: user.id })
-          .select('id');
-
-          if (createError) {
-          // If foreign key error, wait a bit and retry once
-          if (createError.code === '23503') {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const retryResult = await supabase
-              .from('carts')
-              .insert({ user_id: user.id })
-              .select('id');
-            if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
-              cart = retryResult.data[0];
-            } else {
-              return;
-            }
-          } else {
-            return;
-          }
-        } else if (!newCartData || newCartData.length === 0) {
-          return;
-        } else {
-          cart = newCartData[0];
-          setCartItems([]);
-          return;
-        }
+        return;
       }
 
       // Fetch cart items with product details including subcategory
@@ -363,41 +129,13 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         .eq('cart_id', cart.id);
 
       if (itemsError) {
-        // PGRST116 = no rows returned, which is expected for empty carts
+        // NOT_FOUND = no rows returned, which is expected for empty carts
         setCartItems([]);
         return;
       }
 
       // Transform the data to match our interface
-      const transformedItems: CartItem[] = items?.map((item: any) => {
-        // Ensure size is properly extracted (handle both direct access and nested)
-        const sizeValue = item.size !== undefined ? item.size : null;
-        
-        return {
-          id: item.id,
-          product_id: item.product_id,
-          quantity: item.quantity,
-          size: sizeValue,
-          product: {
-            id: item.products.id,
-            name: item.products.name,
-            price: item.products.price,
-            image_url: item.products.image_url,
-            stock_quantity: item.products.stock_quantity,
-            subcategory: (() => {
-              const subcats = item.products.subcategories;
-              if (!subcats) return null;
-              const subcat = Array.isArray(subcats) ? subcats[0] : subcats;
-              return subcat ? {
-                id: subcat.id,
-                name: subcat.name,
-                slug: subcat.slug,
-                detail_type: subcat.detail_type || null,
-              } : null;
-            })(),
-          }
-        };
-      }) || [];
+      const transformedItems: CartItem[] = items?.map(transformCartItem) || [];
 
       setCartItems(transformedItems);
     } catch {
@@ -448,8 +186,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Get existing guest cart
-        const guestCartStr = localStorage.getItem('guest-cart');
-        const existingCart: CartItem[] = guestCartStr ? JSON.parse(guestCartStr) : [];
+        const existingCart = loadGuestCart();
 
         // Check if item already exists in cart (same product_id AND same size)
         const existingItem = existingCart.find(item => 
@@ -496,7 +233,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Save to localStorage
-        localStorage.setItem('guest-cart', JSON.stringify(updatedCart));
+        saveGuestCart(updatedCart);
         setCartItems(updatedCart);
       } catch {
         // Error handled silently
@@ -506,60 +243,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     // Handle logged-in user cart (database)
     try {
-      // Get user's cart
-      let { data: cartData, error: cartError } = await supabase
-        .from('carts')
-        .select('id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      let cart = cartData;
-
-      // If there was an error fetching cart
-      if (cartError) {
-        if (cartError.message.includes('Could not find the table')) {
-          alert('❌ Cart table missing! Please contact admin to fix this issue.');
-        }
-        return;
-      }
-
-      // If no cart exists, create one
+      // Get or create user's cart
+      const cart = await getOrCreateCart(user.id);
       if (!cart) {
-        // Ensure user profile exists before creating cart
-        const profileExists = await ensureUserProfileExists(user.id);
-        if (!profileExists) {
-          return;
-        }
-
-        const { data: newCartData, error: createError } = await supabase
-          .from('carts')
-          .insert({ user_id: user.id })
-          .select('id');
-
-        if (createError) {
-          // If foreign key error, wait a bit and retry once
-          if (createError.code === '23503') {
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const retryResult = await supabase
-              .from('carts')
-              .insert({ user_id: user.id })
-              .select('id');
-            if (!retryResult.error && retryResult.data && retryResult.data.length > 0) {
-              cart = retryResult.data[0];
-            } else {
-              return;
-            }
-          } else {
-            if (createError.message?.includes('Could not find the table')) {
-            alert('❌ Cart table missing! Please contact admin to fix this issue.');
-          }
-          return;
-        }
-        } else if (!newCartData || newCartData.length === 0) {
-          return;
-        } else {
-        cart = newCartData[0];
-        }
+        return;
       }
 
 
@@ -579,7 +266,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       
       const { data: existingItem, error: existingError } = await query.maybeSingle();
 
-      if (existingError && existingError.code !== 'PGRST116') {
+      if (existingError && existingError.code !== DB_ERROR_CODES.NOT_FOUND) {
         alert('Error adding item to cart. Please try again.');
         return;
       }
@@ -738,7 +425,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const clearCart = async () => {
     // Handle guest cart
     if (!user) {
-      localStorage.removeItem('guest-cart');
+      clearGuestCart();
       setCartItems([]);
       return;
     }
@@ -746,16 +433,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     // Handle logged-in user cart
     try {
       // Get user's cart
-      const { data: cart, error: cartError } = await supabase
-        .from('carts')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (cartError) {
-        return;
-      }
-
+      const cart = await getOrCreateCart(user.id);
       if (cart) {
         const { error } = await supabase
           .from('cart_items')
@@ -804,3 +482,4 @@ export function useCart() {
   }
   return context;
 }
+

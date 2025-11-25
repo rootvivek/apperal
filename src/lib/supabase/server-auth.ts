@@ -46,15 +46,15 @@ export async function createServerAuthClient(request?: NextRequest) {
             value,
             ...options
           });
-        } catch (e) {
-          console.warn('Could not set cookie in server component');
+        } catch {
+          // Cookie setting failed silently
         }
       },
       remove(name: string, options: any) {
         try {
           cookieStore.delete(name);
-        } catch (e) {
-          console.warn('Could not delete cookie in server component');
+        } catch {
+          // Cookie deletion failed silently
         }
       },
     },

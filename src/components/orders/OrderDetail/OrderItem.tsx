@@ -45,24 +45,24 @@ export default function OrderItem({
   const returnBadge = getReturnStatusBadge(returnStatus.status);
   return (
     <div className="flex items-stretch gap-3 sm:gap-4">
-      <div className="flex-shrink-0 w-20 h-20 sm:w-28 sm:h-28 aspect-square">
+      <div className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 aspect-square">
         {item.product_image ? (
           <ImageWithFallback
             src={item.product_image}
             alt={item.product_name}
-            className="w-full h-full rounded object-cover"
+            className="w-full h-full object-cover border border-gray-200"
             fallbackType="product"
             loading="lazy"
             decoding="async"
-            width={256}
-            height={256}
+            width={64}
+            height={64}
             responsive={true}
-            responsiveSizes={[128, 256]}
+            responsiveSizes={[48, 64, 80]}
             quality={85}
           />
         ) : (
-          <div className="w-full h-full bg-gray-100 rounded flex items-center justify-center">
-            <svg className="w-8 h-8 sm:w-10 sm:h-10 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-full h-full bg-gray-100 flex items-center justify-center border border-gray-200">
+            <svg className="w-6 h-6 sm:w-7 sm:h-7 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
           </div>

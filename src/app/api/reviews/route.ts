@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     let user_id: string | null = null;
     
     if (userId) {
-      // Firebase user ID from request body
+      // User ID from request body
       user_id = userId;
     } else {
       // Try Supabase auth (for Supabase users)

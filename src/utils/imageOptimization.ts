@@ -6,7 +6,7 @@
  * Checks if a URL is a Supabase storage URL
  */
 export function isSupabaseImageUrl(url: string): boolean {
-  return url.includes('supabase.co/storage') || url.includes('supabase.co/rest/v1/storage');
+  return url.includes('supabase.co/storage');
 }
 
 /**

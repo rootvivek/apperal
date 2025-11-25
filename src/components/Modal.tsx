@@ -56,6 +56,7 @@ export default function Modal({
   };
 
   const handlePointerDownOutside = (e: Event) => {
+    
     if (preventClose) {
       e.preventDefault();
     }
@@ -68,17 +69,24 @@ export default function Modal({
         className={cn(
           sizeClasses[size], 
           className, 
-          preventClose && '[&>button]:hidden'
+          preventClose && '[&>button]:hidden',
+          !title && !description && '[&>div:first-child]:hidden'
         )}
         onEscapeKeyDown={handleEscapeKeyDown}
         onPointerDownOutside={handlePointerDownOutside}
       >
-        {(title || description) && (
-          <DialogHeader>
-            {title && <DialogTitle>{title}</DialogTitle>}
-            {description && <DialogDescription>{description}</DialogDescription>}
-          </DialogHeader>
-        )}
+        <DialogHeader>
+          <DialogTitle className={!title ? 'sr-only' : ''}>
+            {title || 'Dialog'}
+          </DialogTitle>
+          {description ? (
+            <DialogDescription>{description}</DialogDescription>
+          ) : (
+            <DialogDescription className="sr-only">
+              Dialog content
+            </DialogDescription>
+          )}
+        </DialogHeader>
         {children}
       </DialogContent>
     </Dialog>

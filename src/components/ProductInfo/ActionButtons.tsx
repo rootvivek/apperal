@@ -1,4 +1,4 @@
-import CartIcon from '@/components/CartIcon';
+import { ShoppingCart } from 'lucide-react';
 
 interface ActionButtonsProps {
   stockQuantity: number;
@@ -22,7 +22,7 @@ export default function ActionButtons({
         disabled={stockQuantity === 0}
         className="flex-1 bg-yellow-500 text-white py-4 px-6 rounded font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-3 shadow hover:shadow-sm transform hover:scale-[1.02]"
       >
-        <CartIcon className="w-5 h-5 flex-shrink-0" />
+        <ShoppingCart className="w-5 h-5 flex-shrink-0" />
         <span className="text-base">
           {isAddedToCart ? 'Added to Cart!' : 'Add to Cart'}
         </span>
@@ -32,7 +32,7 @@ export default function ActionButtons({
         disabled={stockQuantity === 0}
         className="flex-1 bg-orange-500 text-white py-4 px-6 rounded font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow hover:shadow-sm transform hover:scale-[1.02]"
       >
-        {!user ? 'Login to Buy' : 'Buy Now'}
+        Buy Now
       </button>
     </div>
   );

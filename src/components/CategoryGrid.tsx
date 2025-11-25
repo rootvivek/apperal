@@ -59,7 +59,7 @@ function CategoryGrid({ categories }: CategoryGridProps) {
       return name.includes('gen-z') || slug.includes('gen-z') || 
              name.includes('gen z') || slug.includes('gen z') ||
              name.includes('collections') || slug.includes('collections') ||
-             name.includes('apperal') || slug.includes('apperal') ||
+             name.includes('nipto') || slug.includes('nipto') ||
              name.includes('apparel') || slug.includes('apparel');
     });
     

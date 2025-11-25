@@ -5,10 +5,8 @@ import { CheckoutFormData } from '@/lib/schemas/checkout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Form as FormComponent } from '@/components/ui/form';
-import { Check } from 'lucide-react';
 import AddressForm from './AddressForm';
-import AddressList from './AddressList';
-import { mobileTypography } from '@/utils/mobileTypography';
+import ShippingAddressCard from '@/components/address/ShippingAddressCard';
 
 interface Address {
   id: string;
@@ -50,66 +48,44 @@ export default function AddressModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>{editingAddressId ? 'Edit Address' : addresses.length > 0 ? 'Select Address' : 'Add New Address'}</DialogTitle>
-          <DialogDescription>
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] overflow-y-auto rounded-[4px] p-5 w-[calc(100%-20px)] max-w-[calc(100%-20px)] my-[10px] sm:w-full sm:max-w-2xl sm:my-0 [&>button]:hidden sm:[&>button]:block"
+      >
+        <DialogHeader className="text-center">
+          <DialogTitle className="text-center">{editingAddressId ? 'Edit Address' : addresses.length > 0 ? 'Select Address' : 'Add New Address'}</DialogTitle>
+          <DialogDescription className="text-center">
             {editingAddressId ? 'Update your address details below.' : addresses.length > 0 ? 'Choose an address or add a new one.' : 'Add a new shipping address for your order.'}
           </DialogDescription>
         </DialogHeader>
         
         {!editingAddressId && addresses.length > 0 && (
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2 mb-3">
             {addresses.map((address) => (
-              <div
+              <ShippingAddressCard
                 key={address.id}
-                className={`border rounded-lg p-4 transition-colors ${
-                  selectedAddressId === address.id
-                    ? 'border-primary bg-primary/5'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div 
-                    className="flex-1 cursor-pointer"
-                    onClick={() => {
-                      onSelect(address);
-                      onClose();
-                    }}
-                  >
-                    <p className="font-medium mb-1">{address.full_name || 'Address'}</p>
-                    <p className={`${mobileTypography.title14} text-muted-foreground`}>
-                      {address.address_line1}
-                    </p>
-                    <p className={`${mobileTypography.title14} text-muted-foreground`}>
-                      {address.city}, {address.state} {address.zip_code}
-                    </p>
-                    {address.phone && (
-                      <p className={`${mobileTypography.title14} text-muted-foreground mt-1`}>
-                        Phone: {address.phone}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 ml-4">
-                    {selectedAddressId === address.id && (
-                      <Check className="w-5 h-5 text-primary" />
-                    )}
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(address);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                address={{
+                  id: address.id,
+                  full_name: address.full_name,
+                  address_line1: address.address_line1,
+                  city: address.city,
+                  state: address.state,
+                  zip_code: address.zip_code,
+                  phone: address.phone,
+                  is_default: address.is_default,
+                }}
+                variant="selectable"
+                isSelected={selectedAddressId === address.id}
+                onSelect={() => {
+                  onSelect(address);
+                  onClose();
+                }}
+                onEdit={(e) => {
+                  e?.stopPropagation();
+                  onEdit(address);
+                }}
+              />
             ))}
-            <div className="border-t border-gray-200 pt-3">
+            <div className="border-t border-gray-200 pt-2">
               <Button
                 type="button"
                 variant="outline"
@@ -131,13 +107,10 @@ export default function AddressModal({
         
         {(!addresses.length || editingAddressId !== null) && (
           <FormComponent {...form}>
-            <form onSubmit={handleSubmit(onSave)} className="space-y-4">
+            <form onSubmit={handleSubmit(onSave)} className="space-y-2">
               <AddressForm control={form.control} />
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={onClose}>
-                  Cancel
-                </Button>
-                <Button type="submit">Save Address</Button>
+              <DialogFooter className="justify-start">
+                <Button type="submit" className="w-full">Save Address</Button>
               </DialogFooter>
             </form>
           </FormComponent>

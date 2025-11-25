@@ -148,7 +148,7 @@ function OrderDetailContent() {
         }
       }
     } catch (err: any) {
-      console.error('Error fetching order details:', err);
+      // Error handled silently
       setError(err.message || 'Failed to load order details');
     } finally {
       setLoading(false);
@@ -181,7 +181,7 @@ function OrderDetailContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full px-1 sm:px-2 md:px-3 lg:px-4 py-4 sm:py-8">
+      <div className="max-w-[1450px] mx-auto w-full p-2.5">
         {/* Order Detail Component */}
         <OrderDetail 
           order={order} 

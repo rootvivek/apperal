@@ -69,7 +69,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               </button>
               
               <Link href="/admin" className="flex items-center">
-                <span className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Apperal Admin</span>
+                <span className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900">Nipto Admin</span>
                 <span className="ml-1 sm:ml-2 px-1.5 sm:px-2 py-0.5 sm:py-1 text-[10px] sm:text-xs font-semibold bg-red-100 text-red-800 rounded-full">
                   ADMIN
                 </span>
@@ -151,10 +151,8 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
         {/* Main Content */}
         <div className="flex-1 flex flex-col overflow-hidden w-full md:w-auto">
           <main className="flex-1 relative overflow-y-auto focus:outline-none flex flex-col">
-            <div className="py-1 flex-1 flex flex-col min-h-0">
-              <div className="px-1 flex-1 flex flex-col min-h-0">
-                {children}
-              </div>
+            <div className="p-2.5 flex-1 flex flex-col min-h-0">
+              {children}
             </div>
           </main>
         </div>

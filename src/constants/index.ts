@@ -106,3 +106,40 @@ export const PRODUCT_LIMITS = {
   DEFAULT: parseInt(process.env.NEXT_PUBLIC_PRODUCT_LIMIT_DEFAULT || '20', 10),
 } as const;
 
+/**
+ * Slug generation settings
+ */
+export const SLUG_SETTINGS = {
+  MAX_LENGTH: 100,
+} as const;
+
+/**
+ * UI animation and timing constants
+ */
+export const UI_TIMING = {
+  SCROLL_DELAY: 100, // milliseconds
+  DEBOUNCE_DELAY: 300, // milliseconds
+  TOAST_DURATION: 3000, // milliseconds
+  SUCCESS_REDIRECT_DELAY: 2000, // milliseconds - delay before redirecting after successful operations
+} as const;
+
+/**
+ * Cart-related constants
+ */
+export const CART = {
+  GUEST_CART_KEY: 'guest-cart',
+  PROFILE_CHECK_MAX_RETRIES: 15,
+  PROFILE_CHECK_INITIAL_WAIT: 1000, // ms
+  PROFILE_CHECK_RETRY_WAIT: 500, // ms
+  CART_RETRY_WAIT: 1000, // ms
+  FETCH_RETRY_DELAY: 2000, // ms
+} as const;
+
+/**
+ * Database error codes
+ */
+export const DB_ERROR_CODES = {
+  NOT_FOUND: 'PGRST116',
+  FOREIGN_KEY_VIOLATION: '23503',
+  UNIQUE_VIOLATION: '23505',
+} as const;

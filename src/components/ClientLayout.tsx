@@ -8,6 +8,53 @@ import { useAuth } from '@/contexts/AuthContext';
 import LoginModal from '@/components/auth/LoginModal/LoginModal';
 import Modal from '@/components/Modal';
 
+// Preload MSG91 script on mount for faster OTP sending
+function MSG91ScriptPreloader() {
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // Suppress hCaptcha localhost warning in development (expected behavior)
+    if (process.env.NODE_ENV === 'development') {
+      const originalWarn = console.warn;
+      const originalError = console.error;
+      
+      console.warn = (...args: any[]) => {
+        const message = args[0]?.toString() || '';
+        // Filter out hCaptcha localhost warnings (expected in dev, doesn't affect functionality)
+        if (message.includes('[hCaptcha]') && message.includes('localhost')) {
+          return; // Suppress this warning
+        }
+        originalWarn.apply(console, args);
+      };
+      
+      console.error = (...args: any[]) => {
+        const message = args[0]?.toString() || '';
+        // Also filter from console.error (some browsers log it there)
+        if (message.includes('[hCaptcha]') && message.includes('localhost')) {
+          return; // Suppress this warning
+        }
+        originalError.apply(console, args);
+      };
+    }
+    
+    // Check if script already exists
+    if (document.querySelector('script[src*="otp-provider.js"]')) {
+      return;
+    }
+
+    // Preload MSG91 script in background
+    const script = document.createElement('script');
+    script.src = 'https://verify.msg91.com/otp-provider.js';
+    script.async = true;
+    script.onerror = () => {
+      // Script will load on demand if preload fails
+    };
+    document.body.appendChild(script);
+  }, []);
+
+  return null;
+}
+
 // Lazy load heavy components to improve initial load time
 const ConditionalNavigation = dynamic(() => import('@/components/ConditionalNavigation'), {
   ssr: true,
@@ -26,7 +73,9 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
   const isHomePage = pathname === '/';
   const isAdminPage = pathname?.startsWith('/admin');
   const { isOpen, closeModal, redirectTo } = useLoginModal();
-  const { showBannedModal, setBannedModal, bannedReason } = useAuth();
+  const { banned } = useAuth();
+  const showBannedModal = banned.show;
+  const bannedReason = banned.reason;
 
   // Banned modal messages
   const bannedMessages: Record<string, string> = {
@@ -68,8 +117,8 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
 
   const handleBannedAcknowledge = () => {
     localStorage.removeItem('supabase.auth.token');
+    localStorage.removeItem('user');
     sessionStorage.clear();
-    setBannedModal(false);
     router.push('/');
     router.refresh();
   };
@@ -97,6 +146,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <>
+      <MSG91ScriptPreloader />
       {!isAdminPage && <ConditionalNavigation />}
       <div className="relative">
         {/* Fill padding area with navbar color to eliminate white space - only show on non-home pages and non-admin pages */}

@@ -107,10 +107,12 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
 
       // Read response once - check if it's ok first
       const responseText = await response.text();
-      let data;
+      let data: any = null;
       
       try {
-        data = JSON.parse(responseText);
+        if (responseText && responseText.trim()) {
+          data = JSON.parse(responseText);
+        }
       } catch {
         // If not JSON, treat as plain text error
         const errorMessage = responseText || `Server error: ${response.status}`;
@@ -119,8 +121,7 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
       }
 
       if (!response.ok) {
-        const errorMessage = data.error || data.details || `Failed to submit rating (${response.status})`;
-        console.error('Review submission error:', data);
+        const errorMessage = (data && (data.error || data.details)) || `Failed to submit rating (${response.status})`;
         alert(errorMessage);
         return;
       }
@@ -178,27 +179,27 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
 
       // Read response once - check if it's ok first
       const responseText = await response.text();
-      let data;
+      let data: any = null;
       
       try {
-        data = JSON.parse(responseText);
+        if (responseText && responseText.trim()) {
+          data = JSON.parse(responseText);
+        }
       } catch {
         // If not JSON, treat as plain text error
         const errorMessage = responseText || `Server error: ${response.status}`;
-        console.error('Review submission error (non-JSON):', responseText);
         alert(errorMessage);
         return;
       }
 
       if (!response.ok) {
         // Show detailed error message
-        const errorMessage = data.error || data.details || `Failed to submit review (${response.status})`;
-        console.error('Review submission error:', data);
+        const errorMessage = (data && (data.error || data.details)) || `Failed to submit review (${response.status})`;
         alert(errorMessage);
         return;
       }
 
-      if (data.success) {
+      if (data && data.success) {
         // Refresh reviews
         await fetchReviews();
         setShowReviewForm(false);
@@ -215,13 +216,11 @@ export default function ProductReviews({ productId, onRatingUpdate }: ProductRev
           onRatingUpdate(avgRating, reviews.length + (userReview ? 0 : 1));
         }
       } else {
-        const errorMessage = data.error || data.details || 'Failed to submit review';
-        console.error('Review submission failed:', data);
+        const errorMessage = (data && (data.error || data.details)) || 'Failed to submit review';
         alert(errorMessage);
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to submit review';
-      console.error('Review submission exception:', error);
       alert(errorMessage);
     } finally {
       setSubmitting(false);

@@ -5,6 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
+import Alert from '@/components/ui/alert';
+import { normalizePhone, validatePhone, formatPhoneForInput, formatPhoneForDisplay } from '@/utils/phone';
 
 function SignUpPageContent() {
   const router = useRouter();
@@ -12,7 +14,7 @@ function SignUpPageContent() {
   const { user, sendOTP, verifyOTP } = useAuth();
   
   const [formData, setFormData] = useState({
-    phone: '+91',
+    phone: '',
     otp: ''
   });
   const [error, setError] = useState('');
@@ -34,18 +36,12 @@ function SignUpPageContent() {
       return;
     }
 
-    // Validate phone number format
-    if (!/^\+[1-9]\d{1,14}$/.test(formData.phone.trim())) {
-      const phone = formData.phone.trim();
-      if (!phone.startsWith('+')) {
-        setError('Phone number must start with + (e.g., +1234567890)');
-      } else if (phone.length < 8) {
-        setError('Phone number too short (minimum 8 digits including country code)');
-      } else if (phone.length > 16) {
-        setError('Phone number too long (maximum 15 digits including country code)');
-      } else {
-        setError('Please enter a valid phone number with country code (e.g., +1234567890)');
-      }
+    // Normalize and validate phone number
+    const normalized = normalizePhone(formData.phone);
+    const validation = validatePhone(normalized);
+    
+    if (!validation.isValid) {
+      setError(validation.error || 'Invalid phone number');
       return;
     }
 
@@ -53,7 +49,18 @@ function SignUpPageContent() {
     setOtpLoading(true);
 
     try {
-      const { data, error: otpError } = await sendOTP(formData.phone);
+      // Normalize phone (should be +91XXXXXXXXXX format)
+      let phoneToUse = normalized;
+      if (!phoneToUse.startsWith('+91')) {
+        if (phoneToUse.startsWith('91') && phoneToUse.length === 12) {
+          phoneToUse = '+' + phoneToUse;
+        } else if (phoneToUse.length === 10) {
+          phoneToUse = '+91' + phoneToUse;
+        }
+      }
+      
+      // Send OTP via MSG91 (handled by AuthContext)
+      const { data, error: otpError } = await sendOTP(phoneToUse);
       
       if (otpError) {
         setError(otpError);
@@ -74,7 +81,18 @@ function SignUpPageContent() {
     setLoading(true);
 
     try {
-      const { data, error: verifyError } = await verifyOTP(formData.phone, formData.otp);
+      // Normalize phone (should be +91XXXXXXXXXX format)
+      const normalized = normalizePhone(formData.phone);
+      let phoneToUse = normalized;
+      if (!phoneToUse.startsWith('+91')) {
+        if (phoneToUse.startsWith('91') && phoneToUse.length === 12) {
+          phoneToUse = '+' + phoneToUse;
+        } else if (phoneToUse.length === 10) {
+          phoneToUse = '+91' + phoneToUse;
+        }
+      }
+      
+      const { data, error: verifyError } = await verifyOTP(phoneToUse, formData.otp);
       
       if (verifyError) {
         setError(verifyError);
@@ -109,8 +127,8 @@ function SignUpPageContent() {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 overflow-hidden">
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-              <p className="text-sm text-red-600">{error}</p>
+            <div className="mb-4">
+              <Alert message={error} variant="error" className="p-3" />
             </div>
           )}
 
@@ -129,15 +147,18 @@ function SignUpPageContent() {
                       id="phone"
                       name="phone"
                       type="tel"
+                      inputMode="numeric"
                       autoComplete="tel"
                       required
-                      value={formData.phone.replace('+91', '')}
+                      value={formData.phone}
                       onChange={(e) => {
-                        const value = '+91' + e.target.value;
-                        setFormData(prev => ({ ...prev, phone: value }));
+                        const cleaned = formatPhoneForInput(e.target.value);
+                        setFormData(prev => ({ ...prev, phone: cleaned }));
+                        setError(''); // Clear error on input
                       }}
                       className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                      placeholder="Type phone number"
+                      placeholder="9876543210"
+                      maxLength={10}
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
@@ -160,7 +181,7 @@ function SignUpPageContent() {
               <div className="mb-4">
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-gray-600">
-                    OTP sent to <span className="font-medium text-gray-900">{formData.phone}</span>
+                    OTP sent to <span className="font-medium text-gray-900">{formatPhoneForDisplay(formData.phone)}</span>
                   </p>
                   <button
                     type="button"

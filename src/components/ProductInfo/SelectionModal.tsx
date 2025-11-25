@@ -1,5 +1,5 @@
 import Modal from '@/components/Modal';
-import CartIcon from '@/components/CartIcon';
+import { ShoppingCart } from 'lucide-react';
 import SizeSelector from './SizeSelector';
 import ColorSelector from './ColorSelector';
 
@@ -85,14 +85,14 @@ export default function SelectionModal({
             onClick={onAddToCart}
             className="flex-1 bg-yellow-500 text-white py-3 px-6 rounded-md font-medium hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2"
           >
-            <CartIcon className="w-5 h-5 flex-shrink-0" />
+            <ShoppingCart className="w-5 h-5 flex-shrink-0" />
             Add to Cart
           </button>
           <button
             onClick={onBuyNow}
             className="flex-1 bg-orange-500 text-white py-3 px-6 rounded-md font-medium hover:bg-orange-600 transition-colors"
           >
-            {!user ? 'Login to Buy' : 'Buy Now'}
+            Buy Now
           </button>
         </div>
       </div>

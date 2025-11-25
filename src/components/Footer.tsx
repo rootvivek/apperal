@@ -14,12 +14,12 @@ export default function Footer({ className = '' }: FooterProps) {
           {/* Company Info */}
           <div className="space-y-4">
             <img 
-              src="/logo.webp" 
-              alt="Carts24" 
+              src="/logo.svg" 
+              alt="Nipto" 
               className="h-8 w-auto"
               style={{ maxWidth: '120px' }}
-              width={96}
-              height={93}
+              width={120}
+              height={120}
               loading="lazy"
             />
             <p className="text-gray-300 text-sm leading-relaxed">
@@ -167,7 +167,7 @@ export default function Footer({ className = '' }: FooterProps) {
           <div className="flex flex-col md:flex-row justify-center items-center space-y-4 md:space-y-0">
             <div className="flex flex-col md:flex-row items-center space-y-2 md:space-y-0 md:space-x-6">
               <p className="text-gray-400 text-sm">
-                © 2024 Carts24. All rights reserved.
+                © 2024 Nipto. All rights reserved.
               </p>
               <div className="flex space-x-6">
                 <Link href="/privacy" className="text-gray-400 hover:text-emerald-400 transition-colors text-sm">

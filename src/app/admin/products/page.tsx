@@ -8,6 +8,8 @@ import { createClient } from '@/lib/supabase/client';
 import { deleteFolderContents } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface Product {
   id: string;
@@ -319,12 +321,12 @@ export default function ProductsPage() {
               <label htmlFor="search" className="block text-sm font-medium text-gray-700">
                 Search Products
               </label>
-              <input
+              <Input
                 type="text"
                 id="search"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                className="mt-1"
                 placeholder="Search by name or description..."
               />
             </div>
@@ -332,17 +334,17 @@ export default function ProductsPage() {
               <label htmlFor="category" className="block text-sm font-medium text-gray-700">
                 Filter by Category
               </label>
-              <select
-                id="category"
-                value={filterCategory}
-                onChange={(e) => setFilterCategory(e.target.value)}
-                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              >
-                <option value="all">All Categories</option>
-                {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
-                ))}
-              </select>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category}>{category}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>

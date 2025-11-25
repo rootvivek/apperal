@@ -9,6 +9,7 @@ import EmptyState from '@/components/EmptyState';
 import { Spinner } from '@/components/ui/spinner';
 import ImageWithFallback from '@/components/ImageWithFallback';
 import { mobileTypography } from '@/utils/mobileTypography';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface Order {
   id: string;
@@ -145,13 +146,13 @@ function OrdersContent() {
             });
           }
         } catch (error) {
-          console.error(`Error fetching order items for order ${order.id}:`, error);
+          // Error handled silently
         }
       }
       
       setExpandedOrderItems(allExpandedItems);
     } catch (error: any) {
-      console.error('Error fetching orders:', error);
+      // Error handled silently
       setExpandedOrderItems([]);
     } finally {
       setOrdersLoading(false);
@@ -200,90 +201,76 @@ function OrdersContent() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-[1450px] mx-auto w-full">
-        <div className="px-3 sm:px-4 py-3 sm:py-4">
-          <h1 className={`${mobileTypography.title14Bold} sm:text-base text-gray-900 mb-2`}>My Orders</h1>
-          <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
-            {expandedOrderItems.length === 0 
-              ? "You haven't placed any orders yet." 
-              : `You have ${expandedOrderItems.length} item${expandedOrderItems.length === 1 ? '' : 's'}.`
-            }
-          </p>
-        </div>
-
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-[1450px] mx-auto w-full p-2.5">
         {expandedOrderItems.length === 0 ? (
-          <div className="px-3 sm:px-4">
-            <EmptyState
-              icon="🛍️"
-              title="No orders yet"
-              description="Start shopping to see your orders here."
-              actionLabel="Browse Products"
-              actionHref="/products"
-              variant="default"
-              className="bg-white"
-            />
+          <div className="mt-3 sm:mt-4">
+            <Card className="rounded-[4px]">
+              <CardContent className="p-2.5">
+                <EmptyState
+                  icon="🛍️"
+                  title="No orders yet"
+                  description="Start shopping to see your orders here."
+                  actionLabel="Browse Products"
+                  actionHref="/products"
+                  variant="default"
+                  className="bg-white"
+                />
+              </CardContent>
+            </Card>
           </div>
         ) : (
-          <div>
-            {expandedOrderItems.map((item, index) => (
-              <div key={item.id}>
-                {index > 0 && (
-                  <div className="px-3 sm:px-4">
-                    <div className="border-t border-gray-200"></div>
-                  </div>
-                )}
-                <div 
-                  className={`px-3 sm:px-4 py-3 sm:py-4 hover:bg-gray-50 transition-colors ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer'}`}
-                  onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}?item=${item.order_item_id}&expandedId=${item.id}`)}
-                >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4 flex-1">
-                    <div className="flex-shrink-0">
-                      {item.product_image ? (
-                        <ImageWithFallback
-                          src={item.product_image}
-                          alt={item.product_name || 'Product'}
-                          className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg border border-gray-200"
-                          fallbackType="product"
-                          loading="lazy"
-                          decoding="async"
-                          width={80}
-                          height={80}
-                          responsive={true}
-                          responsiveSizes={[64, 80, 96]}
-                          quality={85}
-                        />
-                      ) : (
-                        <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-lg flex items-center justify-center">
-                          <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-                          </svg>
-                        </div>
-                      )}
+          <div className="space-y-2">
+            {expandedOrderItems.map((item) => (
+              <Card 
+                key={item.id}
+                className={`rounded-[4px] transition-all ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer hover:shadow-md'}`}
+                onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}?item=${item.order_item_id}&expandedId=${item.id}`)}
+              >
+                <CardContent className="p-2.5">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-start space-x-3 flex-1">
+                      <div className="flex-shrink-0">
+                        {item.product_image ? (
+                          <ImageWithFallback
+                            src={item.product_image}
+                            alt={item.product_name || 'Product'}
+                            className="w-14 h-14 sm:w-16 sm:h-16 object-cover border border-gray-200"
+                            fallbackType="product"
+                            loading="lazy"
+                            decoding="async"
+                            width={64}
+                            height={64}
+                            responsive={true}
+                            responsiveSizes={[48, 64, 80]}
+                            quality={85}
+                          />
+                        ) : (
+                          <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gray-100 flex items-center justify-center border border-gray-200">
+                            <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        {/* Product Name */}
+                        <p className="text-[12px] sm:text-sm font-semibold text-gray-900 line-clamp-1 mb-1">
+                          {item.product_name || 'Product'}
+                        </p>
+                        {/* Purchase Date */}
+                        <p className="text-[11px] sm:text-xs text-gray-600">{formatDate(item.created_at)}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      {/* Product Name */}
-                      <p className={`${mobileTypography.title14Bold} sm:text-base text-gray-900 mb-1 line-clamp-1`}>
-                        {item.product_name || 'Product'}
-                      </p>
-                      {/* Purchase Date */}
-                      <p className={`${mobileTypography.body12} sm:text-sm text-gray-600 mb-1`}>{formatDate(item.created_at)}</p>
-                      {/* Payment Method */}
-                      <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
-                        {item.payment_method === 'cod' ? 'Cash on Delivery' : item.payment_method.charAt(0).toUpperCase() + item.payment_method.slice(1)}
-                      </p>
+                    <div className="text-right flex flex-col items-end">
+                      <span className={`px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full ${mobileTypography.cap10} sm:text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
+                        {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+                      </span>
+                      <p className="text-sm sm:text-base font-normal text-gray-900">{formatCurrency(item.total_price)}</p>
                     </div>
                   </div>
-                  <div className="text-right flex flex-col items-end">
-                    <span className={`px-1.5 py-0.5 sm:px-3 sm:py-1 rounded-full ${mobileTypography.cap10} sm:text-xs font-medium mb-2 ${getStatusColor(item.is_cancelled ? 'cancelled' : item.status)}`}>
-                      {item.is_cancelled ? 'Cancelled' : item.status.charAt(0).toUpperCase() + item.status.slice(1)}
-                    </span>
-                    <p className="text-base sm:text-lg font-normal text-gray-900">{formatCurrency(item.total_price)}</p>
-                  </div>
-                </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
         )}

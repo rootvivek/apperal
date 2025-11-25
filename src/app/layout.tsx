@@ -6,7 +6,7 @@ import { WishlistProvider } from '@/contexts/WishlistContext'
 import ClientLayout from '@/components/ClientLayout'
 
 export const metadata: Metadata = {
-  title: 'Apperal - Fashion & Apparel Store',
+  title: 'Nipto - Fashion & Apparel Store',
   description: 'Discover our wide selection of clothing and accessories for men, women, and kids',
 }
 
@@ -26,8 +26,9 @@ export default function RootLayout({
         {/* Resource hints for critical third-party domains - limited to essential origins */}
         <link rel="preconnect" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
         <link rel="dns-prefetch" href="https://ugzyijiuhchxbuiooclv.supabase.co" />
+        <link rel="preconnect" href="https://verify.msg91.com" />
+        <link rel="dns-prefetch" href="https://verify.msg91.com" />
         {/* Note: Razorpay preconnects removed - only needed when checkout is opened, not on initial load */}
-        {/* Note: Firebase preconnect removed - added dynamically when Firebase is lazy-loaded */}
       </head>
       <body>
         <AuthProvider>

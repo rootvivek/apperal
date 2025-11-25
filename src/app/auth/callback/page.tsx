@@ -25,7 +25,6 @@ function AuthCallbackContent() {
 
     // Handle OAuth errors from provider
     if (errorParam) {
-      console.error('OAuth error from provider:', errorParam, errorDescription);
       setError(errorParam);
       router.push(`/auth/auth-code-error?error=${encodeURIComponent(errorParam)}&description=${encodeURIComponent(errorDescription || 'Unknown error')}`);
       return;
@@ -34,8 +33,6 @@ function AuthCallbackContent() {
     // If there's a code, listen for auth state changes
     // Supabase will automatically exchange the code when the page loads
     if (code) {
-      console.log('OAuth callback received with code, waiting for session...');
-      
       let sessionReceived = false;
       
       // Set up a listener for auth state changes
@@ -44,13 +41,9 @@ function AuthCallbackContent() {
       } = supabase.auth.onAuthStateChange(async (event, session) => {
         if (redirected || sessionReceived) return;
         
-        console.log('Auth state change event:', event, 'Has session:', !!session);
-        
         if (event === 'SIGNED_IN' && session?.user) {
           sessionReceived = true;
           setRedirected(true);
-          
-          console.log('✅ User signed in successfully');
           
           // Update user profile for OAuth users (profile is created automatically by database trigger)
           const userId = session.user.id;
@@ -65,26 +58,18 @@ function AuthCallbackContent() {
               updated_at: new Date().toISOString()
             })
             .eq('id', userId)
-            .then((result: any) => {
-              if (result.error) {
-                // Silently fail - profile might not exist yet (race condition with trigger)
-                // The trigger will create it, and this update will work on next OAuth login
-                console.log('Profile update skipped (will be handled by trigger):', result.error.message);
-              } else {
-                console.log('✅ User profile updated for OAuth user!');
-              }
+            .then(() => {
+              // Profile updated successfully
             });
           
           // Redirect to the intended page
           router.push(next);
         } else if (event === 'SIGNED_OUT') {
-          console.error('User was signed out during OAuth callback');
           if (!redirected) {
             setRedirected(true);
             router.push(`/auth/auth-code-error?error=${encodeURIComponent('Authentication failed: User was signed out')}`);
           }
         } else if (event === 'TOKEN_REFRESHED' && !session) {
-          console.error('Token refresh failed - no session');
           // Don't treat this as an error immediately, wait for the timeout
         }
       });
@@ -113,14 +98,12 @@ function AuthCallbackContent() {
           if (session?.user && !redirected && !sessionReceived) {
             sessionReceived = true;
             setRedirected(true);
-            console.log('✅ Session found via getSession');
             router.push(next);
           } else if (!session && attempt < 3) {
             // Session not ready yet, try again
             setTimeout(() => checkSession(attempt + 1), 1000);
           }
         } catch (err: any) {
-          console.error(`Exception getting session (attempt ${attempt}):`, err);
           if (attempt >= 3 && !redirected) {
             setRedirected(true);
             router.push(`/auth/auth-code-error?error=${encodeURIComponent(err.message || 'Failed to complete authentication')}`);
@@ -134,14 +117,12 @@ function AuthCallbackContent() {
       // Maximum wait time before showing error (10 seconds)
       maxWaitTimeout = setTimeout(() => {
         if (!redirected && !sessionReceived) {
-          console.error('Authentication timeout: No session received after 10 seconds');
           setRedirected(true);
           router.push(`/auth/auth-code-error?error=${encodeURIComponent('Authentication timeout. Please try again.')}&description=${encodeURIComponent('The authentication process took too long. This might be due to network issues or configuration problems.')}`);
         }
       }, 10000);
     } else {
       // No code provided
-      console.error('OAuth callback received without code parameter');
       setError('No code provided');
       router.push(`/auth/auth-code-error?error=${encodeURIComponent('No authorization code provided')}&description=${encodeURIComponent('The OAuth provider did not return an authorization code. Please try signing in again.')}`);
     }

@@ -1,9 +1,8 @@
 'use client';
 
 import { CheckoutFormData } from '@/lib/schemas/checkout';
-import { mobileTypography } from '@/utils/mobileTypography';
-import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import ShippingAddressCard from '@/components/address/ShippingAddressCard';
 
 interface Address {
   id: string;
@@ -38,50 +37,20 @@ export default function AddressList({
       {addresses.map((address) => {
         const isSelected = selectedAddressId === address.id || (!selectedAddressId && address.is_default);
         return (
-          <div
+          <ShippingAddressCard
             key={address.id}
-            className={`border rounded-lg p-4 transition-colors cursor-pointer ${
-              isSelected
-                ? 'border-primary bg-primary/5'
-                : 'border-gray-200 hover:border-gray-300'
-            }`}
-            onClick={() => onSelect(address)}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <p className="font-medium mb-1">{address.full_name || watch('fullName') || 'Address'}</p>
-                <p className={`${mobileTypography.title14} text-muted-foreground`}>
-                  {address.address_line1}
-                </p>
-                <p className={`${mobileTypography.title14} text-muted-foreground`}>
-                  {address.city}, {address.state} {address.zip_code}
-                </p>
-                {address.phone && (
-                  <p className={`${mobileTypography.title14} text-muted-foreground mt-1`}>
-                    Phone: {address.phone}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-2 ml-4">
-                {isSelected && (
-                  <>
-                    <Check className="w-5 h-5 text-primary" />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onEdit(address);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+            address={{
+              ...address,
+              full_name: address.full_name || watch('fullName') || undefined,
+            }}
+            variant="selectable"
+            isSelected={isSelected}
+            onSelect={() => onSelect(address)}
+            onEdit={(e) => {
+              e?.stopPropagation();
+              onEdit(address);
+            }}
+          />
         );
       })}
       {addresses.length < 3 && (

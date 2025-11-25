@@ -2,8 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/client';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
+import { OrderDetailsModal } from '@/components/admin/orders/OrderDetailsModal';
+import { updateOrderStatus } from '@/hooks/admin/useOrderActions';
+import { formatAdminDate, formatAdminCurrency } from '@/utils/adminFormat';
 
 interface Order {
   id: string;
@@ -205,66 +210,19 @@ export default function OrdersPage() {
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
-    try {
-      // If cancelling, use the cancellation API
-      if (newStatus === 'cancelled') {
-        if (!confirm('Are you sure you want to cancel this order?')) {
-          return;
-        }
-
-        const response = await fetch('/api/orders/cancel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: orderId,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to cancel order');
-        }
-
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: 'cancelled' });
-        }
-
-        alert('Order cancelled successfully!');
-      } else {
-        // For other status updates, update directly
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
-          .eq('id', orderId);
-        
-        if (error) throw error;
-        
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: newStatus });
-        }
-        
-        alert('Order status updated successfully!');
-      }
-    } catch (error: any) {
-      alert('Failed to update order status: ' + (error.message || 'Unknown error'));
-    }
-  };
-
-  const formatDate = (date: string) => {
-    const d = new Date(date);
-    return d.toLocaleString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
+    await updateOrderStatus({
+      supabase,
+      orderId,
+      newStatus,
+      orders,
+      setOrders,
+      selectedOrder,
+      setSelectedOrder,
     });
   };
-  const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
+
+  const formatDate = formatAdminDate;
+  const formatCurrency = formatAdminCurrency;
 
   return (
     <AdminLayout>
@@ -276,14 +234,16 @@ export default function OrdersPage() {
 
         <div className="bg-white rounded-lg shadow p-1 space-y-1">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1">
-            <input
+            <Input
               type="text"
               placeholder="Search orders by number..."
               value={orderSearch}
               onChange={(e) => setOrderSearch(e.target.value)}
-              className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm sm:text-base"
+              className="flex-1 text-sm sm:text-base"
             />
-            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
+            <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">
+              Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders
+            </span>
           </div>
           
           <div className="space-y-2 sm:space-y-3">
@@ -350,15 +310,22 @@ export default function OrdersPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-1 w-full sm:w-auto justify-between sm:justify-end">
-                          <span className={`px-1 py-0 rounded text-xs font-medium whitespace-nowrap ${
-                            order.status === 'delivered' ? 'bg-green-100 text-green-800' : 
-                            order.status === 'shipped' ? 'bg-blue-100 text-blue-800' : 
-                            order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' : 
-                            order.status === 'pending' ? 'bg-orange-100 text-orange-800' : 
-                            'bg-gray-100 text-gray-800'
-                          }`}>
+                          <Badge
+                            className="px-1 py-0 text-[10px] whitespace-nowrap capitalize"
+                            variant={
+                              order.status === 'delivered'
+                                ? 'secondary'
+                                : order.status === 'shipped'
+                                ? 'secondary'
+                                : order.status === 'processing'
+                                ? 'secondary'
+                                : order.status === 'pending'
+                                ? 'secondary'
+                                : 'outline'
+                            }
+                          >
                             {order.status}
-                          </span>
+                          </Badge>
                           <span className="font-semibold text-xs whitespace-nowrap">{formatCurrency(order.total_amount)}</span>
                         </div>
                       </div>
@@ -370,120 +337,18 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {showOrderDetails && selectedOrder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 sm:p-4">
-            <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-              <div className="p-1 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-                <div>
-                  <h2 className="text-lg sm:text-xl font-bold">Order #{selectedOrder.order_number}</h2>
-                </div>
-                <button onClick={() => setShowOrderDetails(false)} className="text-xl sm:text-2xl">✕</button>
-              </div>
-              
-              <div className="p-1 space-y-1">
-                {/* Customer Information */}
-                <div className="bg-gray-50 rounded-lg p-1">
-                  <h3 className="font-semibold mb-0.5 text-gray-900 text-xs">Customer Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-1">
-                    <div>
-                      <p className="text-gray-600 text-xs mb-0.5">Name</p>
-                      <p className="font-medium text-xs">{userName || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 text-xs mb-0.5">Phone Number</p>
-                      <p className="font-medium text-xs">{userPhone || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 text-xs mb-0.5">Address</p>
-                      {userAddress ? (
-                        <div className="font-medium text-xs">
-                          <p>{userAddress.address_line1 || ''}</p>
-                          {userAddress.address_line2 && <p>{userAddress.address_line2}</p>}
-                          <p>{userAddress.city || ''}, {userAddress.state || ''} {userAddress.zip_code || ''}</p>
-                          {userAddress.country && <p>{userAddress.country}</p>}
-                        </div>
-                      ) : (
-                        <p className="font-medium text-sm text-gray-500">No address available</p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
-                  <div><p className="text-gray-600 text-xs sm:text-sm">Date</p><p className="font-medium text-sm sm:text-base">{formatDate(selectedOrder.created_at)}</p></div>
-                  <div><p className="text-gray-600 text-xs sm:text-sm">Payment Method</p><p className="font-medium text-sm sm:text-base capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p></div>
-                  <div><p className="text-gray-600 text-xs sm:text-sm">Total Amount</p><p className="font-bold text-base sm:text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p></div>
-                  <div><p className="text-gray-600 text-xs sm:text-sm mb-1">Status</p><select value={selectedOrder.status} onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)} className="w-full px-2 sm:px-3 py-1.5 sm:py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"><option value="pending">Pending</option><option value="processing">Processing</option><option value="shipped">Shipped</option><option value="delivered">Delivered</option><option value="cancelled">Cancelled</option></select></div>
-                  {selectedOrder.payment_method === 'razorpay' && (
-                    <>
-                      {selectedOrder.razorpay_payment_id && (
-                        <div>
-                          <p className="text-gray-600 text-sm">Razorpay Payment ID</p>
-                          <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_payment_id}</p>
-                        </div>
-                      )}
-                      {selectedOrder.razorpay_order_id && (
-                        <div>
-                          <p className="text-gray-600 text-sm">Razorpay Order ID</p>
-                          <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_order_id}</p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-
-                <div>
-                  <h3 className="font-semibold mb-2 sm:mb-3 md:mb-4 text-sm sm:text-base">Order Items</h3>
-                  {orderItems.length === 0 ? <p className="text-gray-600 text-sm sm:text-base">No items found</p> : (
-                    <div className="space-y-1">
-                      {orderItems.map((item) => (
-                        <div key={item.id} className="border rounded-lg p-1">
-                          <div className="flex items-start gap-2 sm:gap-3 md:gap-4">
-                            {item.product_image ? (
-                              <img 
-                                src={item.product_image} 
-                                alt={item.product_name} 
-                                className="w-16 h-16 sm:w-20 sm:h-20 object-cover rounded-lg flex-shrink-0" 
-                                onError={(e) => {
-                                  (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                                }} 
-                              />
-                            ) : (
-                              <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                </svg>
-                              </div>
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-medium text-sm sm:text-base">{item.product_name}</h4>
-                              <p className="text-xs sm:text-sm text-gray-600 mt-0.5 sm:mt-1">
-                                Price: {formatCurrency(item.product_price)} × {item.quantity}
-                                <span className="ml-1 sm:ml-2">| Size: {item.size || 'N/A'}</span>
-                              </p>
-                            </div>
-                            <div className="text-right flex-shrink-0"><p className="font-semibold text-sm sm:text-base">{formatCurrency(item.total_price)}</p></div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="border-t pt-3 sm:pt-4">
-                  <div className="flex justify-between items-center">
-                    <span className="text-base sm:text-lg font-semibold">Total</span>
-                    <span className="text-xl sm:text-2xl font-bold text-blue-600">{formatCurrency(selectedOrder.total_amount)}</span>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-3 sm:p-4 md:p-6 border-t border-gray-200">
-                <button onClick={() => setShowOrderDetails(false)} className="w-full px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base">Close</button>
-              </div>
-            </div>
-          </div>
-        )}
+        <OrderDetailsModal
+          open={showOrderDetails && !!selectedOrder}
+          onClose={() => setShowOrderDetails(false)}
+          order={selectedOrder}
+          orderItems={orderItems}
+          userName={userName}
+          userPhone={userPhone}
+          userAddress={userAddress}
+          onUpdateStatus={handleUpdateOrderStatus}
+          formatDate={formatDate}
+          formatCurrency={formatCurrency}
+        />
       </div>
     </AdminLayout>
   );

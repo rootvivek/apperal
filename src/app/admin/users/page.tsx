@@ -4,275 +4,128 @@ import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import DataTable from '@/components/DataTable';
-import { createClient } from '@/lib/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import Alert from '@/components/ui/alert';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-
-interface User {
-  id: string;
-  full_name: string;
-  phone: string;
-  created_at: string;
-  is_admin?: boolean;
-  total_orders?: number;
-  isAdmin?: boolean;
-  is_active?: boolean;
-  deleted_at?: string;
-}
-
-interface Order {
-  id: string;
-  order_number: string;
-  total_amount: number;
-  status: string;
-  created_at: string;
-}
+import { UserDetailsModal } from '@/components/admin/users/UserDetailsModal';
+import {
+  AdminUser,
+  useAdminUsersActions,
+} from '@/hooks/admin/useAdminUsers';
+import { useAdminUserDetails } from '@/hooks/admin/useAdminUserDetails';
+import { usePendingUserAction } from '@/hooks/admin/usePendingUserAction';
+import { filterUsers } from '@/utils/admin/filterUsers';
+import {
+  formatAdminDateShort,
+  formatAdminCurrency,
+} from '@/utils/adminFormat';
 
 export default function UsersPage() {
-  const supabase = createClient();
   const { user, loading: authLoading } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'active' | 'deleted'>('active');
   
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showUserDetails, setShowUserDetails] = useState(false);
-  const [userOrders, setUserOrders] = useState<Order[]>([]);
-  const [userCartItems, setUserCartItems] = useState<any[]>([]);
-  const [userWishlistItems, setUserWishlistItems] = useState<any[]>([]);
-  const [userDetailsTab, setUserDetailsTab] = useState<'orders' | 'cart' | 'wishlist'>('orders');
-  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
-  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
-  const [reactivatingUserId, setReactivatingUserId] = useState<string | null>(null);
+  // User details management
+  const {
+    selectedUser,
+    showUserDetails,
+    userOrders,
+    userCartItems,
+    userWishlistItems,
+    userDetailsTab,
+    setUserDetailsTab,
+    fetchUserDetails,
+    closeUserDetails,
+  } = useAdminUserDetails();
+
+  // Pending action management
+  const {
+    pendingAction,
+    deletingUserId,
+    togglingUserId,
+    reactivatingUserId,
+    setDeletingUserId,
+    setTogglingUserId,
+    setReactivatingUserId,
+    handleDeleteUser,
+    handleReactivateUser,
+    handleToggleUser,
+    clearPendingAction,
+  } = usePendingUserAction();
   
   // Lock body scroll when modal is open
   useBodyScrollLock(showUserDetails);
 
+  const { fetchUsers, deleteUser, reactivateUser, toggleUserStatus } =
+    useAdminUsersActions({
+      authUserId: user?.id || null,
+      activeTab,
+      setUsers,
+      setError,
+      setSuccess,
+    });
+
   useEffect(() => {
     // Wait for auth to finish loading before fetching users
     if (!authLoading) {
-      fetchUsers();
+      fetchUsers(setLoading);
     }
-  }, [authLoading, user?.id, activeTab]);
+  }, [authLoading, user?.id, activeTab, fetchUsers]);
 
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      
-      // Get Firebase user ID for API authentication
-      if (!user?.id) {
-        setError('No active session. Please log in again.');
-        setLoading(false);
-        return;
-      }
-      
-      // Fetch users via API route (uses service role key, bypasses RLS)
-      const url = `/api/admin/users?deleted=${activeTab === 'deleted' ? 'true' : 'false'}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id, // Send Firebase user ID in header
-        },
-        body: JSON.stringify({ userId: user.id }), // Also send in body
-      });
+  const executePendingAction = async () => {
+    if (!pendingAction) return;
+    const target = pendingAction.user;
 
-      const result = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = result.error || result.details || 'Failed to fetch users';
-        throw new Error(errorMessage);
-      }
-      
-      setUsers(result.users || []);
-      setError(null);
-    } catch (error: any) {
-      setUsers([]);
-      setError(error?.message || 'Failed to fetch users. Please check your database permissions (RLS policies).');
-    } finally {
-      setLoading(false);
+    if (pendingAction.type === 'delete') {
+      await deleteUser(
+        target,
+        setDeletingUserId,
+        () => fetchUsers(setLoading),
+        closeUserDetails,
+        selectedUser?.id || null,
+      );
+    } else if (pendingAction.type === 'reactivate') {
+      await reactivateUser(
+        target,
+        setReactivatingUserId,
+        () => fetchUsers(setLoading),
+        closeUserDetails,
+        selectedUser?.id || null,
+        setActiveTab,
+      );
+    } else if (pendingAction.type === 'toggle' && pendingAction.toggleAction) {
+      await toggleUserStatus(
+        target,
+        pendingAction.toggleAction,
+        setTogglingUserId,
+        () => fetchUsers(setLoading),
+      );
     }
+
+    clearPendingAction();
   };
 
-  const handleUserClick = async (user: User) => {
-    setSelectedUser(user);
-    setUserDetailsTab('orders');
-    
-    try {
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      setUserOrders(orders || []);
-      
-      const cartResponse = await supabase
-        .from('carts')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-      
-      if (cartResponse.data) {
-        const { data: cartData } = await supabase
-          .from('cart_items')
-          .select('id, quantity, product:products(id, name, price, image_url)')
-          .eq('cart_id', cartResponse.data.id);
-        setUserCartItems(cartData || []);
-      }
-      
-      // Fetch wishlist items - query product_ids first
-      const { data: wishlistRows } = await supabase
-        .from('wishlist')
-        .select('id, product_id')
-        .eq('user_id', user.id);
-      
-      if (wishlistRows && wishlistRows.length > 0) {
-        const productIds = wishlistRows.map((row: any) => row.product_id).filter(Boolean);
-        
-        // Now fetch the actual products
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('id, name, price, image_url')
-          .in('id', productIds);
-        
-        // Combine wishlist items with product data
-        const transformedWishlist = wishlistRows.map((wishItem: any) => {
-          const product = (productsData || []).find((p: { id: string }) => p.id === wishItem.product_id);
-          return {
-            id: wishItem.id,
-            product: product || null
-          };
-        }).filter((item: any) => item.product !== null);
-        
-        setUserWishlistItems(transformedWishlist);
-      } else {
-        setUserWishlistItems([]);
-      }
-    } catch (error) {
-      // Error handled silently
-    }
-    
-    setShowUserDetails(true);
-  };
+  const filteredUsers = filterUsers(users, search);
 
-  const handleDeleteUser = async (userToDelete: User) => {
-    const confirmMessage = `Are you sure you want to delete user "${userToDelete.full_name || userToDelete.phone || 'User'}"?\n\nThis will delete all user data and mark the profile as deleted.\n\nThis action cannot be undone!`;
-    
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      setDeletingUserId(userToDelete.id);
-      setError(null);
-      setSuccess(false);
-
-      // Get Firebase user ID for API authentication
-      if (!user?.id) {
-        throw new Error('No active session. Please log in again.');
-      }
-
-      // Call API route to soft delete user (deletes data, keeps profile marked as deleted)
-      const response = await fetch('/api/admin/delete-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id, // Send Firebase user ID in header
-        },
-        body: JSON.stringify({ userId: userToDelete.id }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete user');
-      }
-
-      // Refresh users list
-      await fetchUsers();
-      
-      // Close user details modal if it's open for this user
-      if (selectedUser?.id === userToDelete.id) {
-        setShowUserDetails(false);
-        setSelectedUser(null);
-      }
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (error: any) {
-      setError(error?.message || 'Failed to delete user. Please try again.');
-    } finally {
-      setDeletingUserId(null);
-    }
-  };
-
-  const handleReactivateUser = async (userToReactivate: User) => {
-    const confirmMessage = `Are you sure you want to reactivate user "${userToReactivate.full_name || userToReactivate.phone || 'User'}"?\n\nThis will:\n- Restore the user account\n- Allow the user to log in again\n- The phone number will be associated with this reactivated account`;
-    
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      setReactivatingUserId(userToReactivate.id);
-      setError(null);
-      setSuccess(false);
-
-      // Get Firebase user ID for API authentication
-      if (!user?.id) {
-        throw new Error('No active session. Please log in again.');
-      }
-
-      // Call API route to reactivate user
-      const response = await fetch('/api/admin/reactivate-user', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id,
-        },
-        body: JSON.stringify({ userId: userToReactivate.id }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to reactivate user');
-      }
-
-      // Refresh users list (will move from deleted to active tab)
-      await fetchUsers();
-      
-      // Close user details modal if it's open for this user
-      if (selectedUser?.id === userToReactivate.id) {
-        setShowUserDetails(false);
-        setSelectedUser(null);
-      }
-
-      // Switch to active tab to see the reactivated user
-      setActiveTab('active');
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (error: any) {
-      setError(error?.message || 'Failed to reactivate user. Please try again.');
-    } finally {
-      setReactivatingUserId(null);
-    }
-  };
-
-  const filteredUsers = users.filter(user => {
-    if (!search) return true;
-    const searchLower = search.toLowerCase();
-    return (
-      user.full_name?.toLowerCase().includes(searchLower) ||
-      user.phone?.toLowerCase().includes(searchLower)
-    );
-  });
-
-  const formatDate = (date: string) => new Date(date).toLocaleDateString();
-  const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
+  const formatDate = formatAdminDateShort;
+  const formatCurrency = formatAdminCurrency;
 
   return (
     <AdminGuard>
@@ -285,23 +138,38 @@ export default function UsersPage() {
 
           <div className="bg-white rounded-lg shadow p-1">
             {error && (
-              <div className="mb-1 bg-red-50 border border-red-200 text-red-800 px-1 py-0.5 rounded-md text-xs">
-                <p className="font-semibold">Error loading users</p>
-                <p className="text-sm">{error}</p>
-                <button
-                  onClick={fetchUsers}
-                  className="mt-2 text-sm underline hover:no-underline"
+              <div className="mb-1">
+                <Alert
+                  variant="error"
+                  title="Error loading users"
+                  message={error}
+                  onClose={() => setError(null)}
+                />
+                <div className="mt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fetchUsers(setLoading)}
                 >
                   Try again
-                </button>
+                  </Button>
+                </div>
               </div>
             )}
             
             {success && (
-              <div className="mb-1 bg-green-50 border border-green-200 text-green-800 px-1 py-0.5 rounded-md text-xs">
-                {activeTab === 'deleted' 
+              <div className="mb-1">
+                <Alert
+                  variant="success"
+                  message={
+                    activeTab === 'deleted'
                   ? 'User account reactivated successfully! User can now log in again.'
-                  : 'User deleted successfully!'}
+                      : 'User deleted successfully!'
+                  }
+                  autoDismiss={3000}
+                  onClose={() => setSuccess(false)}
+                />
               </div>
             )}
             
@@ -337,7 +205,7 @@ export default function UsersPage() {
               </nav>
             </div>
             
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between mb-4 gap-2">
               <div className={`px-1 py-0.5 rounded-lg ${
                 activeTab === 'active' ? 'bg-blue-50' : 'bg-red-50'
               }`}>
@@ -350,12 +218,12 @@ export default function UsersPage() {
                   {users.length}
                 </p>
               </div>
-              <input
+              <Input
                 type="text"
                 placeholder="Search users..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 max-w-md px-1 py-0.5 border border-gray-300 rounded-lg text-xs"
+                className="flex-1 max-w-md text-xs"
               />
             </div>
 
@@ -365,7 +233,7 @@ export default function UsersPage() {
                   key: 'full_name',
                   label: 'User',
                   sortable: true,
-                  render: (value: string, row: User) => (
+                  render: (value: string, row: AdminUser) => (
                     <div className="flex items-center gap-1">
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
                         row.isAdmin ? 'bg-red-600' : 'bg-blue-600'
@@ -376,9 +244,9 @@ export default function UsersPage() {
                         <div className="flex items-center gap-0.5">
                           <p className="font-medium text-gray-900">{row.full_name || 'Unnamed'}</p>
                           {row.isAdmin && (
-                            <span className="px-2 py-0.5 text-xs font-semibold bg-red-100 text-red-800 rounded-full">
+                            <Badge variant="destructive" className="text-[10px]">
                               ADMIN
-                            </span>
+                            </Badge>
                           )}
                         </div>
                         <p className="text-sm text-gray-500">{row.phone || 'No phone'}</p>
@@ -390,21 +258,20 @@ export default function UsersPage() {
                   key: 'is_admin',
                   label: 'Admin',
                   sortable: false,
-                  render: (value: string, row: User) => (
-                    <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                      row.is_admin 
-                        ? 'bg-green-100 text-green-800' 
-                        : 'bg-gray-100 text-gray-800'
-                    }`}>
+                  render: (value: string, row: AdminUser) => (
+                    <Badge
+                      variant={row.is_admin ? 'secondary' : 'outline'}
+                      className="text-[10px]"
+                    >
                       {row.is_admin ? 'Yes' : 'No'}
-                    </span>
+                    </Badge>
                   ),
                 },
                 { 
                   key: 'phone', 
                   label: 'Phone', 
                   sortable: false,
-                  render: (value: string, row: User) => (
+                  render: (value: string, row: AdminUser) => (
                     <div className="flex items-center space-x-2">
                       <span>{value || '—'}</span>
                       {row.isAdmin && (
@@ -423,18 +290,28 @@ export default function UsersPage() {
                   key: 'is_active',
                   label: 'Status',
                   sortable: false,
-                  render: (value: boolean, row: User) => {
+                  render: (value: boolean, row: AdminUser) => {
                     if (row.deleted_at) {
                       return (
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-800">
+                        <Badge
+                          variant="destructive"
+                          className="text-[10px] px-2 py-0.5"
+                        >
                           Deleted
-                        </span>
+                        </Badge>
                       );
                     }
                     return (
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${value === false ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'}`}>
+                      <Badge
+                        variant={value === false ? 'secondary' : 'secondary'}
+                        className={`text-[10px] px-2 py-0.5 ${
+                          value === false
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-green-100 text-green-800'
+                        }`}
+                      >
                         {value === false ? 'Deactivated' : 'Active'}
-                      </span>
+                      </Badge>
                     );
                   },
                 },
@@ -448,7 +325,7 @@ export default function UsersPage() {
                   key: 'total_orders',
                   label: 'Total Orders',
                   sortable: true,
-                  render: (value: number, row: User) => (
+                  render: (value: number, row: AdminUser) => (
                     <span className="font-medium text-gray-900">
                       {row.total_orders || 0}
                     </span>
@@ -458,76 +335,72 @@ export default function UsersPage() {
                   key: 'actions',
                   label: 'Actions',
                   sortable: false,
-                  render: (value: any, row: User) => (
+                  render: (value: any, row: AdminUser) => (
                     <div className="flex items-center space-x-2">
-                      <button
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleUserClick(row);
+                          fetchUserDetails(row);
                         }}
-                        className="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
                       >
                         View
-                      </button>
+                      </Button>
                       {!row.isAdmin && activeTab === 'active' && (
-                        <button
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleDeleteUser(row);
                           }}
                           disabled={deletingUserId === row.id}
-                          className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="text-red-600 hover:bg-red-50"
                           title="Delete user and all their data"
                         >
                           {deletingUserId === row.id ? 'Deleting...' : 'Delete'}
-                        </button>
+                        </Button>
                       )}
                       {!row.isAdmin && activeTab === 'deleted' && (
-                        <button
+                        <Button
+                          type="button"
+                          size="sm"
                           onClick={(e) => {
                             e.stopPropagation();
                             handleReactivateUser(row);
                           }}
                           disabled={reactivatingUserId === row.id}
-                          className="px-3 py-1 text-sm bg-green-600 text-white hover:bg-green-700 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
                           title="Reactivate user account (allows user to log in again)"
                         >
-                          {reactivatingUserId === row.id ? 'Reactivating...' : 'Reactivate'}
-                        </button>
+                          {reactivatingUserId === row.id
+                            ? 'Reactivating...'
+                            : 'Reactivate'}
+                        </Button>
                       )}
                       {!row.isAdmin && activeTab === 'active' && (
-                        <button
-                          onClick={async (e) => {
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          onClick={(e) => {
                             e.stopPropagation();
-                            // Toggle active/deactivated state
-                            if (!user?.id) return;
-                            const action = row.is_active === false ? 'activate' : 'deactivate';
-                            if (!confirm(`Are you sure you want to ${action} this user?`)) return;
-                            try {
-                              setTogglingUserId(row.id);
-                              const res = await fetch('/api/admin/deactivate-user', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'X-User-Id': user.id,
-                                },
-                                body: JSON.stringify({ userId: row.id, action }),
-                              });
-                              const result = await res.json();
-                              if (!res.ok) throw new Error(result.error || 'Failed');
-                              // Refresh users
-                              await fetchUsers();
-                            } catch (err) {
-                              alert((err as any)?.message || 'Failed to update user status');
-                            } finally {
-                              setTogglingUserId(null);
-                            }
+                            const action =
+                              row.is_active === false ? 'activate' : 'deactivate';
+                            handleToggleUser(row, action);
                           }}
                           disabled={togglingUserId === row.id}
-                          className="px-3 py-1 text-sm bg-yellow-50 text-yellow-800 rounded hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="bg-yellow-50 text-yellow-800 hover:bg-yellow-100 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          {togglingUserId === row.id ? 'Processing...' : (row.is_active === false ? 'Activate' : 'Deactivate')}
-                        </button>
+                          {togglingUserId === row.id
+                            ? 'Processing...'
+                            : row.is_active === false
+                            ? 'Activate'
+                            : 'Deactivate'}
+                        </Button>
                       )}
                       {row.isAdmin && (
                         <span className="px-3 py-1 text-sm text-gray-500 italic">
@@ -541,142 +414,61 @@ export default function UsersPage() {
               data={filteredUsers}
               isLoading={loading}
               emptyMessage={activeTab === 'deleted' ? 'No deleted users found' : 'No users found'}
-              onRowClick={handleUserClick}
+              onRowClick={fetchUserDetails}
               rowKey="id"
             />
           </div>
 
-          {/* User Details Modal */}
-          {showUserDetails && selectedUser && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div className="p-1 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-                  <h2 className="text-xl font-bold">{selectedUser.full_name}</h2>
-                  <button onClick={() => setShowUserDetails(false)} className="text-2xl">✕</button>
-                </div>
-                
-                <div className="flex gap-0.5 px-1 pt-1 border-b border-gray-200">
-                  <button
-                    onClick={() => setUserDetailsTab('orders')}
-                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
-                      userDetailsTab === 'orders'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                    }`}
+          <UserDetailsModal
+            open={showUserDetails && !!selectedUser}
+            onClose={closeUserDetails}
+            user={selectedUser}
+            userOrders={userOrders}
+            userCartItems={userCartItems}
+            userWishlistItems={userWishlistItems}
+            activeTab={userDetailsTab}
+            onTabChange={setUserDetailsTab}
+            formatDate={formatDate}
+            formatCurrency={formatCurrency}
+          />
+
+          {/* Confirm Dialog */}
+          <AlertDialog
+            open={!!pendingAction}
+            onOpenChange={(open: boolean) => {
+              if (!open) clearPendingAction();
+            }}
                   >
-                    Orders ({userOrders.length})
-                  </button>
-                  <button
-                    onClick={() => setUserDetailsTab('cart')}
-                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
-                      userDetailsTab === 'cart'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Cart ({userCartItems.length})
-                  </button>
-                  <button
-                    onClick={() => setUserDetailsTab('wishlist')}
-                    className={`px-1 py-0.5 font-medium border-b-2 transition-colors text-xs ${
-                      userDetailsTab === 'wishlist'
-                        ? 'border-blue-600 text-blue-600'
-                        : 'border-transparent text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    Wishlist ({userWishlistItems.length})
-                  </button>
-                </div>
-                
-                <div className="p-1 space-y-1">
-                  <div className="grid grid-cols-2 gap-1">
-                    <div>
-                      <p className="text-gray-600 text-xs">Phone</p>
-                      <p className="font-medium text-xs">{selectedUser.phone || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 text-xs">User ID</p>
-                      <p className="font-medium font-mono text-xs">{selectedUser.id.substring(0, 8) + '...'}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 text-xs">Joined</p>
-                      <p className="font-medium text-xs">{formatDate(selectedUser.created_at)}</p>
-                    </div>
-                    <div>
-                      <p className="text-gray-600 text-xs">Total Orders</p>
-                      <p className="font-medium text-xs">{userOrders.length}</p>
-                    </div>
-                  </div>
-                  
-                  {userDetailsTab === 'orders' && (
-                    <div>
-                      <h3 className="font-semibold mb-1 text-xs">Recent Orders</h3>
-                      {userOrders.length === 0 ? (
-                        <p className="text-gray-600 text-xs">No orders</p>
-                      ) : (
-                        <div className="space-y-0.5">
-                          {userOrders.map((order) => (
-                            <div key={order.id} className="flex justify-between items-center border p-0.5 rounded text-xs">
-                              <span className="font-medium">#{order.order_number}</span>
-                              <span>{formatCurrency(order.total_amount || 0)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {userDetailsTab === 'cart' && (
-                    <div>
-                      <h3 className="font-semibold mb-1 text-xs">Shopping Cart</h3>
-                      {userCartItems.length === 0 ? (
-                        <p className="text-gray-600 text-xs">Cart is empty</p>
-                      ) : (
-                        <div className="space-y-0.5">
-                          {userCartItems.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center border p-0.5 rounded text-xs">
-                              <div>
-                                <p className="font-medium">{item.product?.name}</p>
-                                <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                              </div>
-                              <span className="font-medium">{formatCurrency(item.product?.price * item.quantity)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  
-                  {userDetailsTab === 'wishlist' && (
-                    <div>
-                      <h3 className="font-semibold mb-2">Wishlist</h3>
-                      {userWishlistItems.length === 0 ? (
-                        <p className="text-gray-600">No items in wishlist</p>
-                      ) : (
-                        <div className="space-y-2">
-                          {userWishlistItems.map((item: any) => (
-                            <div key={item.id} className="flex justify-between items-center border p-2 rounded">
-                              <p className="font-medium">{item.product?.name}</p>
-                              <span className="font-medium">{formatCurrency(item.product?.price)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
-                <div className="p-6 border-t border-gray-200">
-                  <button
-                    onClick={() => setShowUserDetails(false)}
-                    className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                  >
-                    Close
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  {pendingAction?.type === 'delete'
+                    ? 'Delete user'
+                    : pendingAction?.type === 'reactivate'
+                    ? 'Reactivate user'
+                    : pendingAction?.toggleAction === 'activate'
+                    ? 'Activate user'
+                    : 'Deactivate user'}
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  {pendingAction?.type === 'delete' &&
+                    `Are you sure you want to delete user "${pendingAction.user.full_name || pendingAction.user.phone || 'User'}"? This will delete all user data and mark the profile as deleted. This action cannot be undone.`}
+                  {pendingAction?.type === 'reactivate' &&
+                    `Are you sure you want to reactivate user "${pendingAction.user.full_name || pendingAction.user.phone || 'User'}"? This will restore the account and allow the user to log in again.`}
+                  {pendingAction?.type === 'toggle' &&
+                    (pendingAction.toggleAction === 'activate'
+                      ? `Are you sure you want to activate this user?`
+                      : `Are you sure you want to deactivate this user?`)}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={executePendingAction}>
+                  Confirm
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </AdminLayout>
     </AdminGuard>

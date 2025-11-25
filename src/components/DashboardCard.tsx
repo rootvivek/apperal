@@ -28,13 +28,13 @@ export default function DashboardCard({
   color = 'blue',
 }: DashboardCardProps) {
   return (
-    <div className={`p-6 rounded-lg border ${colorClasses[color]}`}>
+    <div className={`p-2.5 rounded-[4px] border ${colorClasses[color]}`}>
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium opacity-75">{title}</p>
-          <p className="text-2xl font-bold mt-2">{value}</p>
+          <p className="text-xs sm:text-sm font-medium opacity-75">{title}</p>
+          <p className="text-lg sm:text-xl font-bold mt-1">{value}</p>
         </div>
-        <div className={`text-4xl ${iconColorClasses[color]}`}>{icon}</div>
+        <div className={`text-2xl sm:text-3xl ${iconColorClasses[color]}`}>{icon}</div>
       </div>
     </div>
   );

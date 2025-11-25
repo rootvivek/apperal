@@ -5,6 +5,8 @@ import { useEffect, useState, Suspense } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
 import { Spinner } from '@/components/ui/spinner';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { mobileTypography, mobileTypographyStyles } from '@/utils/mobileTypography';
 
 interface OrderItem {
@@ -130,9 +132,9 @@ function CheckoutSuccessContent() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-[1440px] mx-auto w-full px-[10px] sm:px-[100px] pt-0 pb-[50px]">
-        <div className="flex flex-col items-center space-y-5">
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-[1440px] mx-auto w-full p-2.5 sm:p-6 pt-4 pb-[50px]">
+        <div className="flex flex-col items-center space-y-3 sm:space-y-5">
           <div className="flex flex-col items-center space-y-[10px]">
             <div className="flex-shrink-0">
               <img
@@ -150,143 +152,142 @@ function CheckoutSuccessContent() {
           </div>
 
           {order && orderItems.length > 0 && (
-            <div className="w-full max-w-[600px] mx-auto bg-[#F8FAFC] border border-[#CBD5E1] rounded-sm p-[10px] sm:p-5 flex flex-col gap-[22px] sm:gap-[30px]">
-              <div className="flex flex-col gap-2 sm:gap-[24px]">
-                <h2 className={`${mobileTypography.h3} sm:text-[24px] sm:font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]`} style={{ ...mobileTypographyStyles.h3, fontFamily: 'Geist, sans-serif' }}>
-                  Order items
-                </h2>
-                <div className="space-y-[14px] sm:space-y-[18px]">
-                  {orderItems.map((item) => (
-                    <div key={item.id} className="flex items-start gap-2 sm:gap-[14px]">
-                      <div className="w-[56px] h-[56px] sm:w-[96px] sm:h-[96px] flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
-                        {item.product_image ? (
-                          <img
-                            src={item.product_image}
-                            alt={item.product_name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.currentTarget.src = '/placeholder-product.jpg';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
+            <div className="w-full max-w-[600px] mx-auto space-y-2 sm:space-y-3">
+              {/* Order Items Card */}
+              <Card className="rounded-[4px]">
+                <CardContent className="p-2.5 sm:p-5">
+                  <div className="flex flex-col gap-2 sm:gap-4">
+                    <h2 className="text-sm sm:text-[24px] font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]" style={{ fontFamily: 'Geist, sans-serif' }}>
+                      Order items
+                    </h2>
+                    <div className="space-y-[14px] sm:space-y-[18px]">
+                      {orderItems.map((item) => (
+                        <div key={item.id} className="flex items-start gap-2 sm:gap-[14px]">
+                          <div className="w-[56px] h-[56px] sm:w-[96px] sm:h-[96px] flex-shrink-0 rounded-lg overflow-hidden bg-gray-200">
+                            {item.product_image ? (
+                              <img
+                                src={item.product_image}
+                                alt={item.product_name}
+                                className="w-full h-full object-cover"
+                                onError={(e) => {
+                                  e.currentTarget.src = '/placeholder-product.jpg';
+                                }}
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <svg className="w-6 h-6 sm:w-8 sm:h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col justify-start space-y-1 sm:space-y-[6px]">
-                        <div className="flex justify-between items-start gap-[10px]">
-                          <h3
-                            className="text-[14px] font-medium text-black flex-1"
-                            style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
-                          >
-                            {item.product_name}
-                          </h3>
-                          <span
-                            className="text-[14px] font-medium text-black whitespace-nowrap"
-                            style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
-                          >
-                            Price : ₹{item.total_price.toFixed(2)}
-                          </span>
+                          
+                          <div className="flex-1 flex flex-col justify-start space-y-1 sm:space-y-[6px]">
+                            <div className="flex justify-between items-start gap-[10px]">
+                              <h3
+                                className="text-[14px] font-medium text-black flex-1"
+                                style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
+                              >
+                                {item.product_name}
+                              </h3>
+                              <span
+                                className="text-[14px] font-medium text-black whitespace-nowrap"
+                                style={{ fontFamily: 'Geist, sans-serif', fontSize: '14px', lineHeight: '1.5', fontWeight: '500' }}
+                              >
+                                Price : ₹{item.total_price.toFixed(2)}
+                              </span>
+                            </div>
+                          </div>
                         </div>
-                        <p
-                          className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Order Details Card */}
+              <Card className="rounded-[4px]">
+                <CardContent className="p-2.5 sm:p-5">
+                  <div className="flex flex-col gap-2 sm:gap-4">
+                    <h2 className="text-sm sm:text-[24px] font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]" style={{ fontFamily: 'Geist, sans-serif' }}>
+                      Order Details
+                    </h2>
+                    <div className="space-y-1 sm:space-y-[6px]">
+                      <div className="flex justify-between items-center gap-[10px]">
+                        <span
+                          className={`${mobileTypography.body12Medium} text-xs sm:text-sm text-black`}
+                          style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif' }}
                         >
-                          {getPaymentMethodLabel(order?.payment_method || 'cod').toLowerCase()}
-                        </p>
+                          Order Number :
+                        </span>
+                        <span
+                          className={`${mobileTypography.body12} text-xs sm:text-sm text-black`}
+                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          {order.order_number}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-[10px]">
+                        <span
+                          className={`${mobileTypography.body12Medium} text-xs sm:text-sm text-black`}
+                          style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          Date :
+                        </span>
+                        <span
+                          className={`${mobileTypography.body12} text-xs sm:text-sm text-black text-right`}
+                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          {formatDate(order.created_at)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-[10px]">
+                        <span
+                          className={`${mobileTypography.body12Medium} text-xs sm:text-sm text-black`}
+                          style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          Payment Method :
+                        </span>
+                        <span
+                          className={`${mobileTypography.body12} text-xs sm:text-sm text-black text-right`}
+                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          {getPaymentMethodLabel(order.payment_method)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center gap-[10px]">
+                        <span
+                          className={`${mobileTypography.body12Medium} text-xs sm:text-sm text-black`}
+                          style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          Status :
+                        </span>
+                        <span
+                          className={`${mobileTypography.body12} text-xs sm:text-sm text-black text-right capitalize`}
+                          style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif' }}
+                        >
+                          {order.status}
+                        </span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="w-full h-[1px] bg-[#D9D9D9]"></div>
-              <div className="flex flex-col gap-2 sm:gap-[24px]">
-                <h2 className={`${mobileTypography.h3} sm:text-[24px] sm:font-medium text-black sm:leading-[32px] sm:tracking-[-0.21px]`} style={{ ...mobileTypographyStyles.h3, fontFamily: 'Geist, sans-serif' }}>
-                  Order Details
-                </h2>
-                <div className="space-y-1 sm:space-y-[6px]">
-                  <div className="flex justify-between items-center gap-[10px]">
-                    <span
-                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      Order Number :
-                    </span>
-                    <span
-                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      {order.order_number}
-                    </span>
                   </div>
-                  <div className="flex justify-between items-center gap-[10px]">
-                    <span
-                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      Date :
-                    </span>
-                    <span
-                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right`}
-                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      {formatDate(order.created_at)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center gap-[10px]">
-                    <span
-                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      Payment Method :
-                    </span>
-                    <span
-                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right`}
-                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      {getPaymentMethodLabel(order.payment_method)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between items-center gap-[10px]">
-                    <span
-                      className={`${mobileTypography.body12Medium} text-[16px] sm:text-[16px] text-black sm:leading-[28px]`}
-                      style={{ ...mobileTypographyStyles.body12Medium, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      Status :
-                    </span>
-                    <span
-                      className={`${mobileTypography.body12} text-[16px] sm:text-[16px] text-black sm:leading-[28px] text-right capitalize`}
-                      style={{ ...mobileTypographyStyles.body12, fontFamily: 'Geist, sans-serif', fontSize: '16px' }}
-                    >
-                      {order.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
+                </CardContent>
+              </Card>
             </div>
           )}
 
-          <div className="w-full max-w-[600px] mx-auto space-y-[10px] sm:space-y-[20px]">
-            <Link
-              href="/"
-              className={`w-full h-[42px] sm:h-[52px] bg-[#0F172A] text-white px-4 py-2 rounded-md font-medium ${mobileTypography.title14} sm:leading-[24px] hover:bg-[#1E293B] transition-colors flex items-center justify-center`}
-              style={{ ...mobileTypographyStyles.title14, fontFamily: 'Inter, sans-serif' }}
-            >
-              Continue Shopping
-            </Link>
-            {order && (
-              <Link
-                href={`/orders/${order.id}`}
-                className={`w-full h-[42px] sm:h-[52px] bg-white border border-[#E2E8F0] text-[#0F172A] px-4 py-2 rounded-md font-medium ${mobileTypography.title14} sm:leading-[24px] hover:bg-gray-50 transition-colors flex items-center justify-center`}
-                style={{ ...mobileTypographyStyles.title14, fontFamily: 'Inter, sans-serif' }}
-              >
-                View Order
+          <div className="w-full max-w-[600px] mx-auto space-y-2 sm:space-y-3">
+            <Button asChild className="w-full h-10 sm:h-12">
+              <Link href="/">
+                Continue Shopping
               </Link>
+            </Button>
+            {order && (
+              <Button asChild variant="outline" className="w-full h-10 sm:h-12">
+                <Link href={`/orders/${order.id}`}>
+                  View Order
+                </Link>
+              </Button>
             )}
           </div>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import CartIcon from '@/components/CartIcon';
+import { ShoppingCart } from 'lucide-react';
 import Modal from '@/components/Modal';
 import { getColorHex, getSizeAbbreviation } from '@/utils/productHelpers';
 
@@ -88,7 +88,7 @@ export default function ProductBottomActions({
             disabled={product.stock_quantity === 0}
             className="flex-1 bg-yellow-500 text-white py-4 px-4 rounded-md font-medium hover:bg-yellow-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center gap-2 text-sm"
           >
-            <CartIcon className="w-4 h-4 flex-shrink-0" />
+            <ShoppingCart className="w-4 h-4 flex-shrink-0" />
             <span>
               {isAddedToCart ? 'Added!' : 'Add to Cart'}
             </span>
@@ -98,7 +98,7 @@ export default function ProductBottomActions({
             disabled={product.stock_quantity === 0}
             className="flex-1 bg-orange-500 text-white py-4 px-4 rounded-md font-medium hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 text-sm"
           >
-            {!user ? 'Login to Buy' : 'Buy Now'}
+            Buy Now
           </button>
         </div>
       </div>
@@ -224,7 +224,7 @@ export default function ProductBottomActions({
                   }}
                   className="flex-1 bg-yellow-500 text-white py-3 px-6 rounded-md font-medium hover:bg-yellow-600 transition-colors flex items-center justify-center gap-2"
                 >
-                  <CartIcon className="w-4 h-4 flex-shrink-0" />
+                  <ShoppingCart className="w-4 h-4 flex-shrink-0" />
                   Add to Cart
                 </button>
                 <button
@@ -236,7 +236,7 @@ export default function ProductBottomActions({
                   }}
                   className="flex-1 bg-orange-500 text-white py-3 px-6 rounded-md font-medium hover:bg-orange-600 transition-colors"
                 >
-                  {!user ? 'Login to Buy' : 'Buy Now'}
+                  Buy Now
                 </button>
           </div>
         </div>

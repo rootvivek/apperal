@@ -5,17 +5,32 @@ async function getCurrentUserId(): Promise<string | null> {
   if (typeof window === 'undefined') return null;
   
   try {
-    const { getAuth } = await import('@/lib/firebase/config');
-    const authInstance = await getAuth();
-    
-    if (authInstance?.currentUser) {
-      return authInstance.currentUser.uid;
+    // First, try to get from localStorage (fastest, most reliable)
+    const storedUserId = localStorage.getItem('user_id');
+    if (storedUserId) {
+      return storedUserId;
     }
     
-    // Fallback to localStorage
-    return localStorage.getItem('firebase_user_id');
-  } catch {
-    return localStorage.getItem('firebase_user_id');
+    // Then try to get from Supabase auth
+    try {
+      const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user?.id) {
+        // Store in localStorage for future use
+        localStorage.setItem('user_id', user.id);
+        return user.id;
+      }
+    } catch (supabaseError) {
+      // Supabase might not be initialized yet, continue to other methods
+    }
+    
+    // Last resort: try to wait a bit and check again (in case auth is still initializing)
+    // This is a fallback for cases where auth hasn't initialized yet
+    return null;
+  } catch (error) {
+    // Final fallback to localStorage
+    return localStorage.getItem('user_id');
   }
 }
 
@@ -44,15 +59,35 @@ async function uploadImageViaAPI(
   providedUserId?: string | null
 ): Promise<UploadResult> {
   try {
-    const userId = providedUserId || await getCurrentUserId();
+    let userId = providedUserId;
+    
+    // If no userId provided, try to get it
+    if (!userId) {
+      userId = await getCurrentUserId();
+    }
+    
+    // If still no userId, try one more time with a small delay (in case auth is initializing)
+    if (!userId) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      userId = await getCurrentUserId();
+    }
+    
+    if (!userId) {
+      return { 
+        success: false, 
+        error: 'User not authenticated. Please sign in and try again. If the problem persists, please refresh the page.' 
+      };
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     formData.append('bucket', bucket);
     formData.append('folder', folder);
     formData.append('useFixedName', useFixedName.toString());
 
-    const headers: HeadersInit = {};
-    if (userId) headers['X-User-Id'] = userId;
+    const headers: HeadersInit = {
+      'X-User-Id': userId
+    };
 
     const response = await fetch('/api/admin/upload-image', {
       method: 'POST',

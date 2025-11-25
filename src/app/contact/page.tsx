@@ -100,8 +100,8 @@ export default function ContactPage() {
                   <div>
                     <h3 className="font-semibold text-gray-900">Email</h3>
                     <p className="text-gray-600 text-sm mt-1">
-                      <a href="mailto:support@apperal.com" className="hover:text-[#4736FE] transition-colors">
-                        support@apperal.com
+                      <a href="mailto:support@nipto.com" className="hover:text-[#4736FE] transition-colors">
+                        support@nipto.com
                       </a>
                     </p>
                   </div>

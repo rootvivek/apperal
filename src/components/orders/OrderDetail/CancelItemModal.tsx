@@ -34,18 +34,18 @@ export default function CancelItemModal({
       <div className="space-y-4">
         <div className="flex items-start gap-4">
           {selectedItem.product_image && (
-            <div className="flex-shrink-0 w-20 h-20 sm:w-24 sm:h-24">
+            <div className="flex-shrink-0 w-16 h-16 sm:w-20 sm:h-20">
               <ImageWithFallback
                 src={selectedItem.product_image}
                 alt={selectedItem.product_name}
-                className="w-full h-full rounded object-cover"
+                className="w-full h-full object-cover border border-gray-200"
                 fallbackType="product"
                 loading="lazy"
                 decoding="async"
-                width={96}
-                height={96}
+                width={64}
+                height={64}
                 responsive={true}
-                responsiveSizes={[96, 128]}
+                responsiveSizes={[48, 64, 80]}
                 quality={85}
               />
             </div>

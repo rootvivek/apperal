@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProductListing from '@/components/ProductListing';
-import { Spinner } from '@/components/ui/spinner';
+import LoadingOverlay from '@/components/ui/loading-overlay';
 import { createClient } from '@/lib/supabase/client';
 
 interface Product {
@@ -62,8 +62,8 @@ export default function ProductsPage() {
       if (categoriesData) {
         setCategories(categoriesData);
       }
-    } catch (error) {
-      console.error('Error fetching categories:', error);
+    } catch {
+      // Error handled silently
     }
   };
 
@@ -104,14 +104,7 @@ export default function ProductsPage() {
   };
 
   if (loading) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-        <div className="text-center">
-          <Spinner className="size-12 text-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading products...</p>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay message="Loading products..." />;
   }
 
   return (

@@ -233,8 +233,8 @@ async function enhanceUploadHandler(
     let enhancedBuffer: Buffer = originalBuffer;
     try {
       enhancedBuffer = Buffer.from(await enhanceImageWithSharp(originalBuffer));
-    } catch (enhanceError: any) {
-      console.warn('Image enhancement failed, using original image:', enhanceError.message);
+    } catch {
+      // Image enhancement failed, using original image
     }
 
     const processedBuffer = Buffer.from(await processImageWithSharp(enhancedBuffer));
@@ -253,7 +253,6 @@ async function enhanceUploadHandler(
     });
 
   } catch (error: any) {
-    console.error('Image enhancement error:', error);
     return NextResponse.json(
       {
         success: false,

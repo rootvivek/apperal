@@ -236,9 +236,9 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-white pt-14 sm:pt-[72px]" style={{ touchAction: 'pan-x pan-y' }}>
-      {/* Hero Carousel */}
-      <HeroCarousel />
+    <main className="min-h-screen bg-white" style={{ touchAction: 'pan-x pan-y' }}>
+      {/* Hero Carousel - positioned directly below navbar with no gap */}
+      <HeroCarousel className="!pt-14 sm:!pt-[72px]" />
 
       {/* Categories Section - Show after carousel */}
       <section className="pt-3 pb-3 sm:pt-8 sm:pb-4 bg-white h-auto" style={{ touchAction: 'pan-x pan-y' }}>

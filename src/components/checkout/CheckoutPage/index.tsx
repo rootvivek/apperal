@@ -1,16 +1,18 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { useAddresses } from '@/hooks/useAddresses';
-import { useCheckout } from './useCheckout';
-import { useAddressForm } from '../address/useAddressForm';
+import { useCheckout } from '@/hooks/checkout/useCheckout';
+import { useAddressForm } from '@/hooks/checkout/useAddressForm';
+import { useAddressValidation } from '@/hooks/checkout/useAddressValidation';
+import { useAddressSave } from '@/hooks/checkout/useAddressSave';
+import { usePaymentError } from '@/hooks/checkout/usePaymentError';
 import { isAddressComplete } from './validateCheckout';
-import { getStateName } from '@/lib/constants/states';
 import { CheckoutFormData } from '@/lib/schemas/checkout';
 // Razorpay handler is dynamically imported when payment button is clicked
-import { Spinner } from '@/components/ui/spinner';
+import LoadingOverlay from '@/components/ui/loading-overlay';
 import { OrderSummary } from '@/components/checkout/OrderSummary';
 import { Button } from '@/components/ui/button';
 import { Form } from '@/components/ui/form';
@@ -25,68 +27,63 @@ import MobileStickyButton from '../footer/MobileStickyButton';
 export default function CheckoutPage() {
   const { user } = useAuth();
   const { addresses, loading: addressesLoading, saveAddress, updateAddress } = useAddresses();
-  
-  const [showAddressModal, setShowAddressModal] = useState(false);
-  const [showPaymentFailedModal, setShowPaymentFailedModal] = useState(false);
-  const [paymentError, setPaymentError] = useState('');
+
+  // Payment error handling
+  const paymentError = usePaymentError();
 
   const checkout = useCheckout({
-    onPaymentError: setPaymentError,
-    onShowPaymentFailedModal: setShowPaymentFailedModal,
+    onPaymentError: paymentError.showError,
+    onShowPaymentFailedModal: (show) => {
+      if (show) paymentError.showError('');
+    },
   });
+  
+  // Address validation state (needs to be initialized first)
+  const [showAddressError, setShowAddressError] = useState(false);
 
   const addressForm = useAddressForm({
     userId: user?.id,
     addresses,
     onAddressSelect: () => {
-      // Address selection handled internally
+      // Clear address error when address is selected
+      setShowAddressError(false);
     },
     checkoutForm: checkout.form,
   });
 
-  const handleAddressSave = useCallback(async (data: CheckoutFormData) => {
-    if (!user?.id) return;
+  // Address validation
+  const addressValidation = useAddressValidation({
+    watch: checkout.watch,
+    form: checkout.form,
+    selectedAddressId: addressForm.selectedAddressId,
+    addresses,
+    onOpenAddModal: addressForm.openAddModal,
+  });
 
-    const stateName = getStateName(data.state) || data.state;
-
-    if (addressForm.editingAddressId) {
-      const result = await updateAddress(addressForm.editingAddressId, {
-        address_line1: data.address.trim(),
-        full_name: data.fullName.trim() || undefined,
-        city: data.city.trim(),
-        state: stateName,
-        zip_code: data.zipCode.trim(),
-        phone: data.phone ? parseInt(data.phone, 10) : undefined,
-      });
-
-      if (result) {
-        addressForm.closeModal();
-        addressForm.setSelectedAddressId(addressForm.editingAddressId);
-      }
-    } else {
-      if (addresses.length >= 3) {
-        alert('You have reached the maximum limit of 3 addresses.');
-        return;
-      }
-
-      const result = await saveAddress({
-        address_line1: data.address.trim(),
-        full_name: data.fullName.trim() || undefined,
-        city: data.city.trim(),
-        state: stateName,
-        zip_code: data.zipCode.trim(),
-        phone: data.phone ? parseInt(data.phone, 10) : undefined,
-        is_default: true,
-      });
-
-      if (result) {
-        addressForm.closeModal();
-        addressForm.setSelectedAddressId(result.id);
-      }
+  // Sync validation state
+  useEffect(() => {
+    if (addressValidation.showAddressError !== showAddressError) {
+      setShowAddressError(addressValidation.showAddressError);
     }
-  }, [user?.id, addresses.length, addressForm, saveAddress, updateAddress]);
+  }, [addressValidation.showAddressError, showAddressError]);
+
+  // Address save handler
+  const { handleAddressSave } = useAddressSave({
+    userId: user?.id,
+    addresses,
+    editingAddressId: addressForm.editingAddressId,
+    saveAddress,
+    updateAddress,
+    onSaveSuccess: addressForm.setSelectedAddressId,
+    onCloseModal: addressForm.closeModal,
+  });
 
   const handleSubmit = useCallback(async (data: CheckoutFormData) => {
+    // Check if address is complete before proceeding
+    if (!addressValidation.checkAddressComplete(data)) {
+      return;
+    }
+    
     try {
       const result = await checkout.onSubmit(data, addressForm.selectedAddressId, (orderId, orderNumber) => {
         // Success callback for COD
@@ -106,10 +103,7 @@ export default function CheckoutPage() {
           shipping: checkout.shipping,
           userId: user!.id,
           isDirectPurchase: checkout.isDirectPurchase,
-          onError: (error) => {
-            setPaymentError(error);
-            setShowPaymentFailedModal(true);
-          },
+          onError: paymentError.showError,
           onSuccess: () => {
             // Handled in handleRazorpayPayment
           },
@@ -120,21 +114,15 @@ export default function CheckoutPage() {
       }
     } catch (error: any) {
       if (error.message === 'ADDRESS_INCOMPLETE') {
-        setShowAddressModal(true);
+        addressValidation.validateAndHighlightAddress();
+        addressForm.openAddModal();
       }
     }
-  }, [checkout, addressForm.selectedAddressId, user?.id]);
+  }, [checkout, addressForm, addressValidation, paymentError.showError, user?.id]);
 
   if (checkout.isLoading) {
     const loadingText = checkout.mounted && checkout.isDirectPurchase ? 'Loading product details...' : 'Loading checkout...';
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
-        <div className="text-center">
-          <Spinner className="size-12 text-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-600">{loadingText}</p>
-        </div>
-      </div>
-    );
+    return <LoadingOverlay message={loadingText} />;
   }
 
   if (checkout.items.length === 0 && !checkout.isDirectPurchase) {
@@ -168,33 +156,43 @@ export default function CheckoutPage() {
   const isAddressCompleteValue = isAddressComplete(checkout.form.getValues());
 
   return (
-    <div className="min-h-screen bg-white pb-20 sm:pb-0">
-      <div className="max-w-[1450px] mx-auto w-full">
-        <div className="bg-white">
-          <Form {...checkout.form}>
-            <form 
-              id="checkout-form" 
-              onSubmit={checkout.handleSubmit(
-                handleSubmit,
-                (errors) => {
-                  if (Object.keys(errors).length > 0) {
-                    setPaymentError('Please fill in all required fields correctly');
-                    setShowPaymentFailedModal(true);
-                  }
+    <div className="min-h-screen bg-gray-50 pb-20 sm:pb-0">
+      <div className="max-w-[1450px] mx-auto w-full p-2.5">
+        <Form {...checkout.form}>
+          <form 
+            id="checkout-form" 
+            onSubmit={checkout.handleSubmit(
+              handleSubmit,
+              (errors) => {
+                if (Object.keys(errors).length > 0) {
+                  paymentError.showError('Please fill in all required fields correctly');
                 }
-              )} 
-              className="space-y-0"
-            >
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-0">
-                {/* Left Column: Address */}
-                <div className="lg:col-span-1 order-1 lg:order-1">
-                  <div className="px-3 sm:px-4 py-3 sm:py-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h2 className={`${mobileTypography.title14Bold} sm:text-lg`}>Shipping Address</h2>
-                      {addresses.length >= 3 && (
-                        <span className={`${mobileTypography.body12} sm:text-sm text-muted-foreground`}>Maximum 3 addresses allowed</span>
-                      )}
+              }
+            )} 
+            className="space-y-2"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+              {/* Left Column: Address */}
+              <div className="lg:col-span-1 order-1 lg:order-1" data-address-section>
+                <div className="bg-white rounded-[4px] shadow-sm p-2.5">
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className={`${mobileTypography.title14Bold} sm:text-lg`}>Delivery Address</h2>
+                    {addresses.length >= 3 && (
+                      <span className={`${mobileTypography.body12} sm:text-sm text-muted-foreground`}>Maximum 3 addresses allowed</span>
+                    )}
+                  </div>
+                  
+                  {/* Address Error Message */}
+                  {showAddressError && (
+                    <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                      <p className="text-sm text-red-600 font-medium">
+                        Please complete your delivery address before proceeding to payment.
+                      </p>
+                      <p className="text-xs text-red-500 mt-1">
+                        Fill in all required fields marked with *
+                      </p>
                     </div>
+                  )}
                     <div>
                       {addresses.length > 0 ? (
                         <AddressList
@@ -223,14 +221,16 @@ export default function CheckoutPage() {
 
                       {/* Address Form Fields (hidden when address selected) */}
                       {!addressesLoading && !addressForm.selectedAddressId && addresses.length === 0 && (
-                        <AddressForm control={checkout.form.control} />
+                        <div className="mt-3">
+                          <AddressForm control={checkout.form.control} />
+                        </div>
                       )}
                     </div>
-                  </div>
                 </div>
+              </div>
 
-                {/* Right Column: Order Summary + Payment Method + Submit */}
-                <div className="order-2 lg:order-2">
+              {/* Right Column: Order Summary + Payment Method + Submit */}
+              <div className="order-2 lg:order-2 space-y-2">
                   <OrderSummary
                     items={checkout.items}
                     subtotal={checkout.subtotal}
@@ -241,16 +241,12 @@ export default function CheckoutPage() {
                     isDirectPurchase={checkout.isDirectPurchase}
                   />
                   
-                  <div className="px-3 sm:px-4">
-                    <div className="border-t border-gray-200"></div>
-                  </div>
-
-                  <div className="px-3 sm:px-4 py-3 sm:py-4">
-                    <h2 className="text-sm sm:text-lg font-semibold mb-4">Payment Method</h2>
+                  <div className="bg-white rounded-[4px] shadow-sm p-2.5">
+                    <h2 className="text-sm sm:text-lg font-semibold mb-3">Payment Method</h2>
                     <PaymentMethod control={checkout.form.control} />
                   </div>
 
-                  <div className="hidden sm:block px-3 sm:px-4 pb-3 sm:pb-4">
+                  <div className="hidden sm:block bg-white rounded-[4px] shadow-sm p-2.5">
                     <Button type="submit" disabled={checkout.isSubmitting} className="w-full" size="lg">
                       {checkout.isSubmitting
                         ? 'Processing...'
@@ -265,7 +261,6 @@ export default function CheckoutPage() {
               </div>
             </form>
           </Form>
-        </div>
       </div>
 
       <MobileStickyButton
@@ -287,25 +282,19 @@ export default function CheckoutPage() {
         watch={checkout.watch}
       />
 
-      <Dialog open={showPaymentFailedModal} onOpenChange={setShowPaymentFailedModal}>
+      <Dialog open={paymentError.showPaymentFailedModal} onOpenChange={paymentError.hideError}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Payment Failed</DialogTitle>
             <DialogDescription>
-              {paymentError || 'Your payment could not be processed. Please try again.'}
+              {paymentError.paymentError || 'Your payment could not be processed. Please try again.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowPaymentFailedModal(false)}>
+            <Button variant="outline" onClick={paymentError.hideError}>
               Close
             </Button>
-            <Button onClick={() => {
-              setShowPaymentFailedModal(false);
-              const paymentSection = document.querySelector('[name="paymentMethod"]');
-              if (paymentSection) {
-                paymentSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }}>
+            <Button onClick={paymentError.scrollToPayment}>
               Try Again
             </Button>
           </DialogFooter>

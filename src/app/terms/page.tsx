@@ -8,7 +8,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Acceptance of Terms</h2>
             <p>
-              By accessing and using Apperal, you accept and agree to be bound by these Terms of Service.
+              By accessing and using Nipto, you accept and agree to be bound by these Terms of Service.
             </p>
           </section>
 
@@ -40,7 +40,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Contact Us</h2>
             <p>
-              For questions about these Terms, please contact us at support@apperal.com
+              For questions about these Terms, please contact us at support@nipto.com
             </p>
           </section>
 

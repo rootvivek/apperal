@@ -22,7 +22,7 @@ export default function OrderSummary({
   formatCurrency,
 }: OrderSummaryProps) {
   return (
-    <div className="px-3 sm:px-4 py-2 sm:py-4">
+    <div>
       <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Payment Summary</h3>
       <div className="space-y-3 sm:space-y-4">
         <div className="space-y-3 pb-3 border-b border-gray-200">

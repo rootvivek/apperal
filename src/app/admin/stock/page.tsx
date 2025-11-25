@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
+import { Input } from '@/components/ui/input';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -189,12 +190,12 @@ export default function StockPage() {
             )}
 
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
-              <input
+              <Input
                 type="text"
                 placeholder="Search products..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                className="flex-1"
               />
               <label className="flex items-center space-x-2 cursor-pointer">
                 <input
@@ -263,7 +264,7 @@ export default function StockPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
                             {isEditing ? (
-                              <input
+                              <Input
                                 type="number"
                                 min="0"
                                 value={editValue}
@@ -273,7 +274,7 @@ export default function StockPage() {
                                     [product.id]: parseInt(e.target.value) || 0
                                   }))
                                 }
-                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm"
+                                className="w-24 h-8 text-sm"
                                 autoFocus
                               />
                             ) : (

@@ -107,7 +107,7 @@ export default function ProductDetails({ product }: ProductDetailsProps) {
         {product.description && (
           <div className="flex items-start gap-1.5 sm:gap-3">
             <span className="font-medium text-gray-700 min-w-[90px] sm:min-w-[120px] text-[14px]">Description:</span>
-            <span className="text-gray-900 leading-relaxed text-sm">{product.description}</span>
+            <span className="text-gray-900 leading-relaxed text-xs sm:text-sm">{product.description}</span>
           </div>
         )}
       </div>

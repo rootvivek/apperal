@@ -1,0 +1,5 @@
+{
+  "setup-worktree": [],
+  "disable-worktrees": true,
+  "note": "Worktrees disabled - using direct project path"
+}

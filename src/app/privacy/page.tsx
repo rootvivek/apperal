@@ -12,7 +12,7 @@ export default function PrivacyPage() {
           <section>
             <h2 className="text-2xl font-semibold text-gray-900 mb-4">1. Introduction</h2>
             <p className="mb-4">
-              Welcome to Apperal. We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
+              Welcome to Nipto. We are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website and use our services.
             </p>
             <p>
               By using our website, you consent to the data practices described in this policy. If you do not agree with the practices described in this policy, please do not use our services.
@@ -151,7 +151,7 @@ export default function PrivacyPage() {
               <li><strong>Cookie Preferences:</strong> Manage cookie settings through your browser or our cookie preferences</li>
             </ul>
             <p className="mb-3">
-              To exercise these rights, please contact us at <a href="mailto:support@apperal.com" className="text-[#4736FE] hover:underline">support@apperal.com</a> or use the account settings in your profile.
+              To exercise these rights, please contact us at <a href="mailto:support@nipto.com" className="text-[#4736FE] hover:underline">support@nipto.com</a> or use the account settings in your profile.
             </p>
           </section>
 
@@ -233,9 +233,9 @@ export default function PrivacyPage() {
               If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:
             </p>
             <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-              <p className="font-medium text-gray-900">Apperal</p>
+              <p className="font-medium text-gray-900">Nipto</p>
               <p className="text-gray-700">
-                Email: <a href="mailto:support@apperal.com" className="text-[#4736FE] hover:underline">support@apperal.com</a>
+                Email: <a href="mailto:support@nipto.com" className="text-[#4736FE] hover:underline">support@nipto.com</a>
               </p>
               <p className="text-gray-700">
                 Website: <a href="/contact" className="text-[#4736FE] hover:underline">Contact Us Page</a>
@@ -246,7 +246,7 @@ export default function PrivacyPage() {
           {/* Footer Note */}
           <div className="border-t border-gray-200 pt-6 mt-8">
             <p className="text-sm text-gray-500">
-              This Privacy Policy is effective as of the date listed above and applies to all users of Apperal's services.
+              This Privacy Policy is effective as of the date listed above and applies to all users of Nipto's services.
             </p>
           </div>
         </div>

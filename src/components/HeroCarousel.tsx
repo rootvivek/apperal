@@ -5,7 +5,7 @@ import { Swiper, SwiperSlide } from 'swiper/react';
 import { Autoplay, Pagination } from 'swiper/modules';
 import 'swiper/css';
 import 'swiper/css/pagination';
-import ProductCard from './ProductCard';
+import ImageWithFallback from '@/components/ImageWithFallback';
 import { createClient } from '@/lib/supabase/client';
 import { Spinner } from '@/components/ui/spinner';
 
@@ -13,12 +13,15 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  original_price?: number;
+  original_price?: number | null;
   image_url: string;
-  discount_percentage?: number;
 }
 
-export default function HeroCarousel() {
+interface HeroCarouselProps {
+  className?: string;
+}
+
+export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
@@ -30,7 +33,7 @@ export default function HeroCarousel() {
       // First try to get products marked for hero
       let { data, error } = await supabase
         .from('products')
-        .select('id, name, price, original_price, image_url, discount_percentage')
+        .select('id, name, price, original_price, image_url')
         .eq('is_active', true)
         .eq('show_in_hero', true)
         .order('created_at', { ascending: false })
@@ -40,7 +43,7 @@ export default function HeroCarousel() {
       if (!data || data.length === 0) {
         const { data: fallbackData, error: fallbackError } = await supabase
           .from('products')
-          .select('id, name, price, original_price, image_url, discount_percentage')
+          .select('id, name, price, original_price, image_url')
           .eq('is_active', true)
           .order('created_at', { ascending: false })
           .limit(4);
@@ -95,11 +98,25 @@ export default function HeroCarousel() {
   }
 
   if (products.length === 0) {
-    return null; // Don't show anything if no products
+    // Fallback hero with placeholder image so header doesn't look empty
+    return (
+      <div className={`w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0 ${className}`} style={{ minHeight: '400px', backgroundColor: '#ffffff' }}>
+        <ImageWithFallback
+          src="/placeholder-product.jpg"
+          alt="Featured products"
+          className="w-full h-full object-cover"
+          fallbackType="product"
+          loading="eager"
+          fetchPriority="high"
+          width={1600}
+          height={900}
+        />
+      </div>
+    );
   }
 
   return (
-    <div className="w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0" style={{ minHeight: '400px', backgroundColor: '#ffffff' }}>
+    <div className={`w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0 ${className}`} style={{ minHeight: '400px', backgroundColor: '#ffffff' }}>
       <Swiper
         modules={[Autoplay, Pagination]}
         spaceBetween={2}
@@ -123,31 +140,32 @@ export default function HeroCarousel() {
           bulletClass: 'swiper-pagination-bullet !bg-gray-400 !opacity-50',
           bulletActiveClass: 'swiper-pagination-bullet-active !bg-blue-600 !opacity-100',
         }}
-        loop={products.length > 3}
+        loop={products.length > 1}
         className="h-full w-full"
         style={{ height: '100%', width: '100%' }}
       >
-        {products.map((product, index) => (
+        {products.map((product) => {
+          const imageUrl = product.image_url || '/placeholder-product.jpg';
+          return (
           <SwiperSlide key={product.id} className="h-full" style={{ height: '100%' }}>
             <div className="h-full w-full">
-                <ProductCard 
-                  product={{
-                    ...product,
-                    description: '',
-                    category: 'Featured',
-                    subcategories: [],
-                    stock_quantity: 0,
-                    is_active: true,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString(),
-                    images: product.image_url ? [product.image_url] : []
-                  }} 
-                  variant="image-only"
-                  isHeroImage={index === 0}
+              <ImageWithFallback
+                src={imageUrl}
+                alt={product.name}
+                className="w-full h-full object-cover"
+                fallbackType="product"
+                loading="eager"
+                fetchPriority="high"
+                width={1600}
+                height={900}
+                responsive
+                responsiveSizes={[640, 1024, 1440, 1600]}
+                quality={90}
                 />
               </div>
           </SwiperSlide>
-            ))}
+          );
+        })}
       </Swiper>
     </div>
   );

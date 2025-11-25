@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
 import { Category } from './useCategories';
+import { generateUuid } from '@/utils/uuid';
 
 interface UseCategoryMediaProps {
   editingCategory: Category | null;
@@ -71,11 +72,7 @@ export function useCategoryMedia({
     // Case 2: Creating new category/subcategory with temp ID
     if (isCreatingSubcategory) {
       if (!tempCategoryId) {
-        const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-          const r = Math.random() * 16 | 0;
-          const v = c === 'x' ? r : (r & 0x3 | 0x8);
-          return v.toString(16);
-        });
+        const newId = generateUuid();
         imageFolder = newId;
       } else {
         imageFolder = tempCategoryId;
@@ -123,11 +120,7 @@ export function useCategoryMedia({
     }
     
     // Case 6: Generate new temp ID
-    const categoryTempId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
+    const categoryTempId = generateUuid();
     imageFolder = categoryTempId;
     imageBucket = 'category-images';
     
@@ -137,12 +130,28 @@ export function useCategoryMedia({
   // Handle image upload
   const handleImageUpload = useCallback(async (file: File) => {
     setUploadingImage(true);
+    // Clear any previous errors by passing empty string (handled gracefully by error handler)
     onError('');
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) {
-        throw new Error('User not authenticated');
+      // Get user ID from Firebase (since we use Firebase phone auth)
+      let userId: string | null = null;
+      
+      // Get user from localStorage
+      if (typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            userId = user.id;
+          } catch {
+            // Invalid stored user
+          }
+        }
+      }
+      
+      if (!userId) {
+        throw new Error('User not authenticated. Please sign in again.');
       }
 
       // Delete old image if editing
@@ -164,7 +173,7 @@ export function useCategoryMedia({
       }
       
       // Upload new image
-      const result = await uploadImageToSupabase(file, bucket, folder, true, user.id);
+      const result = await uploadImageToSupabase(file, bucket, folder, true, userId);
       
       if (!result.success || !result.url) {
         throw new Error(result.error || 'Failed to upload image');
@@ -181,7 +190,7 @@ export function useCategoryMedia({
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-User-Id': user.id,
+            'X-User-Id': userId,
           },
           body: JSON.stringify({
             categoryId: editingCategory.id,
@@ -230,4 +239,5 @@ export function useCategoryMedia({
     addCacheBusting,
   };
 }
+
 

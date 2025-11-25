@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       userId
     } = body;
 
-    // Verify user is authenticated (Firebase user ID from request body)
+    // Verify user is authenticated (user ID from request body)
     if (!userId) {
       return NextResponse.json(
         { error: 'Unauthorized. Please log in to continue.' },

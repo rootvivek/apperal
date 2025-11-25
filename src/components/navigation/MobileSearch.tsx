@@ -28,10 +28,10 @@ export default function MobileSearch({
           value={searchQuery}
           onChange={onInputChange}
           className={cn(
-            "w-full h-full px-2 py-1.5 pl-3 pr-6 text-gray-700 bg-transparent rounded-[4px] text-sm",
+            "w-full h-full px-3 py-2.5 pl-3 pr-8 text-gray-700 bg-transparent text-sm",
             "border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           )}
-          style={{ width: '100%', height: '100%' }}
+          style={{ borderRadius: '999px', width: '100%', height: '100%' }}
           autoFocus
         />
         <Button

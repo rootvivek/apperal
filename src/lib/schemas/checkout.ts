@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizePhone, validatePhone } from '@/utils/phone';
 
 export const checkoutFormSchema = z.object({
   fullName: z.string().min(1, 'Name is required'),
@@ -8,14 +9,16 @@ export const checkoutFormSchema = z.object({
   zipCode: z.string().regex(/^\d{6}$/, 'Zip code must be exactly 6 digits'),
   phone: z.string()
     .transform((val) => {
-      // Remove +91 prefix if present, then remove all non-digits
-      const cleaned = val.replace(/^\+91\s*/, '').replace(/\D/g, '');
-      return cleaned;
+      // Normalize phone number (removes +91, spaces, etc., keeps only 10 digits)
+      return normalizePhone(val);
     })
-    .refine((val) => val.length === 10, {
-      message: 'Phone number must be exactly 10 digits',
+    .refine((val) => {
+      const validation = validatePhone(val);
+      return validation.isValid;
+    }, {
+      message: 'Phone number must be exactly 10 digits and start with 6, 7, 8, or 9',
     }),
-  // Note: Phone is kept as string in form, converted to number when saving to database
+  // Note: Phone is kept as string in form, normalized to 10 digits when saving to database
   paymentMethod: z.enum(['cod', 'upi']),
   cardNumber: z.string().optional(),
   expiryDate: z.string().optional(),

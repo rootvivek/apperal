@@ -8,61 +8,28 @@ import DashboardCard from '@/components/DashboardCard';
 import EmptyState from '@/components/EmptyState';
 import DataTable from '@/components/DataTable';
 import { Spinner } from '@/components/ui/spinner';
-import { createClient } from '@/lib/supabase/client';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import { useBodyScrollLock } from '@/hooks/useBodyScrollLock';
-
-interface User {
-  id: string;
-  full_name: string;
-  phone: string;
-  created_at: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  original_price?: number;
-  stock_quantity: number;
-  rating: number;
-  review_count: number;
-  created_at: string;
-  description?: string;
-  category?: string;
-  subcategory?: string;
-  badge?: string;
-  is_active?: boolean;
-  show_in_hero?: boolean;
-  image_url?: string;
-}
-
-interface Order {
-  id: string;
-  order_number: string;
-  user_id: string;
-  total_amount: number;
-  status: string;
-  payment_method: string;
-  created_at: string;
-  notes?: string;
-  razorpay_payment_id?: string;
-  razorpay_order_id?: string;
-  first_item_image?: string;
-  item_count?: number;
-}
-
-interface OrderItem {
-  id: string;
-  order_id: string;
-  product_id: string;
-  product_name: string;
-  product_image?: string;
-  product_price: number;
-  quantity: number;
-  total_price: number;
-  size?: string | null;
-}
+import { ProductEditModal } from '@/components/admin/products/ProductEditModal';
+import { UserDetailsModal } from '@/components/admin/users/UserDetailsModal';
+import { OrderDetailsModal } from '@/components/admin/orders/OrderDetailsModal';
+import { updateOrderStatus } from '@/hooks/admin/useOrderActions';
+import { saveProduct, deleteProduct } from '@/hooks/admin/useProductActions';
+import { formatAdminDate, formatAdminCurrency } from '@/utils/adminFormat';
+import { 
+  useAdminDashboardUsers, 
+  useAdminDashboardProducts, 
+  useAdminDashboardOrders,
+  type AdminUser,
+  type AdminProduct,
+  type AdminOrder
+} from '@/hooks/admin/useAdminDashboard';
+import { useOrderDetails } from '@/hooks/admin/useOrderDetails';
+import { useUserDetails } from '@/hooks/admin/useUserDetails';
+import { createClient } from '@/lib/supabase/client';
 
 function AdminDashboardContent() {
   const supabase = createClient();
@@ -70,43 +37,43 @@ function AdminDashboardContent() {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<'overview' | 'products' | 'orders'>('products');
   
-  // Users
-  const [users, setUsers] = useState<User[]>([]);
-  const [usersLoading, setUsersLoading] = useState(false);
-  const [userSearch, setUserSearch] = useState('');
-
-  // Products
-  const [products, setProducts] = useState<Product[]>([]);
-  const [productsLoading, setProductsLoading] = useState(false);
-  const [productSearch, setProductSearch] = useState('');
-
-  // Orders
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [orderSearch, setOrderSearch] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [orderItems, setOrderItems] = useState<OrderItem[]>([]);
-  const [showOrderDetails, setShowOrderDetails] = useState(false);
-  const [userName, setUserName] = useState<string>('');
-  const [userPhone, setUserPhone] = useState<string>('');
-  const [userAddress, setUserAddress] = useState<any>(null);
-  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
-
-  // User detail modal
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [showUserDetails, setShowUserDetails] = useState(false);
-  const [userOrders, setUserOrders] = useState<Order[]>([]);
+  // Data fetching hooks
+  const { users, loading: usersLoading, fetchUsers, setUsers } = useAdminDashboardUsers();
+  const { products, loading: productsLoading, fetchProducts, setProducts } = useAdminDashboardProducts(user?.id);
+  const { orders, loading: ordersLoading, fetchOrders, setOrders } = useAdminDashboardOrders();
   
-  // Cart and Wishlist items
-  const [userCartItems, setUserCartItems] = useState<any[]>([]);
-  const [userWishlistItems, setUserWishlistItems] = useState<any[]>([]);
+  // Search states
+  const [userSearch, setUserSearch] = useState('');
+  const [productSearch, setProductSearch] = useState('');
+  const [orderSearch, setOrderSearch] = useState('');
+
+  // Order details
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const {
+    orderItems,
+    userName,
+    userPhone,
+    userAddress,
+    fetchOrderDetails,
+  } = useOrderDetails();
+
+  // User details
+  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [showUserDetails, setShowUserDetails] = useState(false);
   const [userDetailsTab, setUserDetailsTab] = useState<'orders' | 'cart' | 'wishlist'>('orders');
+  const {
+    userOrders,
+    userCartItems,
+    userWishlistItems,
+    fetchUserDetails,
+  } = useUserDetails();
 
   // Product edit modal
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<AdminProduct | null>(null);
   const [showProductEdit, setShowProductEdit] = useState(false);
   const [editProductLoading, setEditProductLoading] = useState(false);
-  const [editFormData, setEditFormData] = useState<Product | null>(null);
+  const [editFormData, setEditFormData] = useState<AdminProduct | null>(null);
   
   // Lock body scroll when any modal is open
   useBodyScrollLock(showProductEdit || showOrderDetails || showUserDetails);
@@ -129,322 +96,33 @@ function AdminDashboardContent() {
     }
   }, [activeTab]);
 
-  const fetchUsers = async () => {
-    try {
-      setUsersLoading(true);
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('id, full_name, phone, created_at')
-        .order('created_at', { ascending: false });
-      
-      setUsers(data || []);
-    } catch (error) {
-      // Error handled silently - users state remains empty
-    } finally {
-      setUsersLoading(false);
-    }
-  };
 
-  const fetchProducts = async () => {
-    try {
-      setProductsLoading(true);
-      
-      // Use API route to fetch all products (including inactive) - bypasses RLS
-      if (!user?.id) {
-        setProducts([]);
-        return;
-      }
-
-      const response = await fetch('/api/admin/products', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id,
-        },
-        body: JSON.stringify({ userId: user.id }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to fetch products');
-      }
-
-      setProducts(result.products || []);
-    } catch (error) {
-      // Error handled silently - products state remains empty
-      console.error('Error fetching products:', error);
-    } finally {
-      setProductsLoading(false);
-    }
-  };
-
-  const fetchOrders = async () => {
-    try {
-      setOrdersLoading(true);
-      const { data } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false }) as any;
-      
-      // Fetch first item image for each order
-      const ordersWithImages = await Promise.all(
-        (data || []).map(async (order: Order) => {
-          let firstItemImage = null;
-          let itemCount = 0;
-          
-          try {
-            const { data: itemsData, error: itemsError } = await supabase
-            .from('order_items')
-            .select(`
-              products:product_id (
-                image_url
-              )
-            `)
-            .eq('order_id', order.id)
-              .limit(1);
-            
-            if (!itemsError && itemsData && itemsData.length > 0) {
-              const products = itemsData[0]?.products;
-              const product = Array.isArray(products) ? products[0] : products;
-              firstItemImage = (product as any)?.image_url || null;
-            }
-          } catch (error) {
-            // Silently handle error - firstItemImage remains null
-          }
-          
-          try {
-            const { count, error: countError } = await supabase
-            .from('order_items')
-            .select('*', { count: 'exact', head: true })
-              .eq('order_id', order.id);
-            
-            if (!countError) {
-              itemCount = count || 0;
-            }
-          } catch (error) {
-            // Silently handle error - itemCount remains 0
-          }
-          
-          return {
-            ...order,
-            first_item_image: firstItemImage,
-            item_count: itemCount
-          };
-        })
-      );
-      
-      setOrders(ordersWithImages);
-    } catch (error) {
-      // Error handled silently - orders state remains empty
-    } finally {
-      setOrdersLoading(false);
-    }
-  };
-
-  const handleOrderClick = async (order: Order) => {
+  const handleOrderClick = async (order: AdminOrder) => {
     setSelectedOrder(order);
-    
-    try {
-      // Fetch order items with product data (JOIN)
-      const { data: itemsData } = await supabase
-        .from('order_items')
-        .select(`
-          *,
-          products:product_id (
-            name,
-            image_url
-          )
-        `)
-        .eq('order_id', order.id) as any;
-      
-      const itemsWithImages = (itemsData || []).map((item: any) => {
-        const products = item.products;
-        const product = Array.isArray(products) ? products[0] : products || {};
-        return {
-          ...item,
-          product_name: product.name || 'Product not found',
-          product_image: product.image_url || null
-        };
-      });
-      
-      setOrderItems(itemsWithImages);
-      
-      // Fetch user information if user_id exists
-      if (order.user_id) {
-        // Priority 1: Check if order has shipping_address_id (new normalized approach)
-        // Fetch customer name and phone from the address used for the order
-        if ((order as any).shipping_address_id) {
-          const { data: addressData } = await supabase
-            .from('addresses')
-            .select('*')
-            .eq('id', (order as any).shipping_address_id)
-          .single() as any;
-        
-          setUserAddress(addressData || null);
-          
-          // Fetch customer info from address (this is what was used for the order)
-          setUserName(addressData?.full_name || 'N/A');
-          setUserPhone(addressData?.phone ? String(addressData.phone) : 'N/A');
-        } 
-        // Priority 2: Check if address is stored directly in the order (old orders - backward compatibility)
-        else if ((order as any).shipping_address) {
-          setUserAddress({
-            address_line1: (order as any).shipping_address || '',
-            address_line2: (order as any).shipping_address_line2 || null,
-            city: (order as any).shipping_city || '',
-            state: (order as any).shipping_state || '',
-            zip_code: (order as any).shipping_zip_code || '',
-            country: (order as any).shipping_country || 'India'
-          });
-          // Old orders don't have name/phone in address, show N/A
-          setUserName('N/A');
-          setUserPhone('N/A');
-        } 
-        // Priority 3: Try to fetch default shipping address for user
-        else {
-          const { data: addressData } = await supabase
-            .from('addresses')
-            .select('*')
-            .eq('user_id', order.user_id)
-            .eq('address_type', 'shipping')
-            .order('is_default', { ascending: false })
-            .limit(1)
-            .maybeSingle() as any;
-          
-          setUserAddress(addressData || null);
-          // Fetch customer info from address
-          setUserName(addressData?.full_name || 'N/A');
-          setUserPhone(addressData?.phone ? String(addressData.phone) : 'N/A');
-        }
-      } else {
-        // Guest order - no user_id means no address available
-        setUserName('Guest User');
-        setUserPhone('N/A');
-        
-        // Use shipping address from order if available
-        if ((order as any).shipping_address) {
-          setUserAddress({
-            address_line1: (order as any).shipping_address || '',
-            address_line2: (order as any).shipping_address_line2 || null,
-            city: (order as any).shipping_city || '',
-            state: (order as any).shipping_state || '',
-            zip_code: (order as any).shipping_zip_code || '',
-            country: (order as any).shipping_country || 'India'
-          });
-        } else {
-          setUserAddress(null);
-        }
-      }
-      
-    } catch (error) {
-      // Error handled silently
-    }
-    
+    await fetchOrderDetails(order);
     setShowOrderDetails(true);
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
-    try {
-      // If cancelling, use the cancellation API
-      if (newStatus === 'cancelled') {
-        if (!confirm('Are you sure you want to cancel this order?')) {
-          return;
-        }
-
-        const response = await fetch('/api/orders/cancel', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_id: orderId,
-          }),
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to cancel order');
-        }
-
-        // Update local state
-        setOrders(orders.map(o => o.id === orderId ? { ...o, status: 'cancelled' } : o));
-        if (selectedOrder && selectedOrder.id === orderId) {
-          setSelectedOrder({ ...selectedOrder, status: 'cancelled' });
-        }
-
-        alert('Order cancelled successfully!');
-      } else {
-        // For other status updates, update directly
-      const { error } = await supabase
-        .from('orders')
-          .update({ status: newStatus, updated_at: new Date().toISOString() })
-        .eq('id', orderId);
-      
-      if (error) throw error;
-      
-      // Update local state
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
-      if (selectedOrder && selectedOrder.id === orderId) {
-        setSelectedOrder({ ...selectedOrder, status: newStatus });
-      }
-      
-      alert('Order status updated successfully!');
-      }
-    } catch (error: any) {
-      alert('Failed to update order status: ' + (error.message || 'Unknown error'));
-    }
+    await updateOrderStatus({
+      supabase,
+      orderId,
+      newStatus,
+      orders,
+      setOrders,
+      selectedOrder,
+      setSelectedOrder,
+    });
   };
 
-  const handleUserClick = async (user: User) => {
+  const handleUserClick = async (user: AdminUser) => {
     setSelectedUser(user);
     setUserDetailsTab('orders');
-    
-    try {
-      // Fetch orders
-      const { data: orders } = await supabase
-        .from('orders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-      setUserOrders(orders || []);
-      
-      // Fetch cart items with product details
-      const { data: cartData, error: cartError } = await supabase
-        .from('cart_items')
-        .select(`
-          id,
-          quantity,
-          product:products(id, name, price, image_url)
-        `)
-        .eq('cart_id', (await supabase
-          .from('carts')
-          .select('id')
-          .eq('user_id', user.id)
-          .single()).data?.id || '');
-      
-      setUserCartItems(cartData || []);
-      
-      // Fetch wishlist items
-      const { data: wishlistData } = await supabase
-        .from('wishlist')
-        .select('id, product_id, products(id, name, price, image_url)')
-        .eq('user_id', user.id);
-      
-      // Transform wishlist data to match expected format
-      const transformedWishlist = (wishlistData || []).map((item: any) => ({
-        id: item.id,
-        product: item.products
-      }));
-      
-      setUserWishlistItems(transformedWishlist);
-    } catch (error) {
-      // Error handled silently
-    }
-    
+    await fetchUserDetails(user.id);
     setShowUserDetails(true);
   };
 
-  const handleEditProduct = (product: Product) => {
+  const handleEditProduct = (product: AdminProduct) => {
     setSelectedProduct(product);
     setEditFormData({ ...product });
     setShowProductEdit(true);
@@ -453,82 +131,29 @@ function AdminDashboardContent() {
   const handleSaveProduct = async () => {
     if (!editFormData || !selectedProduct || !user?.id) return;
 
-    try {
-      setEditProductLoading(true);
-      
-      const response = await fetch('/api/admin/update-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id,
-        },
-        body: JSON.stringify({
-          productId: selectedProduct.id,
-          product: {
-            name: editFormData.name,
-            description: editFormData.description,
-            price: editFormData.price,
-            original_price: editFormData.original_price,
-            badge: editFormData.badge,
-            category: editFormData.category,
-            subcategory: editFormData.subcategory,
-            stock_quantity: editFormData.stock_quantity,
-            is_active: editFormData.is_active,
-            show_in_hero: editFormData.show_in_hero,
-          },
-        }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to update product');
-      }
-
-      // Update local products list
-      setProducts(products.map(p => p.id === selectedProduct.id ? editFormData : p));
-      setShowProductEdit(false);
-      alert('Product updated successfully!');
-    } catch (error: any) {
-      alert('Failed to update product: ' + (error.message || 'Unknown error'));
-    } finally {
-      setEditProductLoading(false);
-    }
+    await saveProduct({
+      userId: user.id,
+      selectedProduct,
+      editFormData,
+      products,
+      setProducts,
+      setShowProductEdit,
+      setEditProductLoading,
+    });
   };
 
   const handleDeleteProduct = async (productId: string) => {
-    if (!confirm('Are you sure you want to delete this product?')) return;
-
     if (!user?.id) {
       alert('User not authenticated');
       return;
     }
 
-    try {
-      const response = await fetch('/api/admin/delete-product', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-User-Id': user.id,
-        },
-        body: JSON.stringify({ productId }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to delete product');
-      }
-
-      if (result.success) {
-        setProducts(products.filter(p => p.id !== productId));
-        alert('Product deleted successfully');
-      } else {
-        throw new Error('Deletion failed');
-      }
-    } catch (error: any) {
-      alert('Failed to delete product: ' + (error.message || 'Unknown error'));
-    }
+    await deleteProduct({
+      userId: user.id,
+      productId,
+      products,
+      setProducts,
+    });
   };
 
   const filteredUsers = users.filter(user =>
@@ -540,31 +165,15 @@ function AdminDashboardContent() {
     product.name?.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  const formatDate = (date: string) => {
-    const d = new Date(date);
-    return d.toLocaleString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
-  const formatCurrency = (value: number) => `₹${(value || 0).toFixed(2)}`;
+  const formatDate = formatAdminDate;
+  const formatCurrency = formatAdminCurrency;
 
   return (
     <AdminLayout>
-      <div className="space-y-3 sm:space-y-4 md:space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="text-sm sm:text-base text-gray-600">Manage users, products, and orders all in one place</p>
-        </div>
-
+      <div className="space-y-2">
         {/* Tab Navigation */}
-        <div className="bg-white rounded-lg shadow border-b border-gray-200">
-          <div className="flex space-x-1 px-2 sm:px-4 md:px-6 overflow-x-auto">
+        <div className="bg-white rounded-[4px] shadow border-b border-gray-200">
+          <div className="flex space-x-1 px-2 sm:px-3 overflow-x-auto">
             {[
               { id: 'overview', label: '📊 Overview' },
               { id: 'products', label: '📦 Products' },
@@ -573,7 +182,7 @@ function AdminDashboardContent() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-2 sm:px-3 md:px-4 py-2 sm:py-3 font-medium border-b-2 transition-colors whitespace-nowrap text-sm sm:text-base ${
+                className={`px-2 sm:px-3 py-2 sm:py-2.5 font-medium border-b-2 transition-colors whitespace-nowrap text-sm ${
                   activeTab === tab.id
                     ? 'border-blue-600 text-blue-600'
                     : 'border-transparent text-gray-600 hover:text-gray-900'
@@ -587,33 +196,31 @@ function AdminDashboardContent() {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-3 sm:space-y-4 md:space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
-              <DashboardCard title="Total Users" value={users.length} icon="👥" color="blue" />
-              <DashboardCard title="Total Products" value={products.length} icon="📦" color="blue" />
-              <DashboardCard title="Total Orders" value={orders.length} icon="🛒" color="amber" />
-              <DashboardCard
-                title="Total Revenue"
-                value={formatCurrency(orders.reduce((sum, o) => sum + (o.total_amount || 0), 0))}
-                icon="💰"
-                color="blue"
-              />
-            </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <DashboardCard title="Total Users" value={users.length} icon="👥" color="blue" />
+            <DashboardCard title="Total Products" value={products.length} icon="📦" color="blue" />
+            <DashboardCard title="Total Orders" value={orders.length} icon="🛒" color="amber" />
+            <DashboardCard
+              title="Total Revenue"
+              value={formatCurrency(orders.reduce((sum, o) => sum + (o.total_amount || 0), 0))}
+              icon="💰"
+              color="blue"
+            />
           </div>
         )}
 
         {/* Products Tab */}
         {activeTab === 'products' && (
-          <div className="bg-white rounded-lg shadow p-1 flex flex-col flex-1 min-h-0 space-y-1">
-            <div className="flex items-center gap-1 flex-shrink-0">
-              <input
+          <div className="bg-white rounded-[4px] shadow p-2.5 flex flex-col flex-1 min-h-0 space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-shrink-0">
+              <Input
                 type="text"
                 placeholder="Search products..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg"
+                className="flex-1"
               />
-              <span className="text-sm text-gray-600">Found {filteredProducts.length} products</span>
+              <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Found {filteredProducts.length} products</span>
             </div>
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               <DataTable
@@ -622,7 +229,7 @@ function AdminDashboardContent() {
                   key: 'image_url' as const,
                   label: 'Image',
                   sortable: false,
-                  render: (value: string, row: Product) => (
+                  render: (value: string, row: AdminProduct) => (
                     <div className="flex-shrink-0">
                       <img
                         className="h-12 w-12 rounded-lg object-cover border border-gray-200"
@@ -639,7 +246,7 @@ function AdminDashboardContent() {
                   key: 'name' as const,
                   label: 'Product',
                   sortable: true,
-                  render: (value: string, row: Product) => (
+                  render: (value: string, row: AdminProduct) => (
                     <div className="flex items-center gap-2">
                       <span>{value}</span>
                       {row.is_active === false && (
@@ -663,20 +270,24 @@ function AdminDashboardContent() {
                   key: 'id' as const,
                   label: 'Actions',
                   sortable: false,
-                  render: (value: string, row: Product) => (
-                    <div className="flex space-x-2">
-                      <button
+                  render: (value: string, row: AdminProduct) => (
+                    <div className="flex gap-2">
+                      <Button
                         onClick={(e) => { e.stopPropagation(); handleEditProduct(row); }}
-                        className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-blue-600 hover:text-blue-900 hover:bg-blue-50"
                       >
                         Edit
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         onClick={(e) => { e.stopPropagation(); handleDeleteProduct(row.id); }}
-                        className="text-red-600 hover:text-red-900 text-sm font-medium"
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 text-red-600 hover:text-red-900 hover:bg-red-50"
                       >
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   ),
                 },
@@ -692,20 +303,20 @@ function AdminDashboardContent() {
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-lg shadow p-1 space-y-1">
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1">
-              <input
+          <div className="bg-white rounded-[4px] shadow p-2.5 space-y-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <Input
                 type="text"
                 placeholder="Search orders by number..."
                 value={orderSearch}
                 onChange={(e) => setOrderSearch(e.target.value)}
-                className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 rounded-lg text-sm sm:text-base"
+                className="flex-1"
               />
               <span className="text-xs sm:text-sm text-gray-600 whitespace-nowrap">Found {orders.filter(o => o.order_number?.toLowerCase().includes(orderSearch.toLowerCase())).length} orders</span>
             </div>
             
             {/* Individual Orders View */}
-            <div className="space-y-2 sm:space-y-3">
+            <div className="space-y-2">
                 {ordersLoading ? (
                   <div className="text-center py-12">
                     <p className="text-gray-600">Loading orders...</p>
@@ -736,7 +347,7 @@ function AdminDashboardContent() {
                     return (
                         <div 
                           key={order.id} 
-                        className="border rounded-lg bg-white hover:shadow-md transition-shadow md:cursor-pointer"
+                        className="border rounded-[4px] bg-white hover:shadow-md transition-shadow md:cursor-pointer"
                           onClick={(e) => {
                             // On mobile, only click if clicking directly on the card (not on buttons)
                             const target = e.target as HTMLElement;
@@ -749,7 +360,7 @@ function AdminDashboardContent() {
                             }
                           }}
                         >
-                        <div className="px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4">
+                        <div className="p-2.5">
                           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
                             <div className="flex items-center gap-2 sm:gap-3 md:gap-4 flex-1 min-w-0">
                               {order.first_item_image && (
@@ -764,15 +375,17 @@ function AdminDashboardContent() {
                               )}
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3">
-                                <button 
-                                  className="text-blue-600 hover:text-blue-900 font-medium text-sm sm:text-base"
+                                <Button 
+                                  variant="link"
+                                  size="sm"
+                                  className="h-auto p-0 text-sm sm:text-base text-blue-600 hover:text-blue-900"
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     handleOrderClick(order);
                                   }}
                                 >
                                   #{order.order_number}
-                                </button>
+                                </Button>
                                   <span className="text-xs sm:text-sm text-gray-500 hidden sm:inline">•</span>
                                   <span className="text-xs sm:text-sm text-gray-600 truncate">{userDisplayId}</span>
                                 </div>
@@ -780,15 +393,22 @@ function AdminDashboardContent() {
                               </div>
                             </div>
                             <div className="flex items-center gap-2 sm:gap-4 md:gap-6 w-full sm:w-auto justify-between sm:justify-end">
-                              <span className={`px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs font-medium whitespace-nowrap ${
-                                order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                                order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                                order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                                order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
-                                'bg-gray-100 text-gray-800'
-                              }`}>
+                              <Badge
+                                className="whitespace-nowrap capitalize"
+                                variant={
+                                  order.status === 'delivered'
+                                    ? 'secondary'
+                                    : order.status === 'shipped'
+                                    ? 'secondary'
+                                    : order.status === 'processing'
+                                    ? 'secondary'
+                                    : order.status === 'pending'
+                                    ? 'secondary'
+                                    : 'outline'
+                                }
+                              >
                                 {order.status}
-                              </span>
+                              </Badge>
                               <span className="font-semibold text-sm sm:text-base whitespace-nowrap">
                                 {formatCurrency(order.total_amount)}
                               </span>
@@ -804,468 +424,41 @@ function AdminDashboardContent() {
         )}
       </div>
 
-      {/* Product Edit Modal */}
-      {showProductEdit && selectedProduct && editFormData && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-              <h2 className="text-xl font-bold">Edit Product</h2>
-              <button onClick={() => setShowProductEdit(false)} className="text-2xl">✕</button>
-            </div>
-            <div className="p-6 space-y-4">
-              {/* Product Name */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
-                <input
-                  type="text"
-                  value={editFormData.name || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Product name"
-                />
-              </div>
+      <ProductEditModal
+        open={showProductEdit && !!selectedProduct && !!editFormData}
+        product={selectedProduct as any}
+        formData={editFormData as any}
+        loading={editProductLoading}
+        onClose={() => setShowProductEdit(false)}
+        onChange={(data) => setEditFormData(data as any)}
+        onSave={handleSaveProduct}
+      />
 
-              {/* Description */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
-                <textarea
-                  value={editFormData.description || ''}
-                  onChange={(e) => setEditFormData({ ...editFormData, description: e.target.value })}
-                  rows={4}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="Product description"
-                />
-              </div>
+      <UserDetailsModal
+        open={showUserDetails && !!selectedUser}
+        onClose={() => setShowUserDetails(false)}
+        user={selectedUser}
+        userOrders={userOrders}
+        userCartItems={userCartItems}
+        userWishlistItems={userWishlistItems}
+        activeTab={userDetailsTab}
+        onTabChange={setUserDetailsTab}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
 
-              {/* Price Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price (₹) *</label>
-                  <input
-                    type="number"
-                    value={editFormData.price || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, price: parseFloat(e.target.value) || 0 })}
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Price"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Original Price (₹)</label>
-                  <input
-                    type="number"
-                    value={editFormData.original_price || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, original_price: e.target.value ? parseFloat(e.target.value) : undefined })}
-                    step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Original price"
-                  />
-                </div>
-              </div>
-
-              {/* Category & Subcategory Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                  <input
-                    type="text"
-                    value={editFormData.category || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, category: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Category"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Subcategory</label>
-                  <input
-                    type="text"
-                    value={editFormData.subcategory || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, subcategory: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Subcategory"
-                  />
-                </div>
-              </div>
-
-              {/* Badge & Stock Row */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Badge</label>
-                  <select
-                    value={editFormData.badge || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, badge: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">No Badge</option>
-                    <option value="NEW">NEW</option>
-                    <option value="SALE">SALE</option>
-                    <option value="HOT">HOT</option>
-                    <option value="FEATURED">FEATURED</option>
-                    <option value="LIMITED">LIMITED</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity *</label>
-                  <input
-                    type="number"
-                    value={editFormData.stock_quantity || ''}
-                    onChange={(e) => setEditFormData({ ...editFormData, stock_quantity: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="Stock"
-                  />
-                </div>
-              </div>
-
-              {/* Checkboxes */}
-              <div className="space-y-2">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={editFormData.is_active !== false}
-                    onChange={(e) => setEditFormData({ ...editFormData, is_active: e.target.checked })}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Product is active</span>
-                </label>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={editFormData.show_in_hero === true}
-                    onChange={(e) => setEditFormData({ ...editFormData, show_in_hero: e.target.checked })}
-                    className="h-4 w-4 text-blue-600"
-                  />
-                  <span className="ml-2 text-sm text-gray-700">Show in hero section</span>
-                </label>
-              </div>
-            </div>
-            <div className="p-6 border-t border-gray-200 flex space-x-3 sticky bottom-0 bg-white">
-              <button
-                onClick={() => setShowProductEdit(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveProduct}
-                disabled={editProductLoading}
-                className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              >
-                {editProductLoading ? 'Saving...' : 'Save Changes'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* User Details Modal */}
-      {showUserDetails && selectedUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-              <h2 className="text-xl font-bold">{selectedUser.full_name}</h2>
-              <button onClick={() => setShowUserDetails(false)} className="text-2xl">✕</button>
-            </div>
-            
-            {/* Tabs */}
-            <div className="flex space-x-1 px-6 pt-4 border-b border-gray-200">
-              <button
-                onClick={() => setUserDetailsTab('orders')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                  userDetailsTab === 'orders'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Orders ({userOrders.length})
-              </button>
-              <button
-                onClick={() => setUserDetailsTab('cart')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                  userDetailsTab === 'cart'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                🛒 Cart ({userCartItems.length})
-              </button>
-              <button
-                onClick={() => setUserDetailsTab('wishlist')}
-                className={`px-4 py-2 font-medium border-b-2 transition-colors ${
-                  userDetailsTab === 'wishlist'
-                    ? 'border-blue-600 text-blue-600'
-                    : 'border-transparent text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                ❤️ Wishlist ({userWishlistItems.length})
-              </button>
-            </div>
-            
-            <div className="p-6 space-y-4">
-              {/* User Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-gray-600 text-sm">Phone</p>
-                  <p className="font-medium">{selectedUser.phone || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Joined</p>
-                  <p className="font-medium">{formatDate(selectedUser.created_at)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Total Orders</p>
-                  <p className="font-medium">{userOrders.length}</p>
-                </div>
-              </div>
-              
-              {/* Orders Tab */}
-              {userDetailsTab === 'orders' && (
-                <div>
-                  <h3 className="font-semibold mb-4">All Orders ({userOrders.length})</h3>
-                  {userOrders.length === 0 ? (
-                    <p className="text-gray-600">No orders</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {userOrders.map((order) => (
-                        <div key={order.id} className="border rounded-lg p-4 hover:bg-gray-50 transition-colors">
-                          <div className="flex justify-between items-start mb-2">
-                            <div>
-                              <span className="font-medium text-blue-600">#{order.order_number}</span>
-                              <p className="text-xs text-gray-500 mt-1">{formatDate(order.created_at)}</p>
-                            </div>
-                            <span className="font-semibold">{formatCurrency(order.total_amount || 0)}</span>
-                          </div>
-                          <div className="flex items-center space-x-4 text-sm">
-                            <span className={`px-2 py-1 rounded text-xs font-medium capitalize ${
-                              order.status === 'delivered' ? 'bg-green-100 text-green-800' :
-                              order.status === 'shipped' ? 'bg-blue-100 text-blue-800' :
-                              order.status === 'processing' ? 'bg-yellow-100 text-yellow-800' :
-                              order.status === 'pending' ? 'bg-orange-100 text-orange-800' :
-                              'bg-gray-100 text-gray-800'
-                            }`}>
-                              {order.status}
-                            </span>
-                            <span className="text-gray-600 capitalize">
-                              {order.payment_method === 'cod' ? 'Cash on Delivery' : order.payment_method}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Cart Tab */}
-              {userDetailsTab === 'cart' && (
-                <div>
-                  <h3 className="font-semibold mb-2">Shopping Cart</h3>
-                  {userCartItems.length === 0 ? (
-                    <EmptyState
-                      title="Cart is empty"
-                      variant="minimal"
-                    />
-                  ) : (
-                    <div className="space-y-2">
-                      {userCartItems.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center border p-2 rounded">
-                          <div>
-                            <p className="font-medium">{item.product?.name}</p>
-                            <p className="text-sm text-gray-600">Qty: {item.quantity}</p>
-                          </div>
-                          <span className="font-medium">{formatCurrency(item.product?.price * item.quantity)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              
-              {/* Wishlist Tab */}
-              {userDetailsTab === 'wishlist' && (
-                <div>
-                  <h3 className="font-semibold mb-2">Wishlist</h3>
-                  {userWishlistItems.length === 0 ? (
-                    <p className="text-gray-600">No items in wishlist</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {userWishlistItems.map((item: any) => (
-                        <div key={item.id} className="flex justify-between items-center border p-2 rounded">
-                          <p className="font-medium">{item.product?.name}</p>
-                          <span className="font-medium">{formatCurrency(item.product?.price)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            
-            <div className="p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowUserDetails(false)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Order Details Modal */}
-      {showOrderDetails && selectedOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6 border-b border-gray-200 flex justify-between items-center sticky top-0 bg-white">
-              <div>
-                <h2 className="text-xl font-bold">Order #{selectedOrder.order_number}</h2>
-              </div>
-              <button onClick={() => setShowOrderDetails(false)} className="text-2xl">✕</button>
-            </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Customer Information */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold mb-4 text-gray-900">Customer Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Name</p>
-                    <p className="font-medium">{userName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Phone Number</p>
-                    <p className="font-medium">{userPhone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-gray-600 text-sm mb-1">Address</p>
-                    {userAddress ? (
-                      <div className="font-medium text-sm">
-                        <p>{userAddress.address_line1 || ''}</p>
-                        {userAddress.address_line2 && <p>{userAddress.address_line2}</p>}
-                        <p>{userAddress.city || ''}, {userAddress.state || ''} {userAddress.zip_code || ''}</p>
-                        {userAddress.country && <p>{userAddress.country}</p>}
-                      </div>
-                    ) : (
-                      <p className="font-medium text-sm text-gray-500">No address available</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Order Info */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-gray-600 text-sm">Date</p>
-                  <p className="font-medium">{formatDate(selectedOrder.created_at)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Payment Method</p>
-                  <p className="font-medium capitalize">{selectedOrder.payment_method === 'cod' ? 'Cash on Delivery' : selectedOrder.payment_method}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Total Amount</p>
-                  <p className="font-bold text-lg text-blue-600">{formatCurrency(selectedOrder.total_amount)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-600 text-sm">Status</p>
-                  <select
-                    value={selectedOrder.status}
-                    onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value)}
-                    className="mt-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="processing">Processing</option>
-                    <option value="shipped">Shipped</option>
-                    <option value="delivered">Delivered</option>
-                    <option value="cancelled">Cancelled</option>
-                  </select>
-                </div>
-                {selectedOrder.payment_method === 'razorpay' && (
-                  <>
-                    {selectedOrder.razorpay_payment_id && (
-                      <div>
-                        <p className="text-gray-600 text-sm">Razorpay Payment ID</p>
-                        <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_payment_id}</p>
-                      </div>
-                    )}
-                    {selectedOrder.razorpay_order_id && (
-                      <div>
-                        <p className="text-gray-600 text-sm">Razorpay Order ID</p>
-                        <p className="font-medium text-sm font-mono">{selectedOrder.razorpay_order_id}</p>
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-
-              {/* Order Items */}
-              <div>
-                <h3 className="font-semibold mb-4">Order Items</h3>
-                {orderItems.length === 0 ? (
-                  <EmptyState
-                    title="No items found"
-                    variant="minimal"
-                  />
-                ) : (
-                  <div className="space-y-3">
-                    {orderItems.map((item) => (
-                      <div key={item.id} className="border rounded-lg p-4">
-                        <div className="flex items-start space-x-4">
-                          {item.product_image ? (
-                            <img
-                              src={item.product_image}
-                              alt={item.product_name}
-                              className="w-20 h-20 object-cover rounded-lg"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '/placeholder-product.jpg';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-20 h-20 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                              </svg>
-                            </div>
-                          )}
-                          <div className="flex-1">
-                            <h4 className="font-medium">{item.product_name}</h4>
-                            <p className="text-sm text-gray-600">
-                              Price: {formatCurrency(item.product_price)} × Quantity: {item.quantity}
-                              <span className="ml-2">| Size: {item.size || 'Select Size'}</span>
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{formatCurrency(item.total_price)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Order Summary */}
-              <div className="border-t pt-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-lg font-semibold">Total</span>
-                  <span className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(selectedOrder.total_amount)}
-                  </span>
-                </div>
-              </div>
-            </div>
-            
-            <div className="p-6 border-t border-gray-200">
-              <button
-                onClick={() => setShowOrderDetails(false)}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <OrderDetailsModal
+        open={showOrderDetails && !!selectedOrder}
+        onClose={() => setShowOrderDetails(false)}
+        order={selectedOrder}
+        orderItems={orderItems}
+        userName={userName}
+        userPhone={userPhone}
+        userAddress={userAddress}
+        onUpdateStatus={handleUpdateOrderStatus}
+        formatDate={formatDate}
+        formatCurrency={formatCurrency}
+      />
     </AdminLayout>
   );
 }

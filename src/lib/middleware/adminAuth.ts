@@ -10,7 +10,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
   try {
     let userId: string | null = null;
     
-    // Try to get user ID from headers (for Firebase auth)
+    // Try to get user ID from headers
     // Check multiple header name variations
     const headerUserId = request.headers.get('x-user-id') || 
                         request.headers.get('X-User-Id') ||
@@ -26,7 +26,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
       userId = headerUserId;
     }
     
-    // Try to get Firebase user ID from request body (for Firebase auth)
+    // Try to get user ID from request body
     // Only for POST requests, and only if not already found in header
     if (!userId && request.method === 'POST') {
       try {
@@ -47,7 +47,6 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7);
           // Only try Supabase auth if token looks like a Supabase token (JWT format)
-          // Firebase tokens are different, so skip this check for Firebase
           if (token.length > 100) { // Supabase tokens are typically longer
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
       const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -61,13 +60,12 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
           }
         }
       } catch (authError) {
-        // Ignore auth header errors - Firebase users won't have Supabase tokens
-        // This is expected and not an error
+        // Ignore auth header errors
       }
     }
     
     // If no user from header, try to get from cookies (for Supabase auth)
-    // Only try this if we haven't found a userId yet (Firebase users won't have Supabase cookies)
+    // Only try this if we haven't found a userId yet
     if (!userId) {
       try {
         const supabaseAuth = await createServerAuthClient(request);
@@ -76,8 +74,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
         userId = user.id;
         }
       } catch (cookieError) {
-        // Ignore cookie errors - Firebase users won't have Supabase auth cookies
-        // This is expected and not an error
+        // Ignore cookie errors
       }
     }
     
@@ -95,7 +92,7 @@ export async function verifyAdmin(request: NextRequest): Promise<{ isAdmin: bool
 
 async function verifyUserIsAdmin(userId: string, supabase: any): Promise<{ isAdmin: boolean; userId?: string; error?: string }> {
   try {
-    // Check is_admin from user_profiles table (for Firebase phone auth)
+    // Check is_admin from user_profiles table
     const { data: profile, error: profileError } = await supabase
       .from('user_profiles')
       .select('is_admin')

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normalizePhone, validatePhone } from '@/utils/phone';
 
 /**
  * Common validation schemas
@@ -15,7 +16,12 @@ export const schemas = {
     { message: 'Invalid user ID format' }
   ),
   productId: z.string().uuid('Invalid product ID format'),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format'),
+  phone: z.string().refine((val) => {
+    // Use unified phone validation
+    const normalized = normalizePhone(val);
+    const validation = validatePhone(normalized);
+    return validation.isValid;
+  }, { message: 'Phone number must be exactly 10 digits and start with 6, 7, 8, or 9' }),
   url: z.string().url('Invalid URL format'),
   positiveNumber: z.number().positive('Must be a positive number'),
   nonEmptyString: z.string().min(1, 'Cannot be empty'),

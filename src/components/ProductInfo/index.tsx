@@ -1,6 +1,6 @@
 'use client';
 
-import { useProductSelections } from './useProductSelections';
+import { useProductSelections } from '@/hooks/product/useProductSelections';
 import SizeSelector from './SizeSelector';
 import ColorSelector from './ColorSelector';
 import ActionButtons from './ActionButtons';
@@ -67,7 +67,7 @@ export default function ProductInfo({
 
   return (
     <div className="pt-2 sm:pt-0">
-      <h1 className="text-lg font-medium text-gray-900 mb-2 leading-tight">{product.name}</h1>
+      <h1 className="text-base sm:text-lg font-medium text-gray-900 mb-2 leading-tight">{product.name}</h1>
       
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <div className="flex items-baseline gap-3">

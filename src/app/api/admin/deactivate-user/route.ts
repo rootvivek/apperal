@@ -63,23 +63,6 @@ async function deactivateHandler(request: NextRequest, { userId: adminUserId }: 
       }
     }
 
-    // Handle Firebase token revocation
-    if (!isUUID && !isActivate && process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
-      try {
-        const { getFirebaseAdmin } = await import('@/lib/firebase/admin');
-        const admin = await getFirebaseAdmin();
-        
-        if (admin?.auth) {
-          try {
-            await admin.auth().revokeRefreshTokens(targetUserId);
-          } catch (fbErr) {
-            // Non-critical error - continue
-          }
-        }
-      } catch (importErr) {
-        // Firebase admin not available - continue
-      }
-    }
 
     // Log admin action
     try {

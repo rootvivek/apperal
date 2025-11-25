@@ -36,7 +36,7 @@ export default function UserDropdown({
         <button
           type="button"
           onClick={() => isMounted && openLoginModal()}
-          className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
+          className="sm:hidden text-gray-500 hover:text-brand-500 p-2 flex items-center justify-center"
           aria-label="Sign In"
           suppressHydrationWarning
         >
@@ -69,11 +69,11 @@ export default function UserDropdown({
         }}
         className="hidden sm:flex items-center space-x-1 text-gray-500 hover:text-brand-500 transition-colors cursor-pointer"
       >
-        <UserIcon />
-        <span className={`${mobileTypography.title14} sm:text-base text-gray-900`}>
+        <UserIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+        <span className={`${mobileTypography.title14} sm:text-sm text-gray-900`}>
           {userFullName || 'Hi, User'}
         </span>
-        <ChevronDownIcon rotated={showUserDropdown} />
+        <ChevronDownIcon rotated={showUserDropdown} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
       </button>
       
       <button
@@ -82,7 +82,7 @@ export default function UserDropdown({
           e.stopPropagation();
           setShowUserDropdown(!showUserDropdown);
         }}
-        className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
+        className="sm:hidden text-gray-500 hover:text-brand-500 p-2 flex items-center justify-center"
       >
         <UserIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
       </button>

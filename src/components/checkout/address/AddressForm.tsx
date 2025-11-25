@@ -1,17 +1,21 @@
 'use client';
 
-import { Control } from 'react-hook-form';
+import { Control, useFormState } from 'react-hook-form';
 import { CheckoutFormData } from '@/lib/schemas/checkout';
 import { FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { INDIAN_STATES } from '@/lib/constants/states';
+import { formatPhoneForInput } from '@/utils/phone';
+import { cn } from '@/lib/utils';
 
 interface AddressFormProps {
   control: Control<CheckoutFormData>;
 }
 
 export default function AddressForm({ control }: AddressFormProps) {
+  const { errors } = useFormState({ control });
+  
   return (
     <div className="space-y-4">
       <FormField
@@ -21,7 +25,13 @@ export default function AddressForm({ control }: AddressFormProps) {
           <FormItem>
             <FormLabel>Full Name *</FormLabel>
             <FormControl>
-              <Input placeholder="John Doe" {...field} />
+              <Input 
+                placeholder="John Doe" 
+                {...field}
+                className={cn(
+                  errors.fullName && "border-red-500 focus-visible:ring-red-500"
+                )}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -34,13 +44,19 @@ export default function AddressForm({ control }: AddressFormProps) {
           <FormItem>
             <FormLabel>Address *</FormLabel>
             <FormControl>
-              <Input placeholder="Street address" {...field} />
+              <Input 
+                placeholder="Street address" 
+                {...field}
+                className={cn(
+                  errors.address && "border-red-500 focus-visible:ring-red-500"
+                )}
+              />
             </FormControl>
             <FormMessage />
           </FormItem>
         )}
       />
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-2">
         <FormField
           control={control}
           name="state"
@@ -49,7 +65,9 @@ export default function AddressForm({ control }: AddressFormProps) {
               <FormLabel>State *</FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
-                  <SelectTrigger>
+                  <SelectTrigger className={cn(
+                    errors.state && "border-red-500 focus:ring-red-500"
+                  )}>
                     <SelectValue placeholder="Select state" />
                   </SelectTrigger>
                 </FormControl>
@@ -72,7 +90,13 @@ export default function AddressForm({ control }: AddressFormProps) {
             <FormItem>
               <FormLabel>City *</FormLabel>
               <FormControl>
-                <Input placeholder="Enter your city" {...field} />
+                <Input 
+                  placeholder="Enter your city" 
+                  {...field}
+                  className={cn(
+                    errors.city && "border-red-500 focus-visible:ring-red-500"
+                  )}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -89,6 +113,9 @@ export default function AddressForm({ control }: AddressFormProps) {
                   placeholder="123456"
                   maxLength={6}
                   {...field}
+                  className={cn(
+                    errors.zipCode && "border-red-500 focus-visible:ring-red-500"
+                  )}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '');
                     field.onChange(value);
@@ -108,17 +135,17 @@ export default function AddressForm({ control }: AddressFormProps) {
             <FormLabel>Phone Number *</FormLabel>
             <FormControl>
               <Input
-                placeholder="1234567890 or +911234567890"
-                maxLength={13}
+                placeholder="9876543210"
+                maxLength={10}
+                inputMode="numeric"
                 {...field}
+                className={cn(
+                  errors.phone && "border-red-500 focus-visible:ring-red-500"
+                )}
                 onChange={(e) => {
-                  // Remove +91 prefix if present, then remove all non-digits
-                  let value = e.target.value.replace(/^\+91\s*/, '').replace(/\D/g, '');
-                  // Limit to 10 digits
-                  if (value.length > 10) {
-                    value = value.slice(0, 10);
-                  }
-                  field.onChange(value);
+                  // Normalize phone input (removes +91, spaces, etc.)
+                  const cleaned = formatPhoneForInput(e.target.value);
+                  field.onChange(cleaned);
                 }}
               />
             </FormControl>

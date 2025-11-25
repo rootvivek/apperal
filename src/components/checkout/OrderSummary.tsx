@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
 import Image from 'next/image';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 
 interface OrderItem {
   id?: string;
@@ -33,35 +34,35 @@ export function OrderSummary({ items, subtotal, shipping, total, productSubcateg
 
   if (loading) {
     return (
-      <div className="bg-white">
-        <div className="px-3 sm:px-4 py-3 sm:py-4">
-          <h2 className="text-sm sm:text-lg font-semibold mb-4">Order Summary</h2>
+      <Card className="rounded-[4px]">
+        <CardContent className="p-2.5">
+          <h2 className="text-sm sm:text-lg font-semibold mb-3">Order Summary</h2>
           <div className="text-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
             <p className="text-muted-foreground">Loading...</p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   if (items.length === 0) {
     return (
-      <div className="bg-white">
-        <div className="px-3 sm:px-4 py-3 sm:py-4">
-          <h2 className="text-sm sm:text-lg font-semibold mb-4">Order Summary</h2>
+      <Card className="rounded-[4px]">
+        <CardContent className="p-2.5">
+          <h2 className="text-sm sm:text-lg font-semibold mb-3">Order Summary</h2>
           <div className="text-center py-8">
             <p className="text-muted-foreground">Your cart is empty</p>
           </div>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="bg-white">
-      <div className="px-3 sm:px-4 py-3 sm:py-4">
-        <h2 className="text-sm sm:text-lg font-semibold mb-4">Order Summary</h2>
+    <Card className="rounded-[4px]">
+      <CardContent className="p-2.5">
+        <h2 className="text-sm sm:text-lg font-semibold mb-3">Order Summary</h2>
         <div className="space-y-4">
           <div className="space-y-3">
             {items.map((item, index) => {
@@ -145,8 +146,8 @@ export function OrderSummary({ items, subtotal, shipping, total, productSubcateg
             </div>
           </div>
         </div>
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -6,53 +6,26 @@ import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import MultiImageUpload from '@/components/MultiImageUpload';
 import { createClient } from '@/lib/supabase/client';
-import { deleteImageFromSupabase } from '@/utils/imageUpload';
-import { MobileDetails, ApparelDetails, AccessoriesDetails } from '@/utils/productDetailsMapping';
 import { toNullIfEmpty, toEmptyIfEmpty } from '@/utils/formUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { Spinner } from '@/components/ui/spinner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Category } from '@/types/admin';
+import { PRODUCT_SIZES, PRODUCT_FIT_TYPES } from '@/types/admin';
+import { validateProductForm } from '@/utils/validation/product';
+import { useProductSubcategories } from '@/hooks/admin/useProductSubcategories';
+import { useProductFormHandlers } from '@/hooks/admin/useProductFormHandlers';
+import type { ExtendedProductFormData } from '@/hooks/admin/useProductForm';
+import { UI_TIMING } from '@/constants';
+import { safeParseInt, safeParseFloat } from '@/utils/formatters';
+import { getDetailType } from '@/utils/product/detailType';
+import { prepareProductData } from '@/utils/product/prepareProductData';
+import { saveProductDetails } from '@/utils/product/saveProductDetails';
+import { createAdminHeaders } from '@/utils/api/adminHeaders';
+import { handleApiResponse } from '@/utils/api/responseHandler';
+import { resolveCategoryIds, getCategoryByName } from '@/utils/product/resolveCategoryIds';
+import { mapProductImagesForApi } from '@/utils/product/mapProductImages';
 
-interface ProductImage {
-  id?: string;
-  image_url: string;
-  alt_text?: string;
-  display_order: number;
-}
-
-interface ProductFormData {
-  id: string;
-  name: string;
-  description: string;
-  price: string;
-  original_price: string;
-  badge: string;
-  category: string;
-  subcategories: string[];
-  image_url: string;
-  stock_quantity: string;
-  is_active: boolean;
-  show_in_hero: boolean;
-  images: ProductImage[];
-  // Additional product fields
-  brand?: string;
-  is_new?: boolean;
-  rating?: number;
-  review_count?: number;
-  in_stock?: boolean;
-  // Product detail fields
-  mobileDetails: Partial<MobileDetails>;
-  apparelDetails: Partial<ApparelDetails>;
-  accessoriesDetails: Partial<AccessoriesDetails>;
-}
-
-interface Category {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  parent_category_id: string | null;
-  detail_type?: string | null;
-}
 
 export default function EditProductPage() {
   const router = useRouter();
@@ -77,21 +50,20 @@ export default function EditProductPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
-  const [subcategories, setSubcategories] = useState<Category[]>([]);
-  const [subcategoriesLoading, setSubcategoriesLoading] = useState(false);
   const [customSubcategory, setCustomSubcategory] = useState('');
   const [deleting, setDeleting] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false); // Flag to prevent double submissions
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { subcategories, subcategoriesLoading, fetchSubcategories } = useProductSubcategories();
   
   // Available sizes for apparel products
-  const availableSizes = ['Small', 'Medium', 'Large'];
+  const availableSizes = [...PRODUCT_SIZES];
   const [selectedSizes, setSelectedSizes] = useState<string[]>([]);
   
   // Available fit types for apparel products
-  const availableFitTypes = ['Regular', 'Slim', 'Loose', 'Oversized', 'Fitted'];
+  const availableFitTypes = [...PRODUCT_FIT_TYPES];
   const [selectedFitTypes, setSelectedFitTypes] = useState<string[]>([]);
 
-  const [formData, setFormData] = useState<ProductFormData>({
+  const [formData, setFormData] = useState<ExtendedProductFormData & { id: string }>({
     id: productId,
     name: '',
     description: '',
@@ -115,17 +87,12 @@ export default function EditProductPage() {
     accessoriesDetails: {},
   });
 
-  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string | undefined}>({});
 
   // Determine detail type from PARENT CATEGORY (detail_type column set in category admin)
   // All subcategories inherit the detail_type from their parent category
-  const selectedCategory = categories.find(c => c.name === formData.category);
-  
-  // Use parent category's detail_type (subcategories inherit from parent)
-  const detailType = selectedCategory?.detail_type === 'mobile' ? 'mobile' 
-    : selectedCategory?.detail_type === 'apparel' ? 'apparel' 
-    : selectedCategory?.detail_type === 'accessories' ? 'accessories'
-    : 'none';
+  const selectedCategory = getCategoryByName(formData.category, categories);
+  const detailType = getDetailType(selectedCategory);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -337,42 +304,7 @@ export default function EditProductPage() {
           }));
         }
 
-        // Fetch subcategories for the category
-        if (categoryName) {
-          // Always try to fetch by category_id first (most reliable)
-          const categoryIdToUse = product.category_id || null;
-          
-          if (categoryIdToUse) {
-            // Direct fetch by category ID - most reliable
-            const { data: subcatsData } = await supabaseInstance
-              .from('subcategories')
-              .select('*')
-              .eq('parent_category_id', categoryIdToUse)
-              .order('name', { ascending: true });
-            if (subcatsData) {
-              setSubcategories(subcatsData);
-            }
-          } else {
-            // Fallback: fetch category by name directly from database
-            const { data: categoryData } = await supabaseInstance
-              .from('categories')
-              .select('id')
-              .eq('name', categoryName)
-              .is('parent_category_id', null)
-              .single();
-            
-            if (categoryData?.id) {
-              const { data: subcatsData } = await supabaseInstance
-                .from('subcategories')
-                .select('*')
-                .eq('parent_category_id', categoryData.id)
-                .order('name', { ascending: true });
-              if (subcatsData) {
-                setSubcategories(subcatsData);
-              }
-            }
-          }
-        }
+        // Fetch subcategories for the category (will be handled after categories are loaded)
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -426,119 +358,33 @@ export default function EditProductPage() {
     // };
   }, [success]);
 
-  const fetchSubcategories = async (categoryName: string) => {
-    if (!categoryName) {
-      setSubcategories([]);
-      return;
+  // Fetch subcategories when categories are loaded and category is set
+  useEffect(() => {
+    if (categories.length > 0 && formData.category) {
+      fetchSubcategories(formData.category, categories);
     }
+  }, [categories, formData.category, fetchSubcategories]);
 
-    try {
-      setSubcategoriesLoading(true);
-      
-      const selectedCategory = categories.find(cat => cat.name === categoryName);
-      let subcategoriesData = [];
+  const {
+    handleImagesChange,
+    handleChange,
+    addCustomSubcategory,
+    handleCategoryChange,
+  } = useProductFormHandlers({
+    formData: formData as ExtendedProductFormData,
+    setFormData: setFormData as React.Dispatch<React.SetStateAction<ExtendedProductFormData>>,
+    validationErrors,
+    setValidationErrors,
+    categories,
+    fetchSubcategories,
+    customSubcategory,
+    setCustomSubcategory,
+  });
 
-      if (selectedCategory) {
-        const { data: categorySubcategories, error: categoryError } = await supabase
-          .from('subcategories')
-          .select('*')
-          .eq('parent_category_id', selectedCategory.id)
-          .order('name', { ascending: true });
-
-        if (!categoryError && categorySubcategories) {
-          subcategoriesData = categorySubcategories;
-        }
-      }
-
-      setSubcategories(subcategoriesData);
-    } catch (err: any) {
-      setSubcategories([]);
-    } finally {
-      setSubcategoriesLoading(false);
-    }
-  };
-
-  const addCustomSubcategory = () => {
-    if (customSubcategory.trim() && !formData.subcategories.includes(customSubcategory.trim())) {
-      setFormData(prev => ({
-        ...prev,
-        subcategories: [...prev.subcategories, customSubcategory.trim()]
-      }));
-      setCustomSubcategory('');
-    }
-  };
-
-  const handleCategoryChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newCategory = e.target.value;
-    setFormData(prev => ({
-      ...prev,
-      category: newCategory,
-      subcategories: []
-    }));
-    
-    fetchSubcategories(newCategory);
-    
-    if (validationErrors.subcategories) {
-      setValidationErrors(prev => ({
-        ...prev,
-        subcategories: ''
-      }));
-    }
-  };
-
-  const handleImagesChange = useCallback((images: ProductImage[]) => {
-    setFormData(prev => ({
-      ...prev,
-      images: images,
-      image_url: images.length > 0 ? images[0].image_url : ''
-    }));
-  }, []);
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    const { name, value, type } = e.target;
-    
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? (e.target as HTMLInputElement).checked : value
-    }));
-
-    if (validationErrors[name]) {
-      setValidationErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const validateForm = (): { isValid: boolean; errors: {[key: string]: string} } => {
-    const errors: {[key: string]: string} = {};
-
-    if (!formData.name || !formData.name.trim()) {
-      errors.name = 'Product name is required';
-    }
-
-    if (!formData.description || !formData.description.trim()) {
-      errors.description = 'Product description is required';
-    }
-
-    if (!formData.price || isNaN(parseFloat(formData.price)) || parseFloat(formData.price) <= 0) {
-      errors.price = 'Valid price is required';
-    }
-
-    if (!formData.category) {
-      errors.category = 'Category is required';
-    }
-
-    if (!formData.subcategories || formData.subcategories.length === 0) {
-      errors.subcategories = 'At least one subcategory is required';
-    }
-
-    if (formData.stock_quantity && (isNaN(parseInt(formData.stock_quantity)) || parseInt(formData.stock_quantity) < 0)) {
-      errors.stock_quantity = 'Stock quantity must be a valid positive number';
-    }
-
-    setValidationErrors(errors);
-    return { isValid: Object.keys(errors).length === 0, errors };
+  const validateForm = (): { isValid: boolean; errors: {[key: string]: string | undefined} } => {
+    const validation = validateProductForm(formData);
+    setValidationErrors(validation.errors);
+    return validation;
   };
 
 
@@ -568,7 +414,7 @@ export default function EditProductPage() {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
             (element as HTMLElement).focus();
           }
-        }, 100);
+        }, UI_TIMING.SCROLL_DELAY);
       }
       return;
     }
@@ -583,33 +429,23 @@ export default function EditProductPage() {
       const newImageUrl = formData.images.length > 0 ? formData.images[0].image_url : null;
       
       // Get category and subcategory IDs
-      const categoryId = categories.find(c => c.name === formData.category)?.id || null;
-      const selectedFirstName = formData.subcategories.length > 0 ? formData.subcategories[0] : null;
-      const subcategoryId = selectedFirstName 
-        ? (subcategories.find(s => s.name === selectedFirstName)?.id || null)
-        : null;
+      const { categoryId, subcategoryId } = resolveCategoryIds(
+        formData.category,
+        formData.subcategories,
+        categories,
+        subcategories
+      );
       
       // Update product with COMMON fields in products table
       // Category-specific fields go to detail tables
       const fullUpdate: any = {
-        name: formData.name.trim(),
-        description: formData.description.trim(),
-        price: parseFloat(formData.price),
-        original_price: formData.original_price ? parseFloat(formData.original_price) : null,
-        badge: toNullIfEmpty(formData.badge),
+        ...prepareProductData({
+          formData,
+          categoryId,
+          subcategoryId,
+          isEdit: true,
+        }),
         image_url: newImageUrl,
-        stock_quantity: formData.stock_quantity ? parseInt(formData.stock_quantity) : 0,
-        is_active: formData.is_active,
-        show_in_hero: formData.show_in_hero,
-        // UUID foreign keys - all in same update
-        category_id: categoryId,
-        subcategory_id: subcategoryId,
-        // Common product fields (saved to products table)
-        brand: toNullIfEmpty(formData.brand),
-        is_new: formData.is_new || false,
-        rating: formData.rating || 0,
-        review_count: formData.review_count || 0,
-        in_stock: formData.in_stock !== undefined ? formData.in_stock : ((formData.stock_quantity && parseInt(formData.stock_quantity) > 0) || false),
       };
       
       // Best-effort: Add legacy string fields only if columns exist
@@ -619,190 +455,32 @@ export default function EditProductPage() {
       const stripFK = (obj: any) => { const { category_id, subcategory_id, ...rest } = obj; return rest; };
 
       // Use API route to update product (bypasses RLS)
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Add user ID header for admin authentication
-      if (user?.id) {
-        headers['X-User-Id'] = user.id;
-      }
-
       const updateResponse = await fetch('/api/admin/update-product', {
         method: 'POST',
-        headers,
+        headers: createAdminHeaders(user?.id),
         body: JSON.stringify({
           productId,
           product: fullUpdate,
-          images: formData.images.map((image, index) => ({
-            id: image.id, // Include existing image ID if it exists
-            image_url: image.image_url,
-            alt_text: image.alt_text || '',
-            display_order: index
-          }))
+          images: mapProductImagesForApi(formData.images, true)
         })
       });
 
-      const responseData = await updateResponse.json();
-
-      if (!updateResponse.ok) {
-        throw new Error(responseData.error || 'Failed to update product');
-      }
-
-      if (!responseData.success) {
-        throw new Error('Product update failed');
-      }
+      await handleApiResponse(updateResponse, 'Failed to update product');
 
       // AUTO-SAVE: Use detail_type from PARENT CATEGORY (set in category admin page)
       // Get category to determine detail_type
-      const selectedCategory = categories.find(c => c.name === formData.category);
+      const selectedCategory = getCategoryByName(formData.category, categories);
       const detailTypeFromDB = selectedCategory?.detail_type;
 
-      if (subcategoryId) {
-        // AUTO-SAVE to mobile table if parent category detail_type is 'mobile'
-        if (detailTypeFromDB === 'mobile') {
-          // Save ONLY cover-specific details to product_cover_details table
-          // Common fields are already in products table
-          const mobileInsert: any = {
-            product_id: productId,
-            // Cover-specific details only (common fields are in products table)
-            brand: formData.mobileDetails?.brand?.trim() || 'Not Specified',
-            // Explicitly set to null if empty string - always include in update
-            compatible_model: toNullIfEmpty(formData.mobileDetails?.compatible_model),
-            type: toNullIfEmpty(formData.mobileDetails?.type),
-            color: toNullIfEmpty(formData.mobileDetails?.color),
-          };
-          
-          // Check if record exists
-          const { data: existingData, error: checkError } = await supabase
-            .from('product_cover_details')
-            .select('id')
-            .eq('product_id', productId)
-            .maybeSingle();
-          
-          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
-            throw new Error(`Failed to check cover details: ${checkError.message}`);
-          }
-          
-          const existing = existingData || null;
-          
-          if (existing && existing.id) {
-            // Update existing record
-            const { error: updateError } = await supabase
-              .from('product_cover_details')
-              .update(mobileInsert)
-              .eq('id', existing.id);
-            if (updateError) {
-              throw new Error(`Failed to update cover details: ${updateError.message}`);
-            }
-          } else {
-            // Insert new record
-            const { data: insertData, error: insertError } = await supabase
-              .from('product_cover_details')
-              .insert(mobileInsert)
-              .select();
-            if (insertError) {
-              throw new Error(`Failed to insert cover details: ${insertError.message}`);
-            }
-          }
-        }
-        // AUTO-SAVE to apparel table if parent category detail_type is 'apparel'
-        else if (detailTypeFromDB === 'apparel') {
-          // Save ONLY apparel-specific details to product_apparel_details table
-          // Common fields are already in products table
-          const apparelInsert: any = {
-            product_id: productId,
-            // Apparel-specific details only (common fields are in products table)
-            brand: formData.apparelDetails?.brand || 'Not Specified',
-            // Explicitly set to null if empty string - always include in update
-            material: toNullIfEmpty(formData.apparelDetails?.material),
-            fit_type: selectedFitTypes.length > 0 ? selectedFitTypes.join(',') : null,
-            pattern: toNullIfEmpty(formData.apparelDetails?.pattern),
-            color: toNullIfEmpty(formData.apparelDetails?.color),
-            size: selectedSizes.length > 0 ? selectedSizes.join(',') : null,
-            sku: toNullIfEmpty(formData.apparelDetails?.sku),
-          };
-          
-          // Check if record exists
-          const { data: existingData, error: checkError } = await supabase
-            .from('product_apparel_details')
-            .select('id')
-            .eq('product_id', productId)
-            .maybeSingle();
-          
-          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
-            throw new Error(`Failed to check apparel details: ${checkError.message}`);
-          }
-          
-          const existing = existingData || null;
-          
-          if (existing && existing.id) {
-            // Update existing record
-            const { error: updateError } = await supabase
-              .from('product_apparel_details')
-              .update(apparelInsert)
-              .eq('id', existing.id);
-            if (updateError) {
-              throw new Error(`Failed to update apparel details: ${updateError.message}`);
-            }
-          } else {
-            // Insert new record
-            const { data: insertData, error: insertError } = await supabase
-              .from('product_apparel_details')
-              .insert(apparelInsert)
-              .select();
-            if (insertError) {
-              throw new Error(`Failed to insert apparel details: ${insertError.message}`);
-            }
-          }
-        }
-        // AUTO-SAVE to accessories table if parent category detail_type is 'accessories'
-        else if (detailTypeFromDB === 'accessories') {
-          // Save ONLY accessories-specific details to product_accessories_details table
-          // Common fields are already in products table
-          const accessoriesInsert: any = {
-            product_id: productId,
-            // Accessories-specific details only (common fields are in products table)
-            // Use empty strings for optional fields instead of null
-            accessory_type: toEmptyIfEmpty(formData.accessoriesDetails?.accessory_type),
-            compatible_with: toEmptyIfEmpty(formData.accessoriesDetails?.compatible_with),
-            material: toEmptyIfEmpty(formData.accessoriesDetails?.material),
-            color: toEmptyIfEmpty(formData.accessoriesDetails?.color),
-          };
-          
-          // Check if record exists
-          const { data: existingData, error: checkError } = await supabase
-            .from('product_accessories_details')
-            .select('id')
-            .eq('product_id', productId)
-            .maybeSingle();
-          
-          if (checkError && !checkError.message.includes('JSON object requested, multiple')) {
-            throw new Error(`Failed to check accessories details: ${checkError.message}`);
-          }
-          
-          const existing = existingData || null;
-          
-          if (existing && existing.id) {
-            // Update existing record
-            const { error: updateError } = await supabase
-              .from('product_accessories_details')
-              .update(accessoriesInsert)
-              .eq('id', existing.id);
-            if (updateError) {
-              throw new Error(`Failed to update accessories details: ${updateError.message}`);
-            }
-          } else {
-            // Insert new record
-            const { data: insertData, error: insertError } = await supabase
-              .from('product_accessories_details')
-              .insert(accessoriesInsert)
-              .select();
-            if (insertError) {
-              throw new Error(`Failed to insert accessories details: ${insertError.message}`);
-            }
-          }
-        }
+      if (subcategoryId && (detailTypeFromDB === 'mobile' || detailTypeFromDB === 'apparel' || detailTypeFromDB === 'accessories')) {
+        await saveProductDetails({
+          productId,
+          detailType: detailTypeFromDB,
+          formData,
+          selectedSizes,
+          selectedFitTypes,
+          isEdit: true,
+        });
       }
 
       setSuccess(true);
@@ -853,33 +531,16 @@ export default function EditProductPage() {
 
     try {
       // Use API route to delete product (bypasses RLS and handles storage deletion)
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-      
-      // Add user ID header for admin authentication
-      if (user?.id) {
-        headers['X-User-Id'] = user.id;
-      }
-
       const deleteResponse = await fetch('/api/admin/delete-product', {
         method: 'POST',
-        headers,
+        headers: createAdminHeaders(user?.id),
         body: JSON.stringify({ productId })
       });
 
-      const responseData = await deleteResponse.json();
-
-      if (!deleteResponse.ok) {
-        throw new Error(responseData.error || 'Failed to delete product');
-      }
-
+      await handleApiResponse(deleteResponse, 'Failed to delete product');
+      
       // Only redirect if API confirms successful deletion
-      if (responseData.success) {
-        router.push('/admin/products');
-      } else {
-        throw new Error('Deletion failed - product may still exist');
-      }
+      router.push('/admin/products');
     } catch (err: any) {
       setError(err.message);
       setDeleting(false);
@@ -1089,20 +750,22 @@ export default function EditProductPage() {
                 <label htmlFor="badge" className="block text-sm font-medium text-gray-700">
                   Product Badge
                 </label>
-                <select
-                  name="badge"
-                  id="badge"
-                  value={formData.badge}
-                  onChange={handleChange}
-                  className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                <Select
+                  value={formData.badge || "none"}
+                  onValueChange={(value) => handleChange({ target: { name: 'badge', value: value === "none" ? "" : value } } as any)}
                 >
-                  <option value="">No Badge</option>
-                  <option value="NEW">NEW</option>
-                  <option value="SALE">SALE</option>
-                  <option value="HOT">HOT</option>
-                  <option value="FEATURED">FEATURED</option>
-                  <option value="LIMITED">LIMITED</option>
-                </select>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="No Badge" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Badge</SelectItem>
+                    <SelectItem value="NEW">NEW</SelectItem>
+                    <SelectItem value="SALE">SALE</SelectItem>
+                    <SelectItem value="HOT">HOT</SelectItem>
+                    <SelectItem value="FEATURED">FEATURED</SelectItem>
+                    <SelectItem value="LIMITED">LIMITED</SelectItem>
+                  </SelectContent>
+                </Select>
                 <p className="mt-1 text-xs text-gray-500">Optional product badge</p>
               </div>
 
@@ -1133,25 +796,31 @@ export default function EditProductPage() {
                 <label htmlFor="category" className="block text-sm font-medium text-gray-700">
                   Category *
                 </label>
-                <select
-                  name="category"
-                  id="category"
+                <Select
                   value={formData.category}
-                  onChange={handleCategoryChange}
-                  className={`mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm ${
-                    validationErrors.category ? 'border-red-300' : ''
-                  }`}
+                  onValueChange={(value) => {
+                    setFormData(prev => ({
+                      ...prev,
+                      category: value,
+                      subcategories: []
+                    }));
+                    if (value) {
+                      fetchSubcategories(value, categories);
+                    }
+                  }}
                   disabled={categoriesLoading}
                 >
-                  <option value="">
-                    {categoriesLoading ? 'Loading categories...' : 'Select a category'}
-                  </option>
-                  {categories.map(category => (
-                    <option key={category.id} value={category.name}>
-                      {category.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className={`mt-1 ${validationErrors.category ? 'border-red-300' : ''}`}>
+                    <SelectValue placeholder={categoriesLoading ? 'Loading categories...' : 'Select a category'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map(category => (
+                      <SelectItem key={category.id} value={category.name}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {validationErrors.category && (
                   <p className="mt-1 text-sm text-red-600">{validationErrors.category}</p>
                 )}

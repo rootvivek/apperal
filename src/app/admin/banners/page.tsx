@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
+import Alert from '@/components/ui/alert';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase } from '@/utils/imageUpload';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,12 +56,26 @@ export default function BannersPage() {
     setError(null);
     
     try {
+      // Get user ID from Supabase auth
+      let userId: string | null = user?.id || null;
+      
+      if (!userId) {
+        // Fallback: try to get from localStorage
+        if (typeof window !== 'undefined') {
+          userId = localStorage.getItem('user_id');
+        }
+        
+        if (!userId) {
+          throw new Error('User not authenticated. Please sign in again.');
+        }
+      }
+      
       const result = await uploadImageToSupabase(
         file,
         'banners',
         banner.section_name,
         false,
-        user?.id || null
+        userId
       );
 
       if (result.success && result.url) {
@@ -127,14 +142,19 @@ export default function BannersPage() {
 
           {/* Success/Error Messages */}
           {success && (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-1 py-0.5 rounded text-xs">
-              Banner updated successfully!
-            </div>
+            <Alert 
+              message="Banner updated successfully!" 
+              variant="success" 
+              className="mb-2 text-xs px-1 py-0.5"
+              autoDismiss={3000}
+            />
           )}
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-1 py-0.5 rounded text-xs">
-              {error}
-            </div>
+            <Alert 
+              message={error} 
+              variant="error" 
+              className="mb-2 text-xs px-1 py-0.5"
+            />
           )}
 
           {/* Banners Grid */}

@@ -6,25 +6,7 @@ export const getColorHex = (colorName: string): string => {
     'white': '#FFFFFF',
     'grey': '#808080',
     'gray': '#808080',
-    'red': '#FF0000',
-    'blue': '#0000FF',
-    'green': '#008000',
-    'yellow': '#FFFF00',
-    'pink': '#FFC0CB',
-    'purple': '#800080',
-    'orange': '#FFA500',
-    'brown': '#A52A2A',
-    'navy': '#000080',
-    'beige': '#F5F5DC',
-    'tan': '#D2B48C',
-    'maroon': '#800000',
-    'olive': '#808000',
-    'teal': '#008080',
-    'cyan': '#00FFFF',
-    'magenta': '#FF00FF',
-    'lime': '#00FF00',
-    'silver': '#C0C0C0',
-    'gold': '#FFD700',
+    'red': '#FF0000'
   };
   
   const normalized = colorName.toLowerCase().trim();
@@ -42,17 +24,7 @@ export const getSizeAbbreviation = (size: string): string => {
     'medium': 'M',
     'm': 'M',
     'large': 'L',
-    'l': 'L',
-    'extra large': 'XL',
-    'extra-large': 'XL',
-    'xl': 'XL',
-    '2xl': '2XL',
-    'xxl': '2XL',
-    'extra extra large': '2XL',
-    '3xl': '3XL',
-    'xxxl': '3XL',
-    '4xl': '4XL',
-    'xxxxl': '4XL',
+    'l': 'L'
   };
   
   const normalized = size.toLowerCase().trim();

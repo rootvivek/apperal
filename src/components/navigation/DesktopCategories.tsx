@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { ChevronDownIcon } from './Icons';
 import { mobileTypography } from '@/utils/mobileTypography';
-import type { Category } from './useCategoryFiltering';
+import type { Category } from '@/hooks/navigation/useCategoryFiltering';
 
 interface DesktopCategoriesProps {
   categories: Category[];
@@ -54,7 +54,7 @@ export default function DesktopCategories({
           >
             <Link
               href={`/products/${category.slug}`}
-              className="text-gray-900 hover:text-brand-500 text-base font-normal transition-colors flex items-center"
+              className="text-gray-900 hover:text-brand-500 text-sm font-normal transition-colors flex items-center"
             >
               {category.name}
               {category.subcategories && category.subcategories.length > 0 && (

@@ -1,13 +1,21 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
 import EmptyState from '@/components/EmptyState';
 import { mobileTypography } from '@/utils/mobileTypography';
-import { useOrderDetail } from './useOrderDetail';
+import { useOrderDetail } from '@/hooks/orders/useOrderDetail';
 import OrderItem from './OrderItem';
 import CancelItemModal from './CancelItemModal';
 import ReturnRequestModal from './ReturnRequestModal';
-import OrderSummary from './OrderSummary';
+import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
+import { OrderStatusStepper } from './OrderStatusStepper';
+import ImageWithFallback from '@/components/ImageWithFallback';
+import ProductCard from '@/components/ProductCard';
+import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
+import { createClient } from '@/lib/supabase/client';
+import ShippingAddressCard from '@/components/address/ShippingAddressCard';
 export interface OrderReturn {
   id: string;
   order_id: string;
@@ -123,6 +131,9 @@ export default function OrderDetail({
     submitReturnRequest,
   } = useOrderDetail({ order, onOrderUpdate });
 
+  const [relatedProducts, setRelatedProducts] = useState<any[]>([]);
+  const supabase = createClient();
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -137,7 +148,7 @@ export default function OrderDetail({
   }
 
   const getSubtotal = () => {
-    return currentOrder.items.reduce((total, item) => total + item.total_price, 0);
+    return currentOrder.items.reduce((total: number, item: OrderDetailItem) => total + item.total_price, 0);
   };
 
   const getShipping = () => {
@@ -145,89 +156,279 @@ export default function OrderDetail({
     return currentOrder.total_amount - subtotal;
   };
 
+  const primaryItem = currentOrder.items[0];
+
+  const buildFallbackRelated = () => {
+    const unique = new Map<string, any>();
+    currentOrder.items.forEach((item: OrderDetailItem) => {
+      if (!unique.has(item.product_id)) {
+        unique.set(item.product_id, {
+          id: item.product_id,
+          name: item.product_name,
+          slug: undefined,
+          description: '',
+          price: item.product_price,
+          original_price: undefined,
+          badge: undefined,
+          category: '',
+          subcategories: [],
+          image_url: item.product_image || '/placeholder-product.jpg',
+          stock_quantity: 0,
+          is_active: true,
+          created_at: currentOrder.created_at,
+          updated_at: currentOrder.created_at,
+          images: [],
+        });
+      }
+    });
+    return Array.from(unique.values());
+  };
+
+  useEffect(() => {
+    const fetchRelated = async () => {
+      if (!primaryItem?.product_id) {
+        setRelatedProducts(buildFallbackRelated());
+        return;
+      }
+
+      try {
+        // Fetch base product to get category / subcategory
+        const { data: baseProduct } = await supabase
+          .from('products')
+          .select(
+            'id, category_id, subcategory_id, name'
+          )
+          .eq('id', primaryItem.product_id)
+          .maybeSingle();
+
+        if (!baseProduct) {
+          setRelatedProducts(buildFallbackRelated());
+          return;
+        }
+
+        const categoryId = baseProduct.category_id as string | null;
+        const subcategoryId = baseProduct.subcategory_id as string | null;
+        const currentProductId = baseProduct.id as string;
+
+        let productsData: any[] = [];
+
+        // 1) Try same category
+        if (categoryId) {
+          const { data, error } = await supabase
+            .from('products')
+            .select(
+              'id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category, subcategory, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)'
+            )
+            .eq('category_id', categoryId)
+            .neq('id', currentProductId)
+            .eq('is_active', true)
+            .limit(8)
+            .order('created_at', { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            productsData = data;
+          }
+        }
+
+        // 2) Fallback: same subcategory
+        if (productsData.length === 0 && subcategoryId) {
+          const { data, error } = await supabase
+            .from('products')
+            .select(
+              'id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category, subcategory, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)'
+            )
+            .eq('subcategory_id', subcategoryId)
+            .neq('id', currentProductId)
+            .eq('is_active', true)
+            .limit(8)
+            .order('created_at', { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            productsData = data;
+          }
+        }
+
+        // 3) Final fallback: any active products
+        if (productsData.length === 0) {
+          const { data, error } = await supabase
+            .from('products')
+            .select(
+              'id, name, slug, description, price, original_price, image_url, stock_quantity, is_active, category, subcategory, created_at, updated_at, badge, product_images (id, image_url, alt_text, display_order)'
+            )
+            .neq('id', currentProductId)
+            .eq('is_active', true)
+            .limit(8)
+            .order('created_at', { ascending: false });
+
+          if (!error && data && data.length > 0) {
+            productsData = data;
+          }
+        }
+
+        if (!productsData || productsData.length === 0) {
+          setRelatedProducts(buildFallbackRelated());
+          return;
+        }
+
+        // Transform products similarly to product detail page
+        const transformed = productsData.map((product: any) => {
+          let mainImageUrl = product.image_url;
+          if (!mainImageUrl && product.product_images && product.product_images.length > 0) {
+            mainImageUrl = product.product_images[0].image_url;
+          }
+
+          const imagesArray =
+            product.product_images && product.product_images.length > 0
+              ? product.product_images.map((img: any) => ({
+                  id: img.id || 'image-' + Math.random(),
+                  image_url: img.image_url,
+                  alt_text: img.alt_text || product.name,
+                  display_order: img.display_order || 0,
+                }))
+              : mainImageUrl
+              ? [
+                  {
+                    id: 'main-image',
+                    image_url: mainImageUrl,
+                    alt_text: product.name,
+                    display_order: 0,
+                  },
+                ]
+              : [];
+
+        return {
+            id: product.id,
+            name: product.name,
+            slug: product.slug,
+            description: product.description,
+            price: product.price,
+            original_price: product.original_price ?? undefined,
+            badge: product.badge ?? undefined,
+            category: typeof product.category === 'object' ? product.category?.name || '' : product.category || '',
+            subcategories: product.subcategory ? [product.subcategory] : [],
+            image_url: mainImageUrl || '/placeholder-product.jpg',
+            stock_quantity: product.stock_quantity ?? 0,
+            is_active: product.is_active ?? true,
+            created_at: product.created_at,
+            updated_at: product.updated_at,
+            images: imagesArray,
+          };
+        });
+
+        setRelatedProducts(transformed);
+      } catch (err) {
+        setRelatedProducts(buildFallbackRelated());
+      }
+    };
+
+    fetchRelated();
+  }, [primaryItem?.product_id, supabase, currentOrder.items, currentOrder.created_at]);
+
   return (
-    <div className="space-y-0">
-      {/* Two Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-0">
-        {/* Left Column: Order ID, Shipping Info, Order Items */}
-        <div className="lg:col-span-2 lg:pr-8 lg:border-r lg:border-gray-200">
-          {/* Order Header */}
-          <div className="px-3 sm:px-4 py-2 sm:py-4">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h2 className="text-base sm:text-xl lg:text-2xl font-semibold text-gray-900 mb-1">
-                  Order #{currentOrder.order_number}
-                </h2>
-                <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>{formatDate(currentOrder.created_at)}</p>
-              </div>
-              <span className={`px-3 py-1.5 rounded-full ${mobileTypography.body12Medium} sm:text-sm inline-block ${getStatusColor(currentOrder.status)}`}>
-                {currentOrder.status.charAt(0).toUpperCase() + currentOrder.status.slice(1)}
-              </span>
+    <div className="space-y-3 sm:space-y-4">
+      {/* Mobile hero product card (matches Figma top section) */}
+      {primaryItem && (
+        <div className="lg:hidden flex flex-col items-center gap-2 bg-white rounded-[4px] p-4">
+          <div className="w-[118px] h-[120px] rounded-[4px] overflow-hidden">
+            <ImageWithFallback
+              src={primaryItem.product_image || '/placeholder-product.jpg'}
+              alt={primaryItem.product_name}
+              className="w-full h-full object-cover"
+              fallbackType="product"
+              loading="lazy"
+              decoding="async"
+              width={118}
+              height={120}
+              responsive
+              responsiveSizes={[118, 236]}
+              quality={85}
+            />
+          </div>
+          <p className="text-sm font-medium text-gray-900 text-center max-w-[220px] line-clamp-2">
+            {primaryItem.product_name}
+          </p>
+        </div>
+      )}
+
+      {/* Order Status Card */}
+      <Card className="rounded-[4px]">
+        <CardContent className="p-2.5">
+          <div className="flex flex-col gap-1.5 mb-2 sm:mb-3">
+            <h2 className="text-sm sm:text-base font-semibold text-gray-900">
+              Order #{currentOrder.order_number}
+            </h2>
+            <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
+              {formatDate(currentOrder.created_at)}
+            </p>
+          </div>
+          <OrderStatusStepper status={currentOrder.status} />
+        </CardContent>
+      </Card>
+
+      {/* Shipping Information Card */}
+      {showCustomerInfo && (customerName || customerPhone || shippingAddress) && (
+        <ShippingAddressCard
+          address={{
+            id: 'order-shipping',
+            full_name: customerName || shippingAddress?.full_name || undefined,
+            phone: customerPhone ? parseInt(String(customerPhone), 10) : (shippingAddress?.phone || undefined),
+            address_line1: shippingAddress?.address_line1 || '',
+            address_line2: shippingAddress?.address_line2,
+            city: shippingAddress?.city || '',
+            state: shippingAddress?.state || '',
+            zip_code: shippingAddress?.zip_code || '',
+            is_default: false,
+          }}
+          variant="display"
+          compact={true}
+          showPhone={!!(customerPhone || shippingAddress?.phone)}
+        />
+      )}
+
+      {/* Related Products Card */}
+      {relatedProducts.length > 0 && (
+        <Card className="rounded-[4px]">
+          <CardContent className="p-2.5">
+            <div className="text-center mb-3">
+              <h3 className={`${mobileTypography.title14Bold} sm:text-base text-gray-900`}>
+                Related Products
+              </h3>
             </div>
-          </div>
+            <div className={PRODUCT_GRID_CLASSES_SMALL_GAP}>
+              {relatedProducts.map((item) => (
+                <ProductCard
+                  key={item.id}
+                  product={item}
+                  variant="minimal"
+                />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Separator */}
-          <div className="px-3 sm:px-4 py-2 sm:py-6">
-            <div className="border-t border-gray-200"></div>
-          </div>
-
-          {/* Shipping Information */}
-          {showCustomerInfo && (customerName || customerPhone || shippingAddress) && (
-            <>
-              <div className="px-3 sm:px-4 py-2 sm:py-4">
-                <h3 className={`${mobileTypography.title14Bold} sm:text-base lg:text-lg text-gray-900 mb-3 sm:mb-4`}>Shipping Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {customerName && (
-                    <div>
-                      <p className={`text-gray-600 ${mobileTypography.body12} sm:text-sm mb-1`}>Name</p>
-                      <p className={`font-medium text-gray-900 ${mobileTypography.title14} sm:text-base`}>{customerName}</p>
-                    </div>
-                  )}
-                  {customerPhone && (
-                    <div>
-                      <p className={`text-gray-600 ${mobileTypography.body12} sm:text-sm mb-1`}>Phone</p>
-                      <p className={`font-medium text-gray-900 ${mobileTypography.title14} sm:text-base`}>{customerPhone}</p>
-                    </div>
-                  )}
-                  {shippingAddress && (
-                    <div className="md:col-span-2">
-                      <p className={`text-gray-600 ${mobileTypography.body12} sm:text-sm mb-1`}>Shipping Address</p>
-                      <div className={`font-medium text-gray-900 ${mobileTypography.body12} sm:text-sm`}>
-                        <p>{shippingAddress.address_line1 || ''}</p>
-                        {shippingAddress.address_line2 && <p>{shippingAddress.address_line2}</p>}
-                        <p>{shippingAddress.city || ''}, {shippingAddress.state || ''} {shippingAddress.zip_code || ''}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Separator */}
-              <div className="px-3 sm:px-4 py-2 sm:py-6">
-                <div className="border-t border-gray-200"></div>
-              </div>
-            </>
-          )}
-
-          {/* Order Items */}
-          <div className="px-3 sm:px-4 py-2 sm:py-4">
-            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-1">Order Items</h3>
-            <p className="text-xs text-gray-600 mb-3 sm:mb-4">{currentOrder.items.length} item(s) in this order</p>
+      {/* Order Items Card (desktop only – hidden on mobile to match Figma card) */}
+      <div className="hidden lg:block">
+        <Card className="rounded-[4px]">
+          <CardContent className="p-2.5">
+            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-1">
+              Order Items
+            </h3>
+            <p className="text-xs text-gray-600 mb-3 sm:mb-4">
+              {currentOrder.items.length} item(s) in this order
+            </p>
 
             {currentOrder.items.length === 0 ? (
               <div className="py-6">
-                <EmptyState
-                  title="No items found"
-                  variant="minimal"
-                />
+                <EmptyState title="No items found" variant="minimal" />
               </div>
             ) : (
               <div className="space-y-0">
-                {currentOrder.items.map((item, index) => (
+                {currentOrder.items.map((item: OrderDetailItem, index: number) => (
                   <div key={item.id}>
                     {index > 0 && (
-                      <div className="my-4 sm:my-6">
-                        <div className="border-t border-gray-200"></div>
+                      <div className="my-3 sm:my-4">
+                        <div className="border-t border-gray-200" />
                       </div>
                     )}
                     <OrderItem
@@ -243,24 +444,8 @@ export default function OrderDetail({
                 ))}
               </div>
             )}
-          </div>
-        </div>
-
-        {/* Right Column: Payment Summary */}
-        <div className="lg:col-span-1">
-          <div className="lg:sticky lg:top-4">
-            <OrderSummary
-              orderDate={currentOrder.created_at}
-              paymentMethod={currentOrder.payment_method}
-              paymentStatus={currentOrder.payment_status}
-              subtotal={getSubtotal()}
-              shipping={getShipping()}
-              total={currentOrder.total_amount}
-              formatDate={formatDate}
-              formatCurrency={formatCurrency}
-            />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Cancel Item Modal */}

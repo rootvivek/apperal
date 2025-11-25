@@ -104,7 +104,7 @@ export async function handleRazorpayPayment({
       key: razorpayOrder.key,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
-      name: 'Apperal',
+      name: 'Nipto',
       description: `Order ${orderNumber}`,
       order_id: razorpayOrder.id,
       handler: async function (response: any) {

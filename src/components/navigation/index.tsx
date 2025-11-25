@@ -2,12 +2,11 @@
 
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
+import { ShoppingCart, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCart } from '@/contexts/CartContext';
 import { useWishlist } from '@/contexts/WishlistContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
-import CartIcon from '../CartIcon';
-import WishlistIcon from '../WishlistIcon';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { mobileTypography } from '@/utils/mobileTypography';
@@ -16,11 +15,11 @@ import Logo from './Logo';
 import DesktopCategories from './DesktopCategories';
 import MobileSearch from './MobileSearch';
 import UserDropdown from './UserDropdown';
-import { useNavigation } from './useNavigation';
-import { useCategoryFiltering } from './useCategoryFiltering';
-import { useUserInfo } from './useUserInfo';
-import { usePageTitle } from './usePageTitle';
-import { useBackNavigation } from './useBackNavigation';
+import { useNavigation } from '@/hooks/navigation/useNavigation';
+import { useCategoryFiltering } from '@/hooks/navigation/useCategoryFiltering';
+import { useUserInfo } from '@/hooks/navigation/useUserInfo';
+import { usePageTitle } from '@/hooks/navigation/usePageTitle';
+import { useBackNavigation } from '@/hooks/navigation/useBackNavigation';
 
 const NAVBAR_PADDING = "px-4 sm:px-6 md:px-8 lg:px-10";
 
@@ -58,10 +57,10 @@ export default function Navigation() {
             <div className="flex items-center h-full">
               <button
                 onClick={navigation.closeMobileSearch}
-                className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2 flex-shrink-0"
+                className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2 flex-shrink-0 flex items-center justify-center"
                 aria-label="Close search"
               >
-                <BackArrowIcon />
+                <BackArrowIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
               </button>
             </div>
           ) : (
@@ -72,15 +71,17 @@ export default function Navigation() {
                   <div className="flex lg:hidden items-center gap-2 sm:gap-3">
                     <button
                       onClick={handleBack}
-                      className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2"
+                      className="text-gray-500 hover:text-brand-500 transition-colors p-1.5 sm:p-2 flex items-center justify-center"
                       aria-label="Go back"
                     >
-                      <BackArrowIcon />
+                      <BackArrowIcon className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
                     </button>
                     <Logo className="h-6 sm:h-8 w-auto" maxWidth="100px" />
-                    <span className={`text-gray-900 ${mobileTypography.title14} sm:text-base font-medium truncate max-w-[120px] sm:max-w-[200px] flex-shrink-0`}>
-                      {pageTitle.pageTitle || (pageTitle.isAllProductsPage ? 'All Products' : (pageTitle.currentSubcategoryName || pageTitle.currentCategoryName || 'Back'))}
-                    </span>
+                    {pathname !== '/search' && (
+                      <span className={`text-gray-900 ${mobileTypography.title14} sm:text-base font-medium truncate max-w-[120px] sm:max-w-[200px] flex-shrink-0`}>
+                        {pageTitle.pageTitle || (pageTitle.isAllProductsPage ? 'All Products' : (pageTitle.currentSubcategoryName || pageTitle.currentCategoryName || 'Back'))}
+                      </span>
+                    )}
                   </div>
                   
                   <div className="hidden lg:flex items-center gap-4">
@@ -104,9 +105,9 @@ export default function Navigation() {
             showMobileSearch={navigation.showMobileSearch}
           />
 
-          {/* Desktop Search Bar - Hidden on mobile, visible on larger screens */}
+          {/* Search Bar - Visible on all screens */}
           {!navigation.showMobileSearch && (
-            <div className="hidden sm:flex flex-1 mx-4 lg:mx-8">
+            <div className="flex flex-1 ml-2 sm:ml-4 lg:ml-8 mr-2 sm:mr-4 lg:mr-8">
               <form onSubmit={navigation.handleSearch} className="relative w-full">
                 <Input
                   type="text"
@@ -114,12 +115,13 @@ export default function Navigation() {
                   value={navigation.searchQuery}
                   onChange={navigation.handleInputChange}
                   className={cn(
-                    "w-full py-2.5 pl-14 pr-4 text-gray-700 bg-gray-100 rounded-full text-sm",
-                    "border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                    "w-full py-1.5 sm:py-2.5 pl-7 pr-4 text-gray-700 bg-transparent text-xs sm:text-sm h-8 sm:h-10",
+                    "border border-gray-300 focus-visible:ring-0 focus-visible:ring-offset-0"
                   )}
+                  style={{ borderRadius: '999px' }}
                 />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <SearchIcon className="w-6 h-6 text-gray-400" />
+                <div className="absolute inset-y-0 left-0 pl-2.5 flex items-center justify-center pointer-events-none">
+                  <SearchIcon className="w-4 h-4 sm:w-4 sm:h-4 text-gray-400" />
                 </div>
               </form>
             </div>
@@ -136,26 +138,39 @@ export default function Navigation() {
           )}
 
           <div className={`flex items-center space-x-1 sm:space-x-2 ${navigation.showMobileSearch ? 'hidden' : 'flex'}`}>
-            {/* Mobile Search Icon */}
-            {!navigation.showMobileSearch && (
-              <button 
-                onClick={navigation.openMobileSearch}
-                className="sm:hidden text-gray-500 hover:text-brand-500 p-2"
-              >
-                <SearchIcon />
-              </button>
-            )}
 
             {/* Wishlist Icon - Only show when user is logged in */}
             {isUserLoggedIn && (
-              <Link href="/wishlist" className={`text-gray-500 hover:text-brand-500 nav-wishlist-link flex items-center justify-center h-full p-2 ${navigation.showMobileSearch ? 'invisible' : 'visible'}`}>
-                <WishlistIcon showCount={true} count={wishlistCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+              <Link
+                href="/wishlist"
+                className={cn(
+                  'relative text-gray-500 hover:text-brand-500 nav-wishlist-link flex items-center justify-center h-full px-1 py-2',
+                  navigation.showMobileSearch ? 'invisible' : 'visible',
+                )}
+              >
+                <Heart className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] sm:text-[11px] min-w-[16px] h-[16px] px-1">
+                    {wishlistCount > 9 ? '9+' : wishlistCount}
+                  </span>
+                )}
               </Link>
             )}
 
             {/* Cart Icon - Show for all users (logged in and guests) */}
-            <Link href="/cart" className={`text-gray-500 hover:text-brand-500 nav-cart-link flex items-center justify-center h-full p-2 ${navigation.showMobileSearch ? 'invisible' : 'visible'}`}>
-              <CartIcon showCount={true} count={cartCount} className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+            <Link
+              href="/cart"
+              className={cn(
+                'relative text-gray-500 hover:text-brand-500 nav-cart-link flex items-center justify-center h-full px-1 py-2',
+                navigation.showMobileSearch ? 'invisible' : 'visible',
+              )}
+            >
+              <ShoppingCart className="w-[18px] h-[18px] sm:w-5 sm:h-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 inline-flex items-center justify-center rounded-full bg-emerald-500 text-white text-[10px] sm:text-[11px] min-w-[16px] h-[16px] px-1">
+                  {cartCount > 9 ? '9+' : cartCount}
+                </span>
+              )}
             </Link>
             
             <div className={`flex items-center space-x-1 sm:space-x-2 h-full ${navigation.showMobileSearch ? 'invisible' : 'visible'}`} suppressHydrationWarning>

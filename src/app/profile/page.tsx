@@ -3,404 +3,129 @@
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
-import { createClient } from '@/lib/supabase/client';
-import Link from 'next/link';
-import { getAuth, updateProfile } from 'firebase/auth';
-import EmptyState from '@/components/EmptyState';
 import { Spinner } from '@/components/ui/spinner';
-
-interface UserProfile {
-  id: string;
-  full_name: string | null;
-  phone: string | null;
-  is_admin?: boolean | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface Address {
-  id: string;
-  user_id: string;
-  address_line1: string;
-  full_name: string | null;
-  city: string;
-  state: string;
-  zip_code: string;
-  phone: number | null;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-}
+import ProfileForm from '@/components/profile/ProfileForm';
+import AddressForm from '@/components/profile/AddressForm';
+import AddressList from '@/components/profile/AddressList';
+import Alert from '@/components/ui/alert';
+import { Card, CardContent } from '@/components/ui/card';
+import { useProfileData } from '@/hooks/profile/useProfileData';
+import { useProfileForm } from '@/hooks/profile/useProfileForm';
+import { useAddressManagement } from '@/hooks/profile/useAddressManagement';
+import type { Address } from '@/hooks/profile/useAddressManagement';
 
 function ProfileContent() {
   const { user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const supabase = createClient();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [addresses, setAddresses] = useState<Address[]>([]);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  
-  // Form state
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  
-  // Address form state
-  const [showAddressForm, setShowAddressForm] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
-  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
-  const [addressForm, setAddressForm] = useState({
-    address_line1: '',
-    full_name: '',
-    city: '',
-    state: '',
-    zip_code: '',
-    phone: '',
-    is_default: false,
-  });
-  const [savingAddress, setSavingAddress] = useState(false);
 
+  // Profile data and form management
+  const { profile, loading, error: profileError, setError: setProfileError, fetchProfile, updateProfile } = useProfileData(user);
+  const { fullName, phone, setFullName, setPhone, hasChanges, resetForm } = useProfileForm({ profile });
+
+  // Address management
+  const {
+    addresses,
+    showAddressForm,
+    editingAddress,
+    addressForm,
+    savingAddress,
+    setShowAddressForm,
+    setAddressForm,
+    fetchAddresses,
+    handleAddressSubmit: handleAddressSubmitInternal,
+    handleEditAddress,
+    handleDeleteAddress: handleDeleteAddressInternal,
+    handleSetDefaultAddress: handleSetDefaultAddressInternal,
+    resetAddressForm,
+  } = useAddressManagement(user?.id);
+
+  // Instant redirect if not authenticated (no spinner)
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
       return;
     }
+  }, [authLoading, user, router]);
 
+  useEffect(() => {
     if (user) {
       fetchProfile();
       fetchAddresses();
     }
-  }, [user, authLoading, router]);
+  }, [user, fetchProfile, fetchAddresses]);
 
-  const fetchProfile = async () => {
-    if (!user?.id) return;
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      const { data, error: fetchError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle();
-
-      if (fetchError) {
-        throw fetchError;
-      }
-
-      if (data) {
-        setProfile(data);
-        setFullName(data.full_name || '');
-        setPhone(data.phone || '');
-      } else {
-        // Profile doesn't exist, create one for Firebase user
-        // Note: Firebase users don't trigger Supabase auth.users triggers, so we create manually
-        // Create user profile for Firebase user
-        const insertQuery = supabase
-          .from('user_profiles')
-          .insert({
-            id: user.id,
-            full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
-            phone: user.phone || null,
-            is_admin: false,
-          })
-          .select();
-        
-        const insertResult = await insertQuery;
-
-        if (insertResult.error) {
-          // If insert fails (e.g., RLS policy or duplicate), try to fetch existing profile
-          // Profile insert failed, check if it exists
-          const { data: existingProfile } = await supabase
-              .from('user_profiles')
-              .select('*')
-              .eq('id', user.id)
-              .maybeSingle();
-            
-          if (existingProfile) {
-            setProfile(existingProfile);
-            setFullName(existingProfile.full_name || '');
-            setPhone(existingProfile.phone || '');
-          } else {
-            // Profile doesn't exist and couldn't be created - set defaults
-            setProfile({
-            id: user.id,
-            full_name: user.user_metadata?.full_name || null,
-            phone: user.phone || null,
-            is_admin: false,
-            created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString(),
-            });
-            setFullName(user.user_metadata?.full_name || '');
-            setPhone(user.phone || '');
-            // Fall back to in-memory profile
-          }
-        } else if (insertResult.data && insertResult.data.length > 0) {
-          const newProfile = insertResult.data[0];
-          setProfile(newProfile);
-          setFullName(newProfile.full_name || '');
-          setPhone(newProfile.phone || '');
-        }
-      }
-    } catch (err: any) {
-      console.error('Error fetching profile:', err);
-      setError(err.message || 'Failed to load profile');
-    } finally {
-      setLoading(false);
+  // Initialize form when profile loads
+  useEffect(() => {
+    if (profile) {
+      resetForm();
     }
-  };
+  }, [profile, resetForm]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!user?.id) return;
+  // Sync profile error with main error state
+  useEffect(() => {
+    if (profileError) {
+      setError(profileError);
+    }
+  }, [profileError]);
+
+  const handleSubmit = async () => {
+    if (!user?.id || !hasChanges) return;
 
     try {
       setSaving(true);
       setError(null);
       setSuccess(false);
 
-      const { error: updateError } = await supabase
-        .from('user_profiles')
-        .update({
-          full_name: fullName.trim() || null,
-          phone: phone.trim() || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
+      const success = await updateProfile(fullName, phone);
 
-      if (updateError) {
-        throw updateError;
+      if (success) {
+        setSuccess(true);
+        setTimeout(() => setSuccess(false), 2000);
       }
-
-      // Also update Firebase displayName so it persists after refresh
-      try {
-        const auth = getAuth();
-        const currentUser = auth.currentUser;
-        if (currentUser) {
-          await updateProfile(currentUser, {
-            displayName: fullName.trim() || null
-          });
-        }
-      } catch (firebaseError) {
-        // Log but don't fail - Supabase update succeeded
-        // Could not update Firebase display name
-      }
-
-      // Update local state
-      if (profile) {
-        setProfile({
-          ...profile,
-          full_name: fullName.trim() || null,
-          phone: phone.trim() || null,
-        });
-      }
-
-      // Dispatch custom event to notify Navigation component to refresh user name
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('profileUpdated', {
-          detail: { full_name: fullName.trim() || null }
-        }));
-      }
-
-      setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
     } catch (err: any) {
-      console.error('Error updating profile:', err);
       setError(err.message || 'Failed to update profile');
     } finally {
       setSaving(false);
     }
   };
 
-  const fetchAddresses = async () => {
-    if (!user?.id) return;
-
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('addresses')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (fetchError) {
-        // Only log if it's not a "no rows" type error (PGRST116 = no rows returned)
-        // This is expected for new users who don't have addresses yet
-        if (fetchError.code !== 'PGRST116') {
-          // Only log actual errors, not empty results
-          // No addresses found or error fetching
-        }
-        setAddresses([]);
-        return;
-      }
-
-      setAddresses(data || []);
-    } catch (err: any) {
-      // Silently handle errors - addresses might not exist yet for new users
-      // No addresses found or error fetching
-      setAddresses([]);
-    }
-  };
-
   const handleAddressSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!user?.id) return;
-
     try {
-      setSavingAddress(true);
       setError(null);
       setSuccess(false);
-
-      if (editingAddress) {
-        // Update existing address
-        const { error: updateError } = await supabase
-          .from('addresses')
-          .update({
-            address_line1: addressForm.address_line1.trim(),
-            full_name: addressForm.full_name.trim() || null,
-            city: addressForm.city.trim(),
-            state: addressForm.state.trim(),
-            zip_code: addressForm.zip_code.trim(),
-            phone: addressForm.phone ? parseInt(addressForm.phone.replace(/^\+91\s*/, '').replace(/\D/g, ''), 10) : null,
-            is_default: addressForm.is_default,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', editingAddress.id);
-
-        if (updateError) {
-          throw updateError;
-        }
-      } else {
-        // Create new address
-        // If setting as default, unset other defaults first
-        if (addressForm.is_default) {
-          // Find and update default addresses for this user
-          const { data: defaultAddresses } = await supabase
-            .from('addresses')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('is_default', true);
-          
-          if (defaultAddresses && defaultAddresses.length > 0) {
-            for (const addr of defaultAddresses) {
-              await supabase
-                .from('addresses')
-                .update({ is_default: false })
-                .eq('id', addr.id);
-            }
-          }
-        }
-
-        const { error: insertError } = await supabase
-          .from('addresses')
-          .insert({
-            user_id: user.id,
-            address_line1: addressForm.address_line1.trim(),
-            full_name: addressForm.full_name.trim() || null,
-            city: addressForm.city.trim(),
-            state: addressForm.state.trim(),
-            zip_code: addressForm.zip_code.trim(),
-            phone: addressForm.phone ? parseInt(addressForm.phone.replace(/^\+91\s*/, '').replace(/\D/g, ''), 10) : null,
-            is_default: addressForm.is_default,
-          })
-          .select();
-
-        if (insertError) {
-          throw insertError;
-        }
-      }
-
-      // Refresh addresses
-      await fetchAddresses();
-      
-      // Reset form
-      setAddressForm({
-        address_line1: '',
-        full_name: '',
-        city: '',
-        state: '',
-        zip_code: '',
-        phone: '',
-        is_default: false,
-      });
-      setShowAddressForm(false);
-      setEditingAddress(null);
+      await handleAddressSubmitInternal(e);
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => setSuccess(false), 2000);
     } catch (err: any) {
-      console.error('Error saving address:', err);
       setError(err.message || 'Failed to save address');
-    } finally {
-      setSavingAddress(false);
     }
-  };
-
-  const handleEditAddress = (address: Address) => {
-    setEditingAddress(address);
-    // Pre-fill with address data when editing
-    setAddressForm({
-      address_line1: address.address_line1,
-      full_name: address.full_name || '',
-      city: address.city,
-      state: address.state,
-      zip_code: address.zip_code,
-      phone: address.phone ? String(address.phone) : '',
-      is_default: address.is_default,
-    });
-    setShowAddressForm(true);
   };
 
   const handleDeleteAddress = async (addressId: string) => {
-    if (!confirm('Are you sure you want to delete this address?')) return;
-
     try {
-      const { error } = await supabase
-        .from('addresses')
-        .delete()
-        .eq('id', addressId);
-
-      if (error) throw error;
-
-      await fetchAddresses();
+      await handleDeleteAddressInternal(addressId);
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => setSuccess(false), 2000);
     } catch (err: any) {
-      console.error('Error deleting address:', err);
       setError(err.message || 'Failed to delete address');
     }
   };
 
   const handleSetDefaultAddress = async (addressId: string) => {
-    if (!user?.id) return;
-
     try {
-      // Unset all other defaults
-      await supabase
-        .from('addresses')
-        .update({ is_default: false })
-        .eq('user_id', user.id);
-
-      // Set this one as default
-      const { error } = await supabase
-        .from('addresses')
-        .update({ is_default: true })
-        .eq('id', addressId);
-
-      if (error) throw error;
-
-      await fetchAddresses();
+      await handleSetDefaultAddressInternal(addressId);
       setSuccess(true);
-      setTimeout(() => setSuccess(false), 3000);
+      setTimeout(() => setSuccess(false), 2000);
     } catch (err: any) {
-      console.error('Error setting default address:', err);
       setError(err.message || 'Failed to set default address');
     }
   };
 
+  // Show loading only if auth is loading or profile is loading
   if (authLoading || loading) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
@@ -412,103 +137,59 @@ function ProfileContent() {
     );
   }
 
+  // Don't render if not authenticated (redirect will happen)
   if (!user) {
     return null;
   }
 
   return (
-    <div className="min-h-screen bg-white pb-8">
-      <div className="max-w-[1450px] mx-auto w-full">
-
-        {/* Success Message */}
+    <div className="min-h-screen bg-gray-50 pb-8">
+      <div className="max-w-[1450px] mx-auto w-full p-2.5">
+        {/* Success Alert */}
         {success && (
-          <div className="px-3 sm:px-4 pt-3 sm:pt-4">
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
-              Profile updated successfully!
-            </div>
-          </div>
+          <Alert
+            message="Profile updated successfully!"
+            onClose={() => setSuccess(false)}
+            variant="success"
+          />
         )}
 
-        {/* Error Message */}
+        {/* Error Alert */}
         {error && (
-          <div className="px-3 sm:px-4 pt-3 sm:pt-4">
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md">
-              {error}
-            </div>
-          </div>
+          <Alert
+            message={error}
+            onClose={() => setError(null)}
+            variant="error"
+          />
         )}
 
-        <div className="bg-white">
+        <div className="bg-white space-y-3 sm:space-y-4">
           {/* Profile Form */}
-          <form onSubmit={handleSubmit} className="px-3 sm:px-4 py-3 sm:py-4">
-            <div className="space-y-6">
-              {/* Full Name */}
-              <div>
-                <label htmlFor="fullName" className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your full name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                />
-              </div>
-
-              {/* Phone */}
-              <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-2">
-                  Phone Number
-                </label>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  id="phone"
-                  value={phone}
-                  onChange={(e) => {
-                    // Only allow digits
-                    const numericValue = e.target.value.replace(/\D/g, '');
-                    setPhone(numericValue);
-                  }}
-                  placeholder="Enter your phone number"
-                  maxLength={10}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                />
-              </div>
-
-
-              {/* Account Created Date */}
-              {profile?.created_at && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Member Since
-                  </label>
-                  <input
-                    type="text"
-                    value={new Date(profile.created_at).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'long',
-                      day: 'numeric',
-                    })}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-600 cursor-not-allowed"
-                  />
-                </div>
-              )}
-            </div>
-          </form>
-
-          {/* Separator */}
-          <div className="px-3 sm:px-4">
-            <div className="border-t border-gray-200"></div>
-          </div>
+          <Card className="rounded-[4px]">
+            <CardContent className="p-2.5">
+          <ProfileForm
+            fullName={fullName}
+            phone={phone}
+            created_at={profile?.created_at}
+            onFullNameChange={setFullName}
+            onPhoneChange={setPhone}
+            onSave={handleSubmit}
+            onCancel={() => {
+              resetForm();
+              setError(null);
+              setSuccess(false);
+            }}
+            saving={saving}
+            hasChanges={hasChanges}
+          />
+            </CardContent>
+          </Card>
 
           {/* Addresses Section */}
-          <div className="px-3 sm:px-4 py-3 sm:py-4">
-            <div className="flex justify-between items-center mb-4">
+          <Card className="rounded-[4px]">
+            <CardContent className="p-2.5">
+              <div className="py-3 sm:py-4">
+                <div className="flex justify-between items-center mb-4 px-2.5">
               <div>
                 <h2 className="text-sm sm:text-lg font-semibold text-gray-900">Addresses</h2>
                 <p className="mt-1 text-xs sm:text-sm text-gray-600">Manage your shipping and billing addresses</p>
@@ -516,16 +197,7 @@ function ProfileContent() {
               {addresses.length < 3 && (
                 <button
                   onClick={() => {
-                    setEditingAddress(null);
-                    setAddressForm({
-                      address_line1: '',
-                      full_name: '',
-                      city: '',
-                      state: '',
-                      zip_code: '',
-                      phone: '',
-                      is_default: false,
-                    });
+                    resetAddressForm();
                     setShowAddressForm(!showAddressForm);
                   }}
                   className="px-4 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors text-sm whitespace-nowrap"
@@ -541,342 +213,39 @@ function ProfileContent() {
             {/* Address Form */}
             {showAddressForm && (
               <>
-                <div className="px-3 sm:px-4">
-                  <div className="border-t border-gray-200"></div>
-                </div>
-                <form onSubmit={handleAddressSubmit} className="px-3 sm:px-4 py-3 sm:py-4">
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Address Line 1 *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={addressForm.address_line1}
-                    onChange={(e) => setAddressForm({ ...addressForm, address_line1: e.target.value })}
-                    placeholder="Street address"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={addressForm.full_name}
-                    onChange={(e) => setAddressForm({ ...addressForm, full_name: e.target.value })}
-                    placeholder="Recipient's full name"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      City *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={addressForm.city}
-                      onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                      placeholder="City"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      State *
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      value={addressForm.state}
-                      onChange={(e) => setAddressForm({ ...addressForm, state: e.target.value })}
-                      placeholder="State"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ZIP Code *
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      pattern="[0-9]*"
-                      required
-                      value={addressForm.zip_code}
-                      onChange={(e) => {
-                        // Only allow digits
-                        const numericValue = e.target.value.replace(/\D/g, '');
-                        setAddressForm({ ...addressForm, zip_code: numericValue });
-                      }}
-                      placeholder="ZIP code"
-                      maxLength={6}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={addressForm.phone}
-                      onChange={(e) => {
-                        // Remove +91 prefix if present, then remove all non-digits
-                        let value = e.target.value.replace(/^\+91\s*/, '').replace(/\D/g, '');
-                        // Limit to 10 digits
-                        if (value.length > 10) {
-                          value = value.slice(0, 10);
-                        }
-                        setAddressForm({ ...addressForm, phone: value });
-                      }}
-                      placeholder="1234567890 or +911234567890"
-                      maxLength={13}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-[#4736FE] focus:border-transparent"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="is_default"
-                    checked={addressForm.is_default}
-                    onChange={(e) => setAddressForm({ ...addressForm, is_default: e.target.checked })}
-                    className="h-4 w-4 text-[#4736FE] focus:ring-[#4736FE] border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_default" className="ml-2 block text-sm text-gray-700">
-                    Set as default address
-                  </label>
-                </div>
-
-                <div className="flex justify-end space-x-4 pt-4">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddressForm(false);
-                      setEditingAddress(null);
-                      setAddressForm({
-                        address_line1: '',
-                        full_name: '',
-                        city: '',
-                        state: '',
-                        zip_code: '',
-                        phone: '',
-                        is_default: false,
-                      });
-                    }}
-                    className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={savingAddress}
-                    className="px-6 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    {savingAddress ? 'Saving...' : editingAddress ? 'Update Address' : 'Add Address'}
-                  </button>
-                </div>
-              </div>
-              </form>
-              {showAddressForm && (
-                <div className="px-3 sm:px-4">
-                  <div className="border-t border-gray-200"></div>
-                </div>
-              )}
+                    <div className="border-t border-gray-200" />
+                <AddressForm
+                  formData={addressForm}
+                  onFormDataChange={setAddressForm}
+                  onSubmit={handleAddressSubmit}
+                  onCancel={() => {
+                    setShowAddressForm(false);
+                    resetAddressForm();
+                  }}
+                  saving={savingAddress}
+                  isEditing={!!editingAddress}
+                />
+                    <div className="border-t border-gray-200" />
               </>
             )}
 
             {/* Addresses List */}
-            {addresses.length > 0 && (
-              <div className="px-3 sm:px-4">
-                <div className="border-t border-gray-200"></div>
-              </div>
+            {addresses.length > 0 && !showAddressForm && (
+                  <div className="border-t border-gray-200" />
             )}
-            <div className="px-3 sm:px-4 py-3 sm:py-4">
-            {addresses.length === 0 ? (
-              <EmptyState
-                icon="📍"
-                title="No addresses saved yet"
-                description="Add your first address above"
-                variant="compact"
-              />
-            ) : (() => {
-              // Find default address or use first address
-              const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
-              const displayAddress = selectedAddressId 
-                ? addresses.find(addr => addr.id === selectedAddressId) || defaultAddress
-                : defaultAddress;
-              
-              return (
-                <div>
-                  <div className="px-3 sm:px-4 py-3 sm:py-4">
-                    <div className="border rounded-lg p-3 border-gray-200">
-                      {/* Address Details Row */}
-                      <div className="flex items-start">
-                        <div className="flex-1">
-                          <p className="font-medium text-gray-900 mb-1">{displayAddress.full_name || 'Address'}</p>
-                          <p className="text-gray-700 text-sm">
-                            {displayAddress.address_line1}
-                          </p>
-                          <p className="text-gray-700 text-sm">
-                            {displayAddress.city}, {displayAddress.state} {displayAddress.zip_code}
-                          </p>
-                          {displayAddress.phone && (
-                            <p className="text-gray-700 text-sm mt-1">Phone: {displayAddress.phone}</p>
-                          )}
-                        </div>
-                        {displayAddress.is_default && (
-                          <svg className="w-5 h-5 text-orange-600 ml-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => {
-                        const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
-                        setSelectedAddressId(defaultAddress?.id || null);
-                        setShowAddressForm(true);
-                      }}
-                      className="mt-3 w-full px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      Change Address
-                    </button>
-                  </div>
-                  
-                  {/* Show all addresses when changing */}
-                  {showAddressForm && (
-                    <>
-                      <div className="px-3 sm:px-4">
-                        <div className="border-t border-gray-200"></div>
-                      </div>
-                      <div className="px-3 sm:px-4 py-3 sm:py-4 space-y-3">
-                        {addresses.map((address) => (
-                          <div
-                            key={address.id}
-                            className={`border rounded-lg p-3 transition-colors cursor-pointer ${
-                              selectedAddressId === address.id
-                                ? 'border-gray-400 bg-gray-50'
-                                : 'border-gray-200 hover:border-gray-300'
-                            }`}
-                            onClick={() => {
-                              setSelectedAddressId(address.id);
-                              const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
-                              if (address.id === defaultAddress?.id) {
-                                setShowAddressForm(false);
-                              }
-                            }}
-                          >
-                            <div className="flex items-start justify-between">
-                              <div className="flex-1">
-                                <p className="font-medium text-gray-900 mb-1">{address.full_name || 'Address'}</p>
-                                <p className="text-gray-700 text-sm">
-                                  {address.address_line1}
-                                </p>
-                                <p className="text-gray-700 text-sm">
-                                  {address.city}, {address.state} {address.zip_code}
-                                </p>
-                                {address.phone && (
-                                  <p className="text-gray-700 text-sm mt-1">Phone: {address.phone}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 ml-4">
-                                {selectedAddressId === address.id && (
-                                  <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditAddress(address);
-                                  }}
-                                  className="px-3 py-1 text-sm text-gray-700 hover:bg-gray-100 rounded transition-colors whitespace-nowrap"
-                                >
-                                  Edit
-                                </button>
-                                {!address.is_default && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeleteAddress(address.id);
-                                    }}
-                                    className="px-3 py-1 text-sm text-red-600 hover:bg-red-50 rounded transition-colors whitespace-nowrap"
-                                  >
-                                    Delete
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                        <button
-                          onClick={() => {
-                            setShowAddressForm(false);
-                            const defaultAddress = addresses.find(addr => addr.is_default) || addresses[0];
-                            setSelectedAddressId(defaultAddress?.id || null);
-                          }}
-                          className="w-full px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 transition-colors"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
+            <AddressList
+              addresses={addresses}
+              selectedAddressId={selectedAddressId}
+              onSelectAddress={setSelectedAddressId}
+              onEditAddress={handleEditAddress}
+              onDeleteAddress={handleDeleteAddress}
+              onSetDefaultAddress={handleSetDefaultAddress}
+              showAddressForm={showAddressForm}
+              onShowAddressForm={setShowAddressForm}
+            />
           </div>
-          </div>
-
-          {/* Separator before Submit Buttons */}
-          <div className="px-3 sm:px-4">
-            <div className="border-t border-gray-200"></div>
-          </div>
-
-          {/* Profile Submit Buttons - At the end of all profile content */}
-          <div className="px-3 sm:px-4 py-3 sm:py-4 flex justify-end space-x-4">
-            <button
-              type="button"
-                onClick={() => {
-                  // Reset form to original profile values
-                  if (profile) {
-                    setFullName(profile.full_name || '');
-                    setPhone(profile.phone || '');
-                  }
-                  setError(null);
-                  setSuccess(false);
-                }}
-              className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                handleSubmit(e as any);
-              }}
-              disabled={saving}
-              className="px-6 py-2 bg-[#4736FE] text-white rounded-md hover:bg-[#3a2dd4] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>
@@ -891,7 +260,6 @@ export default function ProfilePage() {
           <div className="text-center">
             <Spinner className="size-12 text-blue-600" />
             <p className="mt-4 text-gray-600">Loading...</p>
-            <p className="mt-4 text-gray-600">Loading...</p>
           </div>
         </div>
       }
@@ -900,5 +268,3 @@ export default function ProfilePage() {
     </Suspense>
   );
 }
-
-

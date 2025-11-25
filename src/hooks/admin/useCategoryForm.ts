@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Category } from './useCategories';
+import { generateUuid } from '@/utils/uuid';
 
 interface CategoryFormData {
   name: string;
@@ -94,17 +95,52 @@ export function useCategoryForm({
     try {
       setEditLoading(true);
       
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user?.id) {
-        onError('User not authenticated');
+      // Get user ID from Firebase (since we use Firebase phone auth)
+      let userId: string | null = null;
+      
+      try {
+        if (typeof window !== 'undefined') {
+          // Get user from localStorage
+          const storedUser = localStorage.getItem('user');
+          if (storedUser) {
+            try {
+              const user = JSON.parse(storedUser);
+              userId = user.id;
+            } catch {
+              // Invalid stored user
+            }
+          }
+        }
+      } catch {
+        // Continue to fallback
+      }
+      
+      if (!userId && typeof window !== 'undefined') {
+        const storedUser = localStorage.getItem('user');
+        if (storedUser) {
+          try {
+            const user = JSON.parse(storedUser);
+            userId = user.id;
+          } catch {
+            // Invalid stored user
+          }
+        }
+      }
+      
+      if (!userId) {
+        onError('User not authenticated. Please sign in again.');
         return;
       }
 
+      // Clean image_url - only include if it's a valid URL
+      const imageUrl = formData.image_url.trim();
+      const cleanImageUrlValue = imageUrl && imageUrl.startsWith('http') ? cleanImageUrl(imageUrl) : null;
+      
       let categoryData: any = {
         name: formData.name.trim(),
         slug: generateSlug(formData.name, isCreatingSubcategory, parentCategoryId || undefined),
-        description: formData.description.trim(),
-        image_url: formData.image_url.trim() ? cleanImageUrl(formData.image_url.trim()) : null,
+        description: formData.description.trim() || undefined,
+        image_url: cleanImageUrlValue,
         is_active: formData.is_active,
       };
       
@@ -129,7 +165,7 @@ export function useCategoryForm({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Id': user.id,
+              'X-User-Id': userId,
             },
             body: JSON.stringify({
               subcategoryId: editingCategory.id,
@@ -137,15 +173,24 @@ export function useCategoryForm({
             }),
           });
 
-          const data = await response.json();
+          // Read response once
+          const responseText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            const errorMessage = responseText || `Server error: ${response.status}`;
+            throw new Error(errorMessage);
+          }
 
           if (!response.ok) {
-            throw new Error(data.error || 'Failed to update subcategory');
+            const errorMessage = data.error || data.details || 'Failed to update subcategory';
+            throw new Error(errorMessage);
           }
         
           const updatedSubcategory: Category = {
             ...editingCategory,
-            ...categoryData
+            ...(data.subcategory || categoryData)
           };
           onUpdateSubcategory(editingCategory.parent_category_id, updatedSubcategory);
         } else {
@@ -154,7 +199,7 @@ export function useCategoryForm({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Id': user.id,
+              'X-User-Id': userId,
             },
             body: JSON.stringify({
               categoryId: editingCategory.id,
@@ -162,15 +207,24 @@ export function useCategoryForm({
             }),
           });
 
-          const data = await response.json();
+          // Read response once
+          const responseText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            const errorMessage = responseText || `Server error: ${response.status}`;
+            throw new Error(errorMessage);
+          }
 
           if (!response.ok) {
-            throw new Error(data.error || 'Failed to update category');
+            const errorMessage = data.error || data.details || 'Failed to update category';
+            throw new Error(errorMessage);
           }
 
           const updatedCategory: Category = {
             ...editingCategory,
-            ...categoryData
+            ...(data.category || categoryData)
           };
           onUpdateCategory(updatedCategory);
         }
@@ -186,7 +240,7 @@ export function useCategoryForm({
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Id': user.id,
+              'X-User-Id': userId,
             },
             body: JSON.stringify({
               ...categoryData,
@@ -194,42 +248,85 @@ export function useCategoryForm({
             }),
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to create subcategory');
+          // Read response once
+          const responseText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            const errorMessage = responseText || `Server error: ${response.status}`;
+            throw new Error(errorMessage);
           }
 
-          const newSubcategory: Category = {
-            ...data.subcategory,
-            parent_category_id: parentCategoryId
-          };
-          onAddSubcategory(parentCategoryId, newSubcategory);
+          if (!response.ok) {
+            const errorMessage = data.error || data.details || 'Failed to create subcategory';
+            throw new Error(errorMessage);
+          }
+
+          if (data.success && data.subcategory) {
+            const newSubcategory: Category = {
+              ...data.subcategory,
+              parent_category_id: parentCategoryId
+            };
+            onAddSubcategory(parentCategoryId, newSubcategory);
+          } else {
+            throw new Error('Invalid response from server');
+          }
         } else {
           // Create parent category
           const response = await fetch('/api/admin/create-category', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-User-Id': user.id,
+              'X-User-Id': userId,
             },
             body: JSON.stringify(categoryData),
           });
 
-          const data = await response.json();
-
-          if (!response.ok) {
-            throw new Error(data.error || 'Failed to create category');
+          // Read response once
+          const responseText = await response.text();
+          let data;
+          try {
+            data = JSON.parse(responseText);
+          } catch {
+            const errorMessage = responseText || `Server error: ${response.status}`;
+            throw new Error(errorMessage);
           }
 
-          onAddCategory(data.category);
+          if (!response.ok) {
+            const errorMessage = data.error || data.details || 'Failed to create category';
+            throw new Error(errorMessage);
+          }
+
+          if (data.success && data.category) {
+            onAddCategory(data.category);
+          } else {
+            throw new Error('Invalid response from server');
+          }
         }
       }
 
       resetForm();
       onSuccess();
     } catch (err: any) {
-      onError(err.message || 'Failed to save category');
+      // Extract error message safely
+      let errorMessage = 'Failed to save category';
+      
+      if (err) {
+        if (typeof err === 'string') {
+          errorMessage = err.trim() || errorMessage;
+        } else if (err.message && typeof err.message === 'string' && err.message.trim()) {
+          errorMessage = err.message.trim();
+        } else if (err.toString && typeof err.toString === 'function') {
+          const stringError = err.toString();
+          if (stringError && stringError !== '[object Object]' && stringError.trim()) {
+            errorMessage = stringError.trim();
+          }
+        }
+      }
+      
+      // Only call onError with a valid, non-empty error message
+      onError(errorMessage);
     } finally {
       setEditLoading(false);
     }
@@ -263,21 +360,6 @@ export function useCategoryForm({
     });
   }, []);
 
-  // Initialize form for subcategory creation
-  const initializeFormForSubcategory = useCallback((parentId: string) => {
-    setIsCreatingSubcategory(true);
-    setParentCategoryId(parentId);
-    if (!tempCategoryId) {
-      const newId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-      setTempCategoryId(newId);
-    }
-    resetForm();
-  }, [tempCategoryId]);
-
   // Reset form
   const resetForm = useCallback(() => {
     setFormData({
@@ -293,6 +375,17 @@ export function useCategoryForm({
     setParentCategoryId(null);
     setTempCategoryId(null);
   }, []);
+
+  // Initialize form for subcategory creation
+  const initializeFormForSubcategory = useCallback((parentId: string) => {
+    setIsCreatingSubcategory(true);
+    setParentCategoryId(parentId);
+    if (!tempCategoryId) {
+      const newId = generateUuid();
+      setTempCategoryId(newId);
+    }
+    resetForm();
+  }, [tempCategoryId, resetForm]);
 
   return {
     formData,
