@@ -1,22 +1,12 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
-import { z } from 'zod';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { normalizePhone, validatePhone, formatPhoneForInput } from '@/utils/phone';
-
-// Validation schemas
-const phoneSchema = z.string().refine((val) => {
-  const normalized = normalizePhone(val);
-  const validation = validatePhone(normalized);
-  return validation.isValid;
-}, { message: 'Phone number must be exactly 10 digits and start with 6, 7, 8, or 9' });
-const otpSchema = z.string().regex(/^\d{6}$/, 'OTP must be exactly 6 digits');
+import { ensureMSG91Ready } from '@/lib/msg91';
 
 export type LoginStep = 'phone' | 'otp';
 
 interface UseLoginOTPReturn {
-  // State
   step: LoginStep;
   phone: string;
   otp: string;
@@ -24,23 +14,19 @@ interface UseLoginOTPReturn {
   isSending: boolean;
   isVerifying: boolean;
   secondsLeft: number;
-  
-  // Actions
+  otpSent: boolean;
   setPhone: (phone: string) => void;
   setOtp: (otp: string) => void;
-  sendOtp: () => Promise<void>;
+  sendOtp: (phone: string) => Promise<void>;
+  verifyOtp: (otp: string) => Promise<{ 'access-token'?: string; accessToken?: string; phone?: string }>;
   resendOtp: () => Promise<void>;
-  verifyOtp: () => Promise<void>;
   resetState: () => void;
   backToPhone: () => void;
 }
 
 const RESEND_COOLDOWN_SECONDS = 30;
 
-export function useLoginOTP(): UseLoginOTPReturn {
-  const { sendOTP, verifyOTP } = useAuth();
-  
-  // State
+export const useLoginOTP = (): UseLoginOTPReturn => {
   const [step, setStep] = useState<LoginStep>('phone');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
@@ -48,14 +34,10 @@ export function useLoginOTP(): UseLoginOTPReturn {
   const [isSending, setIsSending] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(0);
+  const [otpSent, setOtpSent] = useState(false);
+  const [reqId, setReqId] = useState<string | null>(null);
   
-  // Refs for timer
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Normalize phone number for MSG91 (returns 10 digits, AuthContext adds +91)
-  const getNormalizedPhone = useCallback((phoneDigits: string): string => {
-    return normalizePhone(phoneDigits);
-  }, []);
 
   // Cleanup timer on unmount
   useEffect(() => {
@@ -68,149 +50,194 @@ export function useLoginOTP(): UseLoginOTPReturn {
 
   // Timer countdown for resend cooldown
   useEffect(() => {
-    if (secondsLeft > 0) {
-      timerRef.current = setInterval(() => {
-        setSecondsLeft((prev) => {
-          if (prev <= 1) {
-            if (timerRef.current) {
-              clearInterval(timerRef.current);
-            }
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else {
+    if (secondsLeft <= 0) {
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
+      return;
     }
+
+    timerRef.current = setInterval(() => {
+      setSecondsLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
 
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
   }, [secondsLeft]);
 
-  // Handle phone input change - normalize input
   const handleSetPhone = useCallback((value: string) => {
     const cleaned = formatPhoneForInput(value);
     setPhone(cleaned);
     setError('');
   }, []);
 
-  // Handle OTP input change - only allow digits
   const handleSetOtp = useCallback((value: string) => {
-    const cleaned = value.replace(/\D/g, '');
-    if (cleaned.length <= 6) {
-      setOtp(cleaned);
-      setError('');
+    const cleaned = value.replace(/\D/g, '').slice(0, 6);
+    setOtp(cleaned);
+    setError('');
+  }, []);
+
+  // Send OTP using MSG91 widget exposed method
+  const sendOtp = useCallback(async (phoneNumber: string) => {
+    const normalized = normalizePhone(phoneNumber);
+    if (!validatePhone(normalized).isValid) {
+      setError('Please enter a valid 10-digit mobile number');
+      return;
+    }
+
+    setError('');
+    setIsSending(true);
+
+    try {
+      await ensureMSG91Ready();
+      
+      const formattedPhone = `91${normalized}`;
+      
+      await new Promise<void>((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+          setIsSending(false);
+          reject(new Error('OTP request timed out. Please try again.'));
+        }, 30000);
+        
+        window.sendOtp!(
+          formattedPhone,
+          (data: any) => {
+            clearTimeout(timeoutId);
+            setReqId(data?.request_id || data?.reqId || data?.sessionId || null);
+            setOtpSent(true);
+            setStep('otp');
+            setSecondsLeft(RESEND_COOLDOWN_SECONDS);
+            setIsSending(false);
+            resolve();
+          },
+          (error: any) => {
+            clearTimeout(timeoutId);
+            setIsSending(false);
+            const errorMsg = error?.message || error?.toString() || 'Failed to send OTP. Please try again.';
+            setError(errorMsg);
+            reject(new Error(errorMsg));
+          }
+        );
+      });
+    } catch (err: any) {
+      setIsSending(false);
+      setError(err?.message || 'Failed to send OTP. Please try again.');
     }
   }, []);
 
-  // Send OTP
-  const sendOtp = useCallback(async () => {
-    // Validate phone
-    const validation = phoneSchema.safeParse(phone);
-    if (!validation.success) {
-      setError('Please enter a valid 10-digit mobile number');
-      return;
-    }
-
-    setError('');
-    setIsSending(true);
-
-    try {
-      const normalizedPhone = getNormalizedPhone(phone);
-      const { data, error: otpError } = await sendOTP(normalizedPhone);
-      
-      if (otpError) {
-        setError(otpError);
-        setIsSending(false);
-      } else {
-        setStep('otp');
-        setSecondsLeft(RESEND_COOLDOWN_SECONDS);
-        setIsSending(false);
+  // Extract access token from MSG91 response
+  const extractAccessToken = (data: any): string | null => {
+    // Check standard fields
+    let token = data?.['access-token'] || data?.accessToken || data?.token || data?.access_token || data?.jwt_token;
+    
+    // Check 'message' field for JWT token
+    if (!token && data?.message && typeof data.message === 'string') {
+      const message = data.message;
+      if (message.startsWith('eyJ') && message.split('.').length === 3) {
+        token = message;
       }
-    } catch (err: any) {
-      setError('Failed to send OTP. Please try again.');
-      setIsSending(false);
     }
-  }, [phone, sendOTP, getNormalizedPhone]);
+    
+    return token || null;
+  };
 
-  // Resend OTP
-  const resendOtp = useCallback(async () => {
-    if (secondsLeft > 0) {
-      return; // Still in cooldown
-    }
-
-    // Validate phone
-    const validation = phoneSchema.safeParse(phone);
-    if (!validation.success) {
-      setError('Please enter a valid 10-digit mobile number');
-      return;
+  // Verify OTP using MSG91 widget exposed method
+  const verifyOtp = useCallback(async (otpValue: string): Promise<{ 'access-token'?: string; accessToken?: string; phone?: string }> => {
+    if (!otpSent || !phone) {
+      throw new Error('OTP not sent. Please send OTP first.');
     }
 
-    setError('');
-    setIsSending(true);
-    setOtp(''); // Clear current OTP
-
-    try {
-      const normalizedPhone = getNormalizedPhone(phone);
-      const { data, error: otpError } = await sendOTP(normalizedPhone);
-      
-      if (otpError) {
-        setError(otpError);
-        setIsSending(false);
-      } else {
-        setSecondsLeft(RESEND_COOLDOWN_SECONDS);
-        setIsSending(false);
-      }
-    } catch (err: any) {
-      setError('Failed to resend OTP. Please try again.');
-      setIsSending(false);
-    }
-  }, [phone, secondsLeft, sendOTP, getNormalizedPhone]);
-
-  // Verify OTP
-  const verifyOtp = useCallback(async () => {
-    // Validate OTP
-    const validation = otpSchema.safeParse(otp);
-    if (!validation.success) {
-      setError('Please enter a valid 6-digit OTP');
-      return;
+    if (otpValue.length !== 4 && otpValue.length !== 6) {
+      throw new Error('OTP must be 4 or 6 digits');
     }
 
     setError('');
     setIsVerifying(true);
 
     try {
-      const normalizedPhone = getNormalizedPhone(phone);
-      const { data, error: verifyError } = await verifyOTP(normalizedPhone, otp);
-      
-      if (verifyError) {
-        setError(verifyError);
-        setIsVerifying(false);
-      } else {
-        setIsVerifying(false);
-      }
+      await ensureMSG91Ready();
+
+      return new Promise<{ 'access-token'?: string; accessToken?: string; phone?: string }>((resolve, reject) => {
+        window.verifyOtp!(
+          otpValue,
+          (data: any) => {
+            const accessToken = extractAccessToken(data);
+            if (!accessToken) {
+              setIsVerifying(false);
+              setError('No access token received from MSG91. Please try again.');
+              reject(new Error('No access token received'));
+              return;
+            }
+            
+            setIsVerifying(false);
+            resolve({
+              'access-token': accessToken,
+              accessToken: accessToken,
+              phone: phone,
+            });
+          },
+          (error: any) => {
+            setIsVerifying(false);
+            const errorCode = error?.code;
+            const errorMessage = error?.message || error?.error || error?.toString() || 'Invalid OTP. Please try again.';
+            
+            if (errorCode === 703 || errorMessage.toLowerCase().includes('already verif')) {
+              setOtpSent(false);
+              setStep('phone');
+              setError('This OTP has already been used. Please request a new OTP.');
+            } else {
+              setError(errorMessage);
+            }
+            reject(new Error(errorMessage));
+          },
+          reqId || undefined
+        );
+      });
     } catch (err: any) {
-      setError('Failed to verify OTP. Please try again.');
       setIsVerifying(false);
+      throw err;
     }
-  }, [phone, otp, verifyOTP, getNormalizedPhone]);
+  }, [otpSent, phone, reqId]);
 
-  // Auto-submit when OTP reaches 6 digits
-  useEffect(() => {
-    if (otp.length === 6 && step === 'otp' && !isVerifying) {
-      verifyOtp();
+  const resendOtp = useCallback(async () => {
+    if (secondsLeft > 0 || !phone) return;
+
+    setError('');
+    setIsSending(true);
+    setOtp('');
+
+    try {
+      await ensureMSG91Ready();
+      const formattedPhone = `91${normalizePhone(phone)}`;
+      
+      await new Promise<void>((resolve, reject) => {
+        window.sendOtp!(
+          formattedPhone,
+          (data: any) => {
+            setReqId(data?.request_id || data?.reqId || data?.sessionId || null);
+            setSecondsLeft(RESEND_COOLDOWN_SECONDS);
+            setIsSending(false);
+            resolve();
+          },
+          (error: any) => {
+            setIsSending(false);
+            const errorMsg = error?.message || error?.toString() || 'Failed to resend OTP. Please try again.';
+            setError(errorMsg);
+            reject(new Error(errorMsg));
+          }
+        );
+      });
+    } catch (err: any) {
+      setIsSending(false);
+      setError(err?.message || 'Failed to resend OTP. Please try again.');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otp, step, isVerifying]);
+  }, [phone, secondsLeft]);
 
-  // Reset all state
   const resetState = useCallback(() => {
     setStep('phone');
     setPhone('');
@@ -219,22 +246,14 @@ export function useLoginOTP(): UseLoginOTPReturn {
     setIsSending(false);
     setIsVerifying(false);
     setSecondsLeft(0);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    setOtpSent(false);
+    setReqId(null);
   }, []);
 
-  // Go back to phone step
   const backToPhone = useCallback(() => {
     setStep('phone');
-    setOtp('');
     setError('');
-    setSecondsLeft(0);
-    if (timerRef.current) {
-      clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
+    setOtp('');
   }, []);
 
   return {
@@ -245,13 +264,13 @@ export function useLoginOTP(): UseLoginOTPReturn {
     isSending,
     isVerifying,
     secondsLeft,
+    otpSent,
     setPhone: handleSetPhone,
     setOtp: handleSetOtp,
     sendOtp,
-    resendOtp,
     verifyOtp,
+    resendOtp,
     resetState,
     backToPhone,
   };
-}
-
+};

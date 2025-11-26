@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useState, useEffect, useMemo } 
 import type { User, AuthResponse, AuthContextType, AuthState } from '@/utils/auth/types';
 import { useUserLoader } from '@/hooks/auth/useUserLoader';
 import { useUserRealtime } from '@/hooks/auth/useUserRealtime';
-import { sendOTP as sendOTPUtil, verifyOTP as verifyOTPUtil } from '@/utils/auth/otpHandlers';
+// OTP utilities removed - using MSG91 widget default UI
 
 // Create context
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -65,53 +65,56 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }, []),
   });
 
-  // Send OTP handler - uses MSG91 widget (client-side)
-  const handleSendOTP = useCallback(
-    async (phone: string): Promise<AuthResponse> => {
-      const result = await sendOTPUtil(phone);
-      if (result.success) {
-        return { data: { success: true }, error: null };
-      }
-      return {
-        data: null,
-        error: result.error || 'Failed to send OTP. Please try again.',
-      };
-    },
-    []
-  );
+  // Login with MSG91 access token
+  const handleLoginWithToken = useCallback(
+    async (accessToken: string, phone?: string): Promise<AuthResponse> => {
+      try {
+        const response = await fetch('/api/auth/login-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accessToken: accessToken,
+            phone: phone, // Include phone if available
+          }),
+        });
 
-  // Verify OTP handler - calls API to verify and create/login user
-  const handleVerifyOTP = useCallback(
-    async (phone: string, token: string): Promise<AuthResponse> => {
-      const result = await verifyOTPUtil(phone, token);
-      
-      if (!result.success) {
+        const result = await response.json();
+
+        if (!response.ok || result.error) {
+          return {
+            data: null,
+            error: result.error || 'Failed to login',
+          };
+        }
+
+        // Store user in localStorage
+        if (typeof window !== 'undefined' && result.user) {
+          localStorage.setItem('user', JSON.stringify(result.user));
+        }
+
+        // Update state
+        if (result.user) {
+          setState({
+            user: result.user,
+            loading: false,
+            error: null,
+            banned: { show: false, reason: '' },
+          });
+          lastUserIdRef.current = result.user.id;
+        }
+
+        return {
+          data: { success: true, user: result.user },
+          error: null,
+        };
+      } catch (error: any) {
         return {
           data: null,
-          error: result.error || 'Failed to verify OTP',
+          error: error?.message || 'Failed to login. Please try again.',
         };
       }
-
-      // Store user in localStorage
-      if (typeof window !== 'undefined' && result.user) {
-        localStorage.setItem('user', JSON.stringify(result.user));
-      }
-
-      // Update state
-      if (result.user) {
-        setState({
-          user: result.user,
-          loading: false,
-          error: null,
-          banned: { show: false, reason: '' },
-        });
-        lastUserIdRef.current = result.user.id;
-      }
-
-      return {
-        data: { success: true, user: result.user },
-        error: null,
-      };
     },
     []
   );
@@ -169,11 +172,10 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       error: state.error,
       banned: state.banned,
       signingOut,
-      sendOTP: handleSendOTP,
-      verifyOTP: handleVerifyOTP,
+      loginWithToken: handleLoginWithToken,
       signOut: handleSignOut,
     }),
-    [state, signingOut, handleSendOTP, handleVerifyOTP, handleSignOut]
+    [state, signingOut, handleLoginWithToken, handleSignOut]
   );
 
   return (

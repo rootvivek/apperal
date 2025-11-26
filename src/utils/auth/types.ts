@@ -17,7 +17,7 @@ export interface Session {
 }
 
 export interface AuthResponse {
-  data: { success?: boolean; user?: User } | null;
+  data: { success?: boolean; user?: User; reqId?: string } | null;
   error: string | null;
 }
 
@@ -40,8 +40,7 @@ export interface AuthContextType {
     reason: 'deleted' | 'deactivated' | string;
   };
   signingOut: boolean;
-  sendOTP: (phone: string) => Promise<AuthResponse>;
-  verifyOTP: (phone: string, token: string) => Promise<AuthResponse>;
+  loginWithToken: (accessToken: string, phone?: string) => Promise<AuthResponse>;
   signOut: () => Promise<void>;
 }
 
