@@ -4,24 +4,29 @@ import { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLoginOTP } from '@/hooks/useLoginOTP';
 import { Spinner } from '@/components/ui/spinner';
 import Alert from '@/components/ui/alert';
-import { normalizePhone, validatePhone, formatPhoneForInput, formatPhoneForDisplay } from '@/utils/phone';
+import { formatPhoneForInput, formatPhoneForDisplay } from '@/utils/phone';
 
 function SignUpPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, sendOTP, verifyOTP } = useAuth();
+  const { user, loginWithToken } = useAuth();
+  const {
+    step,
+    phone,
+    otp,
+    error: otpError,
+    isSending,
+    isVerifying,
+    setPhone,
+    setOtp,
+    sendOtp,
+    verifyOtp,
+    resetState,
+  } = useLoginOTP();
   
-  const [formData, setFormData] = useState({
-    phone: '',
-    otp: ''
-  });
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpLoading, setOtpLoading] = useState(false);
-
   // Redirect if already logged in
   useEffect(() => {
     if (user) {
@@ -30,90 +35,37 @@ function SignUpPageContent() {
     }
   }, [user, searchParams, router]);
 
+  // Handle successful login
+  useEffect(() => {
+    if (user && step === 'otp') {
+      resetState();
+      const redirectTo = searchParams.get('redirect') || '/';
+      router.push(redirectTo);
+    }
+  }, [user, step, searchParams, router, resetState]);
+
   const handleSendOTP = async () => {
-    if (!formData.phone.trim()) {
-      setError('Please enter your phone number');
+    if (!phone || phone.length < 10) {
       return;
     }
-
-    // Normalize and validate phone number
-    const normalized = normalizePhone(formData.phone);
-    const validation = validatePhone(normalized);
-    
-    if (!validation.isValid) {
-      setError(validation.error || 'Invalid phone number');
-      return;
-    }
-
-    setError('');
-    setOtpLoading(true);
-
-    try {
-      // Normalize phone (should be +91XXXXXXXXXX format)
-      let phoneToUse = normalized;
-      if (!phoneToUse.startsWith('+91')) {
-        if (phoneToUse.startsWith('91') && phoneToUse.length === 12) {
-          phoneToUse = '+' + phoneToUse;
-        } else if (phoneToUse.length === 10) {
-          phoneToUse = '+91' + phoneToUse;
-        }
-      }
-      
-      // Send OTP via MSG91 (handled by AuthContext)
-      const { data, error: otpError } = await sendOTP(phoneToUse);
-      
-      if (otpError) {
-        setError(otpError);
-        setOtpLoading(false);
-      } else {
-        setOtpSent(true);
-        setOtpLoading(false);
-      }
-    } catch (err: any) {
-      setError('Failed to send OTP. Please try again.');
-      setOtpLoading(false);
-    }
+    await sendOtp(phone);
   };
 
   const handleVerifyOTP = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    if (otp.length !== 4) {
+      return;
+    }
 
     try {
-      // Normalize phone (should be +91XXXXXXXXXX format)
-      const normalized = normalizePhone(formData.phone);
-      let phoneToUse = normalized;
-      if (!phoneToUse.startsWith('+91')) {
-        if (phoneToUse.startsWith('91') && phoneToUse.length === 12) {
-          phoneToUse = '+' + phoneToUse;
-        } else if (phoneToUse.length === 10) {
-          phoneToUse = '+91' + phoneToUse;
-        }
+      const result = await verifyOtp(otp);
+      const accessToken = result['access-token'] || result.accessToken;
+      if (accessToken) {
+        await loginWithToken(accessToken, result.phone || phone);
       }
-      
-      const { data, error: verifyError } = await verifyOTP(phoneToUse, formData.otp);
-      
-      if (verifyError) {
-        setError(verifyError);
-        setLoading(false);
-      } else {
-        // Redirect after successful verification
-        const redirectTo = searchParams.get('redirect') || '/';
-        window.location.href = redirectTo;
-      }
-    } catch (err: any) {
-      setError('Failed to verify OTP. Please try again.');
-      setLoading(false);
+    } catch (err) {
+      // Error is handled by the hook
     }
-  };
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
   };
 
   return (
@@ -126,13 +78,13 @@ function SignUpPageContent() {
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-lg">
         <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 overflow-hidden">
-          {error && (
+          {otpError && (
             <div className="mb-4">
-              <Alert message={error} variant="error" className="p-3" />
+              <Alert message={otpError} variant="error" className="p-3" />
             </div>
           )}
 
-          {!otpSent ? (
+          {step === 'phone' ? (
             <div className="space-y-6">
               <div>
                 <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
@@ -150,15 +102,12 @@ function SignUpPageContent() {
                       inputMode="numeric"
                       autoComplete="tel"
                       required
-                      value={formData.phone}
-                      onChange={(e) => {
-                        const cleaned = formatPhoneForInput(e.target.value);
-                        setFormData(prev => ({ ...prev, phone: cleaned }));
-                        setError(''); // Clear error on input
-                      }}
+                      value={phone}
+                      onChange={(e) => setPhone(formatPhoneForInput(e.target.value))}
                       className="appearance-none block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                       placeholder="9876543210"
                       maxLength={10}
+                      disabled={isSending}
                     />
                   </div>
                   <p className="mt-1 text-xs text-gray-500">
@@ -170,10 +119,10 @@ function SignUpPageContent() {
               <button
                 type="button"
                 onClick={handleSendOTP}
-                disabled={otpLoading}
+                disabled={isSending || phone.length < 10}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {otpLoading ? 'Sending OTP...' : 'Send OTP'}
+                {isSending ? 'Sending OTP...' : 'Send OTP'}
               </button>
             </div>
           ) : (
@@ -181,16 +130,15 @@ function SignUpPageContent() {
               <div className="mb-4">
                 <div className="flex items-center gap-2">
                   <p className="text-sm text-gray-600">
-                    OTP sent to <span className="font-medium text-gray-900">{formatPhoneForDisplay(formData.phone)}</span>
+                    OTP sent to <span className="font-medium text-gray-900">{formatPhoneForDisplay(phone)}</span>
                   </p>
                   <button
                     type="button"
                     onClick={() => {
-                      setOtpSent(false);
-                      setFormData(prev => ({ ...prev, otp: '' }));
-                      setError('');
+                      resetState();
                     }}
                     className="text-sm text-blue-600 hover:text-blue-500 font-medium"
+                    disabled={isVerifying}
                   >
                     Edit phone number
                   </button>
@@ -206,22 +154,24 @@ function SignUpPageContent() {
                     id="otp"
                     name="otp"
                     type="text"
-                    maxLength={6}
+                    inputMode="numeric"
+                    maxLength={4}
                     required
-                    value={formData.otp}
-                    onChange={handleChange}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 4))}
                     className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm text-center text-lg tracking-widest"
-                    placeholder="000000"
+                    placeholder="0000"
+                    disabled={isVerifying}
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={isVerifying || otp.length !== 4}
                 className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
               >
-                {loading ? 'Verifying...' : 'Verify OTP'}
+                {isVerifying ? 'Verifying...' : 'Verify OTP'}
               </button>
             </form>
           )}
