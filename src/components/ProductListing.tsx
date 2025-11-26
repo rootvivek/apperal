@@ -165,10 +165,10 @@ export default function ProductListing({
       <div className="min-h-screen bg-gray-50">
         <div className="w-full pt-0 pb-8 !mt-0">
           <div className="flex flex-col lg:flex-row gap-2 lg:gap-3">
-            {/* Desktop: Sticky Left Sidebar for Filters */}
+            {/* Desktop: Fixed Left Sidebar for Filters */}
             {showFilter && filterType !== 'none' && (
               <div className="hidden lg:block w-64 flex-shrink-0">
-                <div className="sticky top-[72px] bg-white border border-gray-200 p-4 h-[calc(100vh-72px)] overflow-y-auto">
+                <div className="fixed top-[120px] left-2 bg-white border border-gray-200 p-4 w-64 max-h-[calc(100vh-120px)] overflow-y-auto z-40">
                   <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter By</h3>
                   <RadioGroup
                     value={selectedFilter}
@@ -264,7 +264,7 @@ export default function ProductListing({
             )}
 
             {/* Main Content Area */}
-            <div className="flex-1 pt-2 lg:pr-2 lg:pl-0">
+            <div className="flex-1 pt-2 lg:pr-2 lg:pl-0 lg:ml-[272px]">
               {/* Desktop: Filter and Sort at Top (when no filter sidebar) */}
               {!hasFilterSidebar && (
                 <div className="hidden md:block mb-6">

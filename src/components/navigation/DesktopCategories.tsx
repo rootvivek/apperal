@@ -12,7 +12,6 @@ interface DesktopCategoriesProps {
   setOpenCategoryId: (id: string | null) => void;
   dropdownTimeout: ReturnType<typeof setTimeout> | null;
   setDropdownTimeout: (timeout: ReturnType<typeof setTimeout> | null) => void;
-  showMobileSearch: boolean;
 }
 
 export default function DesktopCategories({
@@ -22,10 +21,9 @@ export default function DesktopCategories({
   setOpenCategoryId,
   dropdownTimeout,
   setDropdownTimeout,
-  showMobileSearch,
 }: DesktopCategoriesProps) {
   return (
-    <div className={`hidden lg:flex items-center space-x-4 ml-12 ${showMobileSearch ? 'hidden' : 'flex'}`}>
+    <div className="hidden lg:flex items-center space-x-4 ml-12">
       {categoriesLoading ? (
         <div className="text-gray-900 text-sm opacity-70 w-0 h-0"></div>
       ) : (

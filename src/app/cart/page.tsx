@@ -2,18 +2,18 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
+import { ShoppingCart, ArrowRight, X } from 'lucide-react';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLoginModal } from '@/contexts/LoginModalContext';
 import { getProductDetailType } from '@/utils/productDetailsMapping';
-import EmptyState from '@/components/EmptyState';
 import LoadingOverlay from '@/components/ui/loading-overlay';
 import ImageWithFallback from '@/components/ImageWithFallback';
 import { mobileTypography } from '@/utils/mobileTypography';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { X } from 'lucide-react';
 
 function CartContent() {
   const { cartItems, loading: cartLoading, updateQuantity, removeFromCart } = useCart();
@@ -70,55 +70,88 @@ function CartContent() {
 
   if (cartItems.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-2.5">
-        <div className="max-w-[1450px] mx-auto w-full">
-          <Card className="rounded-[4px]">
-            <CardContent className="p-2.5">
-              <EmptyState
-                icon="🛒"
-                title="Your cart is empty"
-                description="Looks like you haven't added any items to your cart yet."
-                actionLabel="Start Shopping"
-                actionHref="/products"
-                variant="default"
-              />
-            </CardContent>
-          </Card>
+      <div className="min-h-screen bg-gray-50 py-16">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Header */}
+          <div className="mb-12">
+            <h1 className="text-gray-900 mb-2">Shopping Cart</h1>
+            <p className="text-gray-600">Your cart is waiting for amazing products</p>
+          </div>
+
+          {/* Empty State */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="bg-white rounded-3xl p-12 md:p-16 text-center shadow-sm"
+          >
+            {/* Icon */}
+            <div className="mb-8 flex justify-center">
+              <div 
+                className="w-32 h-32 rounded-full flex items-center justify-center relative"
+                style={{ background: 'linear-gradient(135deg, #D7882B 0%, #B87024 100%)' }}
+              >
+                <ShoppingCart className="w-16 h-16 text-white" />
+                
+                {/* Decorative circles */}
+                <div className="absolute -top-2 -right-2 w-8 h-8 bg-white/20 rounded-full"></div>
+                <div className="absolute -bottom-3 -left-3 w-12 h-12 bg-white/10 rounded-full"></div>
+              </div>
+            </div>
+
+            {/* Text Content */}
+            <h2 className="text-gray-900 mb-4">Your Cart is Empty</h2>
+            <p className="text-gray-600 max-w-md mx-auto mb-8">
+              Looks like you haven't added anything to your cart yet. Start shopping and discover amazing products!
+            </p>
+
+            {/* Actions */}
+            <div className="flex justify-center items-center">
+              <Link 
+                href="/products"
+                className="px-8 py-4 text-white rounded-xl hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+                style={{ backgroundColor: '#D7882B' }}
+              >
+                Start Shopping
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            </div>
+          </motion.div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 sm:pb-0">
-      <div className="max-w-[1450px] mx-auto w-full p-2.5">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-2">
-          {/* Cart Items and Order Summary - Combined on Mobile */}
-          <div className="lg:col-span-2 space-y-2">
-            <Card className="rounded-[4px]">
-              <CardContent className="p-2.5">
-                <h1 className={`${mobileTypography.h3} sm:text-lg text-gray-900 mb-1`}>Shopping Cart</h1>
-                <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>{cartItems.length} item(s) in your cart</p>
-              </CardContent>
-            </Card>
+    <div className="min-h-screen bg-gray-50 py-16 pb-24 sm:pb-16">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Header */}
+        <div className="mb-12">
+          <h1 className="text-gray-900 mb-2">Shopping Cart</h1>
+          <p className="text-gray-600">{cartItems.length} item(s) in your cart</p>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Cart Items */}
+          <div className="lg:col-span-2 space-y-4">
             
             {cartItems.map((item) => (
-              <Card key={item.id} className="rounded-[4px]">
-                <CardContent className="p-2.5">
-                  <div className="flex items-stretch gap-3 sm:gap-4">
+              <Card key={item.id} className="rounded-xl shadow-sm">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex items-stretch gap-4 sm:gap-6">
                     {/* Product Image - Left Column */}
-                    <div className="flex-shrink-0 w-20 h-20 sm:w-32 sm:h-32 aspect-square">
+                    <div className="flex-shrink-0 w-24 h-24 sm:w-32 sm:h-32 aspect-square">
                       <ImageWithFallback
-                        className="w-full h-full rounded-[4px] object-cover"
+                        className="w-full h-full rounded-xl object-cover"
                         src={item.product.image_url || '/placeholder-product.jpg'}
                         alt={item.product.name}
                         loading="lazy"
                         decoding="async"
-                        width={80}
-                        height={80}
+                        width={128}
+                        height={128}
                         fallbackType="product"
                         responsive={true}
-                        responsiveSizes={[80, 128, 256]}
+                        responsiveSizes={[96, 128, 256]}
                         quality={85}
                       />
                     </div>
@@ -202,8 +235,8 @@ function CartContent() {
 
             {/* Order Summary - Mobile */}
             <div className="lg:hidden">
-              <Card className="rounded-[4px]">
-                <CardContent className="p-2.5 space-y-3">
+              <Card className="rounded-xl shadow-sm">
+                <CardContent className="p-4 sm:p-6 space-y-4">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Subtotal</span>
                     <span className="font-medium">₹{getSubtotal().toFixed(2)}</span>
@@ -234,8 +267,8 @@ function CartContent() {
 
           {/* Order Summary - Desktop */}
           <div className="hidden lg:block lg:col-span-1">
-            <Card className="rounded-[4px] sticky top-4">
-              <CardContent className="p-2.5 space-y-3">
+            <Card className="rounded-xl shadow-sm sticky top-4">
+              <CardContent className="p-6 space-y-4">
                 <h2 className="text-sm sm:text-lg font-semibold mb-3">Order Summary</h2>
                 <div className="flex justify-between text-sm sm:text-base">
                   <span className="text-gray-600">Subtotal</span>

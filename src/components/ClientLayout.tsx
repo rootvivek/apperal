@@ -99,9 +99,8 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
     window.scrollTo(0, 0);
   }, [pathname]);
 
-  // Show footer only on home page for mobile, or on all pages (except checkout/product detail/admin) for desktop
-  const shouldShowFooter = !isCheckoutPage && !isProductDetailPage && !isAdminPage;
-  const footerClassName = isHomePage ? '' : 'hidden md:block';
+  // Show footer only on home page
+  const shouldShowFooter = isHomePage;
 
   return (
     <>
@@ -121,9 +120,7 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
           {children}
         </div>
       </div>
-      {shouldShowFooter && (
-        <Footer className={footerClassName} />
-      )}
+      {shouldShowFooter && <Footer />}
       <Modal
         isOpen={showBannedModal}
         onClose={() => {}}
