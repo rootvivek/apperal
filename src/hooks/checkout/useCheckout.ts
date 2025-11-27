@@ -136,7 +136,12 @@ export function useCheckout({ onPaymentError, onShowPaymentFailedModal }: UseChe
     orderItemsData: any[],
     shippingAddressId: string | null
   ) => {
-    if (!user?.id || !shippingAddressId) {
+    // Verify user session before creating order
+    if (!user?.id) {
+      throw new Error('Session expired. Please login again.');
+    }
+    
+    if (!shippingAddressId) {
       throw new Error('Shipping address is required. Please try again.');
     }
 
@@ -276,7 +281,6 @@ export function useCheckout({ onPaymentError, onShowPaymentFailedModal }: UseChe
       if (data.paymentMethod === 'cod') {
         const result = await createCODOrder(orderNumber, orderItemsData, shippingAddressId);
         onSuccess(result.orderId, result.orderNumber);
-        window.location.href = `/checkout/success?orderId=${result.orderId}&orderNumber=${result.orderNumber}`;
         return;
       }
 

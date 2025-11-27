@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo } from 'react';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -51,7 +51,7 @@ export default function AddressList({
   if (addresses.length === 0) {
     return (
       <div className="py-4 sm:py-6">
-        <EmptyState icon="📍" title="No addresses saved yet" description="Add your first address above" variant="compact" />
+        <EmptyState icon="📍" title="No addresses saved yet" description="Add your first address above" variant="compact" animated={false} />
       </div>
     );
   }

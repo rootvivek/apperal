@@ -178,57 +178,93 @@ export async function POST(request: NextRequest) {
       };
     } else {
       // Create new user
-      const userId = crypto.randomUUID();
-      
-      const { data: newUser, error: createError } = await supabase
+      // Double-check if phone is already in use (race condition protection)
+      const { data: phoneCheck } = await supabase
         .from('user_profiles')
-        .insert({
-          id: userId,
-          phone: formattedPhone,
-          full_name: 'User',
-        })
         .select('id, phone, full_name, deleted_at, is_active')
-        .single();
+        .eq('phone', formattedPhone)
+        .maybeSingle();
 
-      if (createError) {
-        // If user was created between check and insert, fetch it
-        if (createError.code === '23505' || createError.message?.includes('unique') || createError.message?.includes('duplicate')) {
-          const { data: existingUserAfterInsert } = await supabase
-            .from('user_profiles')
-            .select('id, phone, full_name, deleted_at, is_active')
-            .eq('phone', formattedPhone)
-            .maybeSingle();
-          
-          if (existingUserAfterInsert) {
-            user = {
-              id: existingUserAfterInsert.id,
-              phone: existingUserAfterInsert.phone,
-              user_metadata: {
-                full_name: existingUserAfterInsert.full_name || null,
+      if (phoneCheck && !phoneCheck.deleted_at && phoneCheck.is_active !== false) {
+        // Phone already exists and is active - return existing user
+        user = {
+          id: phoneCheck.id,
+          phone: phoneCheck.phone,
+          user_metadata: {
+            full_name: phoneCheck.full_name || null,
+            phone: phoneCheck.phone,
+          },
+        };
+      } else {
+        // If soft-deleted profile exists, hard delete it first
+        if (phoneCheck?.deleted_at) {
+          await supabase.from('user_profiles').delete().eq('id', phoneCheck.id);
+        }
+
+        const userId = crypto.randomUUID();
+        
+        const { data: newUser, error: createError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: userId,
+            phone: formattedPhone,
+            full_name: 'User',
+          })
+          .select('id, phone, full_name, deleted_at, is_active')
+          .single();
+
+        if (createError) {
+          // Handle unique constraint violations
+          const isUniqueConstraint = 
+            createError.code === '23505' || 
+            createError.message?.includes('unique') || 
+            createError.message?.includes('duplicate') ||
+            createError.message?.includes('user_profiles_phone_key');
+
+          if (isUniqueConstraint) {
+            // Try to fetch existing user (race condition)
+            const { data: existingUserAfterInsert } = await supabase
+              .from('user_profiles')
+              .select('id, phone, full_name, deleted_at, is_active')
+              .eq('phone', formattedPhone)
+              .maybeSingle();
+            
+            if (existingUserAfterInsert && !existingUserAfterInsert.deleted_at && existingUserAfterInsert.is_active !== false) {
+              user = {
+                id: existingUserAfterInsert.id,
                 phone: existingUserAfterInsert.phone,
-              },
-            };
+                user_metadata: {
+                  full_name: existingUserAfterInsert.full_name || null,
+                  phone: existingUserAfterInsert.phone,
+                },
+              };
+            } else {
+              return NextResponse.json(
+                { error: 'This phone number is already registered. Please try logging in instead.' },
+                { status: 409 }
+              );
+            }
           } else {
             return NextResponse.json(
               { error: 'Failed to create user. Please try again.' },
               { status: 500 }
             );
           }
+        } else if (newUser) {
+          user = {
+            id: newUser.id,
+            phone: newUser.phone,
+            user_metadata: {
+              full_name: newUser.full_name || null,
+              phone: newUser.phone,
+            },
+          };
         } else {
           return NextResponse.json(
             { error: 'Failed to create user. Please try again.' },
             { status: 500 }
           );
         }
-      } else {
-        user = {
-          id: newUser.id,
-          phone: newUser.phone,
-          user_metadata: {
-            full_name: newUser.full_name || null,
-            phone: newUser.phone,
-          },
-        };
       }
     }
     return NextResponse.json({

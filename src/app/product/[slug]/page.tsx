@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
 import { useCart } from '@/contexts/CartContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -247,7 +247,7 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
     // Validation is handled by the modal in ProductInfo/ProductBottomActions components
     // This function is only called if all selections are valid
     
-    // Build checkout URL with parameters
+    // Build Order Summary URL with parameters (first page in checkout flow)
     const params = new URLSearchParams({
       direct: 'true',
       productId: product.id,
@@ -259,17 +259,17 @@ export default function ProductDetailPage({ params }: ProductDetailPageProps) {
       params.append('size', selectedSize);
     }
     
-    const checkoutUrl = `/checkout?${params.toString()}`;
+    const orderSummaryUrl = `/cart?${params.toString()}`;
     
     // Check if user is authenticated for checkout
     if (!user) {
-      // Pass the checkout URL as redirect parameter
-      openLoginModal(checkoutUrl);
+      // Pass the order summary URL as redirect parameter
+      openLoginModal(orderSummaryUrl);
       return;
     }
     
-    // Redirect directly to checkout without adding to cart
-    window.location.href = checkoutUrl;
+    // Redirect to Order Summary page (first page in checkout flow)
+    window.location.href = orderSummaryUrl;
   };
 
   const handleWishlistToggle = useCallback(async (e?: React.MouseEvent) => {

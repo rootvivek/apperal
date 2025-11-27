@@ -165,7 +165,7 @@ function ProfileContent() {
 
         <div className="bg-white space-y-3 sm:space-y-4">
           {/* Profile Form */}
-          <Card className="rounded-[4px]">
+          <Card className="rounded-2xl">
             <CardContent className="p-2.5">
           <ProfileForm
             fullName={fullName}
@@ -186,7 +186,7 @@ function ProfileContent() {
           </Card>
 
           {/* Addresses Section */}
-          <Card className="rounded-[4px]">
+          <Card className="rounded-2xl">
             <CardContent className="p-2.5">
               <div className="py-3 sm:py-4">
                 <div className="flex justify-between items-center mb-4 px-2.5">

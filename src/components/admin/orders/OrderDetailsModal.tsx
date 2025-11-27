@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 
 interface OrderDetailsModalProps {
   open: boolean;

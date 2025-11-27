@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import AuthGuard from '@/components/AuthGuard';
 import { createClient } from '@/lib/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import { Spinner } from '@/components/ui/spinner';
 import ImageWithFallback from '@/components/ImageWithFallback';
 import { mobileTypography } from '@/utils/mobileTypography';
@@ -202,32 +202,35 @@ function OrdersContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <div className="max-w-[1450px] mx-auto w-full p-2.5">
+      <div className="max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+        {/* Header */}
+        <div className="mb-8 sm:mb-12">
+          <h1 className="text-gray-900 mb-2">My Orders</h1>
+          <p className="text-gray-600">View and manage your orders</p>
+        </div>
+
         {expandedOrderItems.length === 0 ? (
-          <div className="mt-3 sm:mt-4">
-            <Card className="rounded-[4px]">
-              <CardContent className="p-2.5">
-                <EmptyState
-                  icon="🛍️"
-                  title="No orders yet"
-                  description="Start shopping to see your orders here."
-                  actionLabel="Browse Products"
-                  actionHref="/products"
-                  variant="default"
-                  className="bg-white"
-                />
-              </CardContent>
-            </Card>
-          </div>
+          <Card className="rounded-2xl shadow-sm">
+            <CardContent className="p-8 sm:p-12">
+              <EmptyState animated={false}
+                icon="🛍️"
+                title="No orders yet"
+                description="Start shopping to see your orders here."
+                actionLabel="Browse Products"
+                actionHref="/products"
+                variant="default"
+              />
+            </CardContent>
+          </Card>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-4">
             {expandedOrderItems.map((item) => (
               <Card 
                 key={item.id}
-                className={`rounded-[4px] transition-all ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer hover:shadow-md'}`}
+                className={`rounded-2xl shadow-sm transition-all ${item.is_cancelled ? 'opacity-60' : 'cursor-pointer hover:shadow-md'}`}
                 onClick={() => !item.is_cancelled && router.push(`/orders/${item.order_id}?item=${item.order_item_id}&expandedId=${item.id}`)}
               >
-                <CardContent className="p-2.5">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-start space-x-3 flex-1">
                       <div className="flex-shrink-0">

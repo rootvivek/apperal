@@ -47,21 +47,28 @@ export async function ensureUserProfileExists(
     // Try creating on retries 1, 3, 5, 7, etc. to give AuthContext time first
     if (!profile && i > 0 && i % 2 === 1 && user) {
       try {
-        // Check for soft-deleted profiles with same phone (like AuthContext does)
         const userPhone = user.phone || null;
+        
+        // Check if phone is already in use by an active profile
         if (userPhone) {
-          const { data: profilesWithPhone } = await supabase
+          const { data: phoneProfile } = await supabase
             .from('user_profiles')
-            .select('id, deleted_at')
+            .select('id, deleted_at, is_active')
             .eq('phone', userPhone)
             .maybeSingle();
 
-          if (profilesWithPhone?.deleted_at) {
-            // Hard delete the soft-deleted profile
-            await supabase
-              .from('user_profiles')
-              .delete()
-              .eq('id', profilesWithPhone.id);
+          if (phoneProfile) {
+            if (phoneProfile.deleted_at) {
+              // Hard delete the soft-deleted profile
+              await supabase
+                .from('user_profiles')
+                .delete()
+                .eq('id', phoneProfile.id);
+            } else if (phoneProfile.is_active !== false && phoneProfile.id !== userId) {
+              // Active profile with same phone but different user ID - skip creation
+              // This will be handled by AuthContext
+              continue;
+            }
           }
         }
         

@@ -42,12 +42,51 @@ export function useProfileData(user: User | null) {
         setProfile(data);
       } else {
         // Profile doesn't exist, create one for the user
+        const userPhone = user.phone ? normalizePhone(user.phone) : null;
+        
+        // Check if phone is already in use (race condition protection)
+        if (userPhone) {
+          const { data: phoneProfile } = await supabase
+            .from('user_profiles')
+            .select('id, deleted_at, is_active')
+            .eq('phone', userPhone)
+            .maybeSingle();
+
+          if (phoneProfile && !phoneProfile.deleted_at && phoneProfile.is_active !== false) {
+            // Phone already in use - fetch that profile instead
+            if (phoneProfile.id === user.id) {
+              // Same user, just fetch the profile
+              const { data: existingProfile } = await supabase
+                .from('user_profiles')
+                .select('*')
+                .eq('id', user.id)
+                .maybeSingle();
+              
+              if (existingProfile) {
+                setProfile(existingProfile);
+                return;
+              }
+            } else {
+              // Different user has this phone - skip creation, use in-memory profile
+              setProfile({
+                id: user.id,
+                full_name: user.user_metadata?.full_name || null,
+                phone: null, // Don't set phone if it conflicts
+                is_admin: false,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              });
+              return;
+            }
+          }
+        }
+
         const insertQuery = supabase
           .from('user_profiles')
           .insert({
             id: user.id,
             full_name: user.user_metadata?.full_name || user.user_metadata?.first_name || 'User',
-            phone: user.phone ? normalizePhone(user.phone) : null,
+            phone: userPhone,
             is_admin: false,
           })
           .select();
@@ -55,6 +94,12 @@ export function useProfileData(user: User | null) {
         const insertResult = await insertQuery;
 
         if (insertResult.error) {
+          // Handle unique constraint violations
+          const isPhoneConflict = 
+            insertResult.error.code === '23505' || 
+            insertResult.error.message?.includes('phone') ||
+            insertResult.error.message?.includes('user_profiles_phone_key');
+
           // If insert fails, try to fetch existing profile
           const { data: existingProfile } = await supabase
               .from('user_profiles')
@@ -64,12 +109,22 @@ export function useProfileData(user: User | null) {
             
           if (existingProfile) {
             setProfile(existingProfile);
+          } else if (isPhoneConflict) {
+            // Phone conflict - use in-memory profile without phone
+            setProfile({
+              id: user.id,
+              full_name: user.user_metadata?.full_name || null,
+              phone: null,
+              is_admin: false,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
           } else {
             // Fall back to in-memory profile
             setProfile({
               id: user.id,
               full_name: user.user_metadata?.full_name || null,
-              phone: user.phone ? normalizePhone(user.phone) : null,
+              phone: userPhone,
               is_admin: false,
               created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
@@ -96,6 +151,30 @@ export function useProfileData(user: User | null) {
       const phoneStr = typeof phone === 'string' ? phone : '';
       const normalizedPhone = phoneStr.trim() ? normalizePhone(phoneStr.trim()) : null;
       
+      // Get current profile to check if phone is actually changing
+      const { data: currentProfile } = await supabase
+        .from('user_profiles')
+        .select('phone')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const currentPhone = currentProfile?.phone || null;
+      const phoneChanged = normalizedPhone !== currentPhone;
+      
+      // Only check for phone conflicts if the phone number is actually being changed
+      if (phoneChanged && normalizedPhone) {
+        const { data: phoneProfile } = await supabase
+          .from('user_profiles')
+          .select('id, deleted_at, is_active')
+          .eq('phone', normalizedPhone)
+          .maybeSingle();
+
+        if (phoneProfile && phoneProfile.id !== user.id && !phoneProfile.deleted_at && phoneProfile.is_active !== false) {
+          setError('This phone number is already registered. Please use a different number.');
+          return false;
+        }
+      }
+      
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
@@ -106,7 +185,17 @@ export function useProfileData(user: User | null) {
         .eq('id', user.id);
 
       if (updateError) {
-        throw updateError;
+        const isPhoneConflict = 
+          updateError.code === '23505' || 
+          updateError.message?.includes('phone') ||
+          updateError.message?.includes('user_profiles_phone_key');
+        
+        if (isPhoneConflict) {
+          setError('This phone number is already registered. Please use a different number.');
+        } else {
+          setError(updateError.message || 'Failed to update profile');
+        }
+        return false;
       }
 
       // Update local state

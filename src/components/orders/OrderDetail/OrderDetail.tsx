@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Spinner } from '@/components/ui/spinner';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import { mobileTypography } from '@/utils/mobileTypography';
 import { useOrderDetail } from '@/hooks/orders/useOrderDetail';
 import OrderItem from './OrderItem';
@@ -16,6 +16,8 @@ import ProductCard from '@/components/ProductCard';
 import { PRODUCT_GRID_CLASSES_SMALL_GAP } from '@/utils/layoutUtils';
 import { createClient } from '@/lib/supabase/client';
 import ShippingAddressCard from '@/components/address/ShippingAddressCard';
+import OrderSummary from './OrderSummary';
+import { Check, CreditCard, Wallet, Building2, MapPin, Phone, Package } from 'lucide-react';
 export interface OrderReturn {
   id: string;
   order_id: string;
@@ -325,72 +327,229 @@ export default function OrderDetail({
   }, [primaryItem?.product_id, supabase, currentOrder.items, currentOrder.created_at]);
 
   return (
-    <div className="space-y-3 sm:space-y-4">
-      {/* Mobile hero product card (matches Figma top section) */}
-      {primaryItem && (
-        <div className="lg:hidden flex flex-col items-center gap-2 bg-white rounded-[4px] p-4">
-          <div className="w-[118px] h-[120px] rounded-[4px] overflow-hidden">
-            <ImageWithFallback
-              src={primaryItem.product_image || '/placeholder-product.jpg'}
-              alt={primaryItem.product_name}
-              className="w-full h-full object-cover"
-              fallbackType="product"
-              loading="lazy"
-              decoding="async"
-              width={118}
-              height={120}
-              responsive
-              responsiveSizes={[118, 236]}
-              quality={85}
-            />
-          </div>
-          <p className="text-sm font-medium text-gray-900 text-center max-w-[220px] line-clamp-2">
-            {primaryItem.product_name}
-          </p>
-        </div>
-      )}
+    <div className="space-y-2 sm:space-y-3">
+      {/* Order Status and Order Items in one row */}
+      <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+        {/* Order Status Card with Timeline - First */}
+        <Card className="rounded-2xl">
+          <CardContent className="p-3 sm:p-4 lg:p-6">
+            <div className="flex flex-col gap-1 mb-3 sm:mb-4 lg:mb-6">
+              <h2 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900">
+                Order Status
+              </h2>
+              {currentOrder.order_number && (
+                <p className="text-[10px] sm:text-xs lg:text-sm text-muted-foreground">
+                  Order ID: {currentOrder.order_number}
+                </p>
+              )}
+            </div>
+            <div className="relative">
+              <div className="absolute left-3 sm:left-4 top-4 sm:top-6 bottom-4 sm:bottom-6 w-0.5 bg-gray-200" />
+              <div className="space-y-4 sm:space-y-6">
+                <div className="flex gap-3 sm:gap-4 relative">
+                  <div className="w-6 h-6 sm:w-8 sm:h-8 bg-green-500 rounded-full flex items-center justify-center z-10 flex-shrink-0">
+                    <Check className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                  </div>
+                  <div className="flex-1 pb-4 sm:pb-6">
+                    <p className="mb-0.5 sm:mb-1 text-xs sm:text-sm font-medium">Order Placed</p>
+                    <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600">
+                      {new Date(currentOrder.created_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: 'numeric' })}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-3 sm:gap-4 relative">
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center z-10 flex-shrink-0 ${
+                    ['processing', 'shipped', 'delivered'].includes(currentOrder.status) 
+                      ? 'bg-green-500' 
+                      : 'bg-gray-200 border-2 border-gray-300'
+                  }`}>
+                    {['processing', 'shipped', 'delivered'].includes(currentOrder.status) && (
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 pb-4 sm:pb-6">
+                    <p className={`mb-0.5 sm:mb-1 text-xs sm:text-sm ${['processing', 'shipped', 'delivered'].includes(currentOrder.status) ? 'font-medium' : 'text-gray-500'}`}>
+                      Processing
+                    </p>
+                    <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600">Preparing your order</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 sm:gap-4 relative">
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center z-10 flex-shrink-0 ${
+                    ['shipped', 'delivered'].includes(currentOrder.status) 
+                      ? 'bg-green-500' 
+                      : 'bg-gray-200 border-2 border-gray-300'
+                  }`}>
+                    {['shipped', 'delivered'].includes(currentOrder.status) && (
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1 pb-4 sm:pb-6">
+                    <p className={`mb-0.5 sm:mb-1 text-xs sm:text-sm ${['shipped', 'delivered'].includes(currentOrder.status) ? 'font-medium' : 'text-gray-500'}`}>
+                      Shipped
+                    </p>
+                    <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600">On the way to you</p>
+                  </div>
+                </div>
+                <div className="flex gap-3 sm:gap-4 relative">
+                  <div className={`w-6 h-6 sm:w-8 sm:h-8 rounded-full flex items-center justify-center z-10 flex-shrink-0 ${
+                    currentOrder.status === 'delivered' 
+                      ? 'bg-green-500' 
+                      : 'bg-gray-200 border-2 border-gray-300'
+                  }`}>
+                    {currentOrder.status === 'delivered' && (
+                      <Check className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className={`mb-0.5 sm:mb-1 text-xs sm:text-sm ${currentOrder.status === 'delivered' ? 'font-medium' : 'text-gray-500'}`}>
+                      Delivered
+                    </p>
+                    <p className="text-[10px] sm:text-xs lg:text-sm text-gray-600">
+                      {currentOrder.status === 'delivered' 
+                        ? formatDate(currentOrder.created_at)
+                        : `Est. ${new Date(new Date(currentOrder.created_at).getTime() + 5 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                      }
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
 
-      {/* Order Status Card */}
-      <Card className="rounded-[4px]">
-        <CardContent className="p-2.5">
-          <div className="flex flex-col gap-1.5 mb-2 sm:mb-3">
-            <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-              Order #{currentOrder.order_number}
-            </h2>
-            <p className={`${mobileTypography.body12} sm:text-sm text-gray-600`}>
-              {formatDate(currentOrder.created_at)}
-            </p>
+        {/* Order Items & Shipping Address Card - Second */}
+        <Card className="rounded-2xl">
+          <CardContent className="p-0">
+            {/* Order Items Section */}
+            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200">
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
+                Order Items
+              </h3>
+              {currentOrder.items.length === 0 ? (
+                <div className="py-4 sm:py-6">
+                  <EmptyState title="No items found" variant="minimal" />
+                </div>
+              ) : (
+                <div className="space-y-3 sm:space-y-4">
+                  {currentOrder.items.map((item: OrderDetailItem, index: number) => (
+                    <div key={item.id} className="flex gap-3 sm:gap-4">
+                      <div className="w-16 h-16 sm:w-20 sm:h-20 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0 relative">
+                        <ImageWithFallback
+                          src={item.product_image || '/placeholder-product.jpg'}
+                          alt={item.product_name}
+                          className="w-full h-full object-cover"
+                          fallbackType="product"
+                          loading="lazy"
+                          decoding="async"
+                          width={80}
+                          height={80}
+                          responsive
+                          responsiveSizes={[80, 160]}
+                          quality={85}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="mb-1 text-sm sm:text-base font-medium">{item.product_name}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">Quantity: {item.quantity}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-sm sm:text-base font-medium">{formatCurrency(item.total_price)}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">{formatCurrency(item.product_price)} each</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Shipping Address Section */}
+            {showCustomerInfo && (customerName || customerPhone || shippingAddress) && (
+              <div className="p-3 sm:p-4 lg:p-6">
+                <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
+                  Shipping Address
+                </h3>
+                <div className="space-y-1 text-xs sm:text-sm">
+                  <p className="font-medium">{customerName || shippingAddress?.full_name}</p>
+                  <p className="text-gray-600">{shippingAddress?.address_line1}</p>
+                  <p className="text-gray-600">
+                    {shippingAddress?.city}, {shippingAddress?.state} {shippingAddress?.zip_code}
+                  </p>
+                  {(customerPhone || shippingAddress?.phone) && (
+                    <p className="text-gray-600 mt-2 sm:mt-3 flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" />
+                      {customerPhone || shippingAddress?.phone}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Payment Method & Summary Card */}
+      <Card className="rounded-2xl">
+        <CardContent className="p-3 sm:p-4 lg:p-6">
+          <div className="grid md:grid-cols-2 gap-4 sm:gap-6">
+            <div>
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-3 sm:mb-4 flex items-center gap-2">
+                <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 lg:w-5 lg:h-5" />
+                Payment Method
+              </h3>
+              <div className="space-y-2 text-xs sm:text-sm">
+                {currentOrder.payment_method === 'upi' && (
+                  <div className="flex items-center gap-2 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                    <Wallet className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <p>UPI</p>
+                  </div>
+                )}
+                {currentOrder.payment_method === 'cod' && (
+                  <div className="flex items-center gap-2 bg-gray-50 p-2 sm:p-3 rounded-lg">
+                    <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <p>Cash on Delivery</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm sm:text-base lg:text-lg font-semibold mb-3 sm:mb-4">Payment Summary</h3>
+              <div className="space-y-1.5 sm:space-y-2 text-xs sm:text-sm">
+                <div className="flex justify-between text-gray-600">
+                  <span>Subtotal</span>
+                  <span>{formatCurrency(getSubtotal())}</span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Shipping</span>
+                  <span className={getShipping() === 0 ? 'text-green-500' : ''}>
+                    {getShipping() === 0 ? 'FREE' : formatCurrency(getShipping())}
+                  </span>
+                </div>
+                <div className="flex justify-between text-gray-600">
+                  <span>Tax</span>
+                  <span>{formatCurrency(getSubtotal() * 0.1)}</span>
+                </div>
+                <div className="flex justify-between pt-2 sm:pt-3 border-t border-gray-200">
+                  <span className="font-medium">Total Paid</span>
+                  <span className="text-base sm:text-lg font-semibold text-primary">
+                    {formatCurrency(currentOrder.total_amount)}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
-          <OrderStatusStepper status={currentOrder.status} />
         </CardContent>
       </Card>
 
-      {/* Shipping Information Card */}
-      {showCustomerInfo && (customerName || customerPhone || shippingAddress) && (
-        <ShippingAddressCard
-          address={{
-            id: 'order-shipping',
-            full_name: customerName || shippingAddress?.full_name || undefined,
-            phone: customerPhone ? parseInt(String(customerPhone), 10) : (shippingAddress?.phone || undefined),
-            address_line1: shippingAddress?.address_line1 || '',
-            address_line2: shippingAddress?.address_line2,
-            city: shippingAddress?.city || '',
-            state: shippingAddress?.state || '',
-            zip_code: shippingAddress?.zip_code || '',
-            is_default: false,
-          }}
-          variant="display"
-          compact={true}
-          showPhone={!!(customerPhone || shippingAddress?.phone)}
-        />
-      )}
-
       {/* Related Products Card */}
       {relatedProducts.length > 0 && (
-        <Card className="rounded-[4px]">
-          <CardContent className="p-2.5">
-            <div className="text-center mb-3">
-              <h3 className={`${mobileTypography.title14Bold} sm:text-base text-gray-900`}>
+        <Card className="rounded-2xl">
+          <CardContent className="p-3 sm:p-4 lg:p-6">
+            <div className="text-center mb-2 sm:mb-3">
+              <h3 className="text-sm sm:text-base font-semibold text-gray-900">
                 Related Products
               </h3>
             </div>
@@ -407,46 +566,6 @@ export default function OrderDetail({
         </Card>
       )}
 
-      {/* Order Items Card (desktop only – hidden on mobile to match Figma card) */}
-      <div className="hidden lg:block">
-        <Card className="rounded-[4px]">
-          <CardContent className="p-2.5">
-            <h3 className="text-sm sm:text-base lg:text-lg font-semibold text-gray-900 mb-1">
-              Order Items
-            </h3>
-            <p className="text-xs text-gray-600 mb-3 sm:mb-4">
-              {currentOrder.items.length} item(s) in this order
-            </p>
-
-            {currentOrder.items.length === 0 ? (
-              <div className="py-6">
-                <EmptyState title="No items found" variant="minimal" />
-              </div>
-            ) : (
-              <div className="space-y-0">
-                {currentOrder.items.map((item: OrderDetailItem, index: number) => (
-                  <div key={item.id}>
-                    {index > 0 && (
-                      <div className="my-3 sm:my-4">
-                        <div className="border-t border-gray-200" />
-                      </div>
-                    )}
-                    <OrderItem
-                      item={item}
-                      canCancel={canCancelItem(item)}
-                      canReturn={canReturnItem(item)}
-                      returnStatus={getReturnStatus(item)}
-                      onCancel={handleCancelItem}
-                      onRequestReturn={handleRequestReturn}
-                      formatCurrency={formatCurrency}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
 
       {/* Cancel Item Modal */}
       <CancelItemModal

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AdminLayout from '@/components/admin/AdminLayout';
 import AdminGuard from '@/components/admin/AdminGuard';
 import DashboardCard from '@/components/DashboardCard';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import DataTable from '@/components/DataTable';
 import { Spinner } from '@/components/ui/spinner';
 import { Input } from '@/components/ui/input';

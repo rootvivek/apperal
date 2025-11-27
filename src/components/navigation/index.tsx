@@ -8,7 +8,6 @@ import { useWishlist } from '@/contexts/WishlistContext';
 import { useCategoryFiltering } from '@/hooks/navigation/useCategoryFiltering';
 import DesktopCategories from './DesktopCategories';
 import Logo from './Logo';
-import TopBar from './TopBar';
 import SearchBar from './SearchBar';
 import IconButtonWithBadge from './IconButtonWithBadge';
 import AccountDropdown from './AccountDropdown';
@@ -27,8 +26,6 @@ export default function Navigation() {
 
   return (
     <nav className="bg-white fixed top-0 left-0 right-0 z-50 shadow-sm">
-      <TopBar />
-
       {/* Main Navbar */}
       <div className="border-b border-gray-100">
         <div className={NAVBAR_CONTAINER_CLASSES}>

@@ -74,7 +74,7 @@ export default function ShippingAddressCard({
     const addressLine = addressParts.join(', ');
 
     return (
-      <Card className={cn('rounded-[4px]', className)}>
+      <Card className={cn('rounded-2xl', className)}>
         <CardContent className={cn(compact ? 'p-2.5' : 'p-4')}>
           <h3 className={cn(
             `${mobileTypography.title14Bold} sm:text-base lg:text-lg text-gray-900`,
@@ -170,7 +170,7 @@ export default function ShippingAddressCard({
   return (
     <Card
       className={cn(
-        'cursor-pointer transition-all duration-200 hover:shadow-md rounded-[4px]',
+        'cursor-pointer transition-all duration-200 hover:shadow-md rounded-2xl',
         isSelected && 'ring-2 ring-primary border-primary',
         !isSelected && 'hover:scale-[1.01]',
         className

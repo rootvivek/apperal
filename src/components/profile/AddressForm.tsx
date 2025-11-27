@@ -52,7 +52,11 @@ export default function AddressForm({
         <TextInput
           label="Full Name"
           value={formData.full_name}
-          onChange={(e) => updateField('full_name', e.target.value)}
+          onChange={(e) => {
+            // Only allow alphabets and spaces
+            const value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+            updateField('full_name', value);
+          }}
           placeholder="Recipient's full name"
         />
 
@@ -61,7 +65,11 @@ export default function AddressForm({
             label="City *"
             required
             value={formData.city}
-            onChange={(e) => updateField('city', e.target.value)}
+            onChange={(e) => {
+              // Only allow alphabets and spaces
+              const value = e.target.value.replace(/[^a-zA-Z\s]/g, '');
+              updateField('city', value);
+            }}
             placeholder="City"
           />
 

@@ -116,19 +116,19 @@ export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
   }
 
   return (
-    <div className={`w-full h-[50vh] md:h-[70vh] bg-white mb-0 pb-0 overflow-hidden relative z-0 ${className}`} style={{ minHeight: '400px', backgroundColor: '#ffffff' }}>
+    <div className={`w-full h-[50vh] md:h-[70vh] bg-white overflow-hidden relative z-0 hero-carousel-container ${className}`} style={{ minHeight: '400px', backgroundColor: '#ffffff', margin: 0, padding: 0, width: '100%' }}>
       <Swiper
         modules={[Autoplay, Pagination]}
-        spaceBetween={2}
+        spaceBetween={0}
         slidesPerView={1}
         breakpoints={{
           640: {
             slidesPerView: 2,
-            spaceBetween: 2,
+            spaceBetween: 0,
           },
           1024: {
             slidesPerView: 3,
-            spaceBetween: 2,
+            spaceBetween: 0,
           },
         }}
         autoplay={{
@@ -141,14 +141,19 @@ export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
           bulletActiveClass: 'swiper-pagination-bullet-active !bg-blue-600 !opacity-100',
         }}
         loop={products.length > 1}
-        className="h-full w-full"
-        style={{ height: '100%', width: '100%' }}
+        className="hero-carousel-swiper h-full w-full"
+        style={{ 
+          height: '100%', 
+          width: '100%',
+          margin: 0,
+          padding: 0,
+        }}
       >
         {products.map((product) => {
           const imageUrl = product.image_url || '/placeholder-product.jpg';
           return (
-          <SwiperSlide key={product.id} className="h-full" style={{ height: '100%' }}>
-            <div className="h-full w-full">
+          <SwiperSlide key={product.id} className="h-full" style={{ height: '100%', margin: 0, padding: 0, width: '100%' }}>
+            <div className="h-full w-full" style={{ margin: 0, padding: 0, width: '100%', height: '100%' }}>
               <ImageWithFallback
                 src={imageUrl}
                 alt={product.name}
@@ -161,6 +166,7 @@ export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
                 responsive
                 responsiveSizes={[640, 1024, 1440, 1600]}
                 quality={90}
+                style={{ margin: 0, padding: 0, display: 'block', width: '100%', height: '100%' }}
                 />
               </div>
           </SwiperSlide>

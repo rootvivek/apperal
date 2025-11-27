@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import ProductCard from './ProductCard';
-import EmptyState from './EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import FilterSortBar, {
   type FilterOption as FilterSortBarOption,
 } from './FilterSortBar';

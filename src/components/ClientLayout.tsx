@@ -82,12 +82,24 @@ function ClientLayoutContent({ children }: { children: React.ReactNode }) {
     router.refresh();
   };
   
-  // Fixed navbar height: 56px on mobile, 72px on desktop - matches navbar fixed height to prevent overlap
-  const [navbarHeight, setNavbarHeight] = useState(72);
+  // Fixed navbar height: Main Navbar only (TopBar removed)
+  // Main Navbar: h-10 (40px) on mobile, h-12 (48px) on desktop + padding
+  const [navbarHeight, setNavbarHeight] = useState(48);
   
   useEffect(() => {
     const updateNavbarHeight = () => {
-      setNavbarHeight(window.innerWidth < 640 ? 56 : 72);
+      // Calculate actual navbar height based on screen size
+      // Mobile: Main Navbar h-10 (40px) + padding = ~48px
+      // Desktop: Main Navbar h-12 (48px) + padding = ~56-72px
+      if (window.innerWidth < 640) {
+        setNavbarHeight(48); // Mobile
+      } else if (window.innerWidth < 768) {
+        setNavbarHeight(56); // Small tablet
+      } else if (window.innerWidth < 1024) {
+        setNavbarHeight(64); // Tablet
+      } else {
+        setNavbarHeight(72); // Desktop (lg+)
+      }
     };
     updateNavbarHeight();
     window.addEventListener('resize', updateNavbarHeight);

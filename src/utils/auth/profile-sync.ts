@@ -44,6 +44,32 @@ export async function syncUserProfile(
       }
 
       // Profile exists and is active, update it
+      // Get current phone to check if it's actually changing
+      const { data: currentProfile } = await supabase
+        .from('user_profiles')
+        .select('phone')
+        .eq('id', userId)
+        .maybeSingle();
+
+      const currentPhone = currentProfile?.phone || null;
+      const phoneChanged = userPhone !== currentPhone;
+
+      // Only check for phone conflicts if the phone number is actually being changed
+      if (phoneChanged && userPhone) {
+        const { data: phoneProfile } = await supabase
+          .from('user_profiles')
+          .select('id, deleted_at, is_active')
+          .eq('phone', userPhone)
+          .maybeSingle();
+
+        if (phoneProfile && phoneProfile.id !== userId && !phoneProfile.deleted_at && phoneProfile.is_active !== false) {
+          return { 
+            success: false, 
+            error: 'This phone number is already registered. Please use a different number.' 
+          };
+        }
+      }
+
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({
@@ -54,6 +80,17 @@ export async function syncUserProfile(
         .eq('id', userId);
 
       if (updateError) {
+        const isPhoneConflict = 
+          updateError.code === '23505' || 
+          updateError.message?.includes('phone') ||
+          updateError.message?.includes('user_profiles_phone_key');
+        
+        if (isPhoneConflict) {
+          return { 
+            success: false, 
+            error: 'This phone number is already registered. Please use a different number.' 
+          };
+        }
         return { success: false, error: 'Failed to update profile' };
       }
 
@@ -63,18 +100,24 @@ export async function syncUserProfile(
     }
 
     // Profile doesn't exist, create it
-    // First, check for soft-deleted profiles with same phone
+    // First, check if phone number is already in use by an active profile
     if (userPhone) {
-      const { data: profilesWithPhone } = await supabase
+      const { data: existingPhoneProfile } = await supabase
         .from('user_profiles')
-        .select('id, deleted_at')
-        .eq('phone', userPhone);
+        .select('id, deleted_at, is_active')
+        .eq('phone', userPhone)
+        .maybeSingle();
 
-      if (profilesWithPhone) {
-        const deletedProfile = profilesWithPhone.find((p) => p.deleted_at !== null);
-        if (deletedProfile) {
-          // Hard delete the soft-deleted profile
-          await supabase.from('user_profiles').delete().eq('id', deletedProfile.id);
+      if (existingPhoneProfile) {
+        // If it's a soft-deleted profile, hard delete it
+        if (existingPhoneProfile.deleted_at) {
+          await supabase.from('user_profiles').delete().eq('id', existingPhoneProfile.id);
+        } else if (existingPhoneProfile.is_active !== false && existingPhoneProfile.id !== userId) {
+          // Active profile with same phone but different user ID - phone conflict
+          return { 
+            success: false, 
+            error: 'This phone number is already registered. Please use a different number or contact support.' 
+          };
         }
       }
     }
@@ -92,7 +135,13 @@ export async function syncUserProfile(
 
     if (error) {
       // Handle unique constraint violations
-      if (error.code === '23505') {
+      const isUniqueConstraint = 
+        error.code === '23505' || 
+        error.message?.includes('unique') || 
+        error.message?.includes('duplicate') ||
+        error.message?.includes('user_profiles_phone_key');
+
+      if (isUniqueConstraint) {
         // Check if profile already exists (race condition)
         const { data: existing } = await supabase
           .from('user_profiles')
@@ -106,35 +155,43 @@ export async function syncUserProfile(
           return { success: true };
         }
 
-        // Phone conflict - try to resolve
-        if (userPhone && error.message?.includes('phone')) {
+        // Phone conflict - check if it's a phone constraint
+        if (userPhone && (error.message?.includes('phone') || error.message?.includes('user_profiles_phone_key'))) {
           const { data: phoneProfile } = await supabase
             .from('user_profiles')
-            .select('id, deleted_at')
+            .select('id, deleted_at, is_active')
             .eq('phone', userPhone)
             .maybeSingle();
 
-          if (phoneProfile && (phoneProfile.deleted_at || phoneProfile.id !== userId)) {
-            // Delete conflicting profile and retry
-            await supabase.from('user_profiles').delete().eq('id', phoneProfile.id);
-            const { data: retryData, error: retryError } = await supabase
-              .from('user_profiles')
-              .insert({
-                id: userId,
-                full_name: displayName,
-                phone: userPhone,
-              })
-              .select()
-              .single();
+          if (phoneProfile) {
+            if (phoneProfile.deleted_at) {
+              // Soft-deleted profile - hard delete and retry
+              await supabase.from('user_profiles').delete().eq('id', phoneProfile.id);
+              const { data: retryData, error: retryError } = await supabase
+                .from('user_profiles')
+                .insert({
+                  id: userId,
+                  full_name: displayName,
+                  phone: userPhone,
+                })
+                .select()
+                .single();
 
-            if (!retryError && retryData) {
-              await ensureDefaultAddress(userId);
-              return { success: true };
+              if (!retryError && retryData) {
+                await ensureDefaultAddress(userId);
+                return { success: true };
+              }
+            } else if (phoneProfile.id !== userId) {
+              // Active profile with same phone - return error
+              return { 
+                success: false, 
+                error: 'This phone number is already registered. Please use a different number or contact support.' 
+              };
             }
           }
         }
       }
-      return { success: false, error: 'Failed to create profile' };
+      return { success: false, error: 'Failed to create profile. Please try again.' };
     }
 
     // Profile created successfully, ensure default address

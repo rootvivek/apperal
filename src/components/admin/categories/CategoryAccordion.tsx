@@ -1,7 +1,7 @@
 'use client';
 
 import { memo } from 'react';
-import EmptyState from '@/components/EmptyState';
+import EmptyState from '@/components/checkout/shared/EmptyState';
 import { Category } from '@/hooks/admin/useCategories';
 import CategoryListItem from './CategoryListItem';
 import SubcategoryListItem from './SubcategoryListItem';

@@ -131,6 +131,94 @@
   opacity: 1 !important;
 }
 
+/* Remove all spacing from Swiper carousel */
+.swiper-wrapper {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  display: flex !important;
+  width: 100% !important;
+}
+
+.swiper-slide {
+  margin: 0 !important;
+  padding: 0 !important;
+  flex-shrink: 0 !important;
+  box-sizing: border-box !important;
+}
+
+/* On mobile, ensure slides are full width and no spacing */
+@media (max-width: 639px) {
+  .swiper-slide {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+  
+  .swiper-wrapper {
+    width: 100% !important;
+  }
+}
+
+.swiper {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* Ensure no gaps between slides */
+.swiper-slide img,
+.swiper-slide picture,
+.swiper-slide div {
+  margin: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+}
+
+/* Override any Swiper default spacing */
+.swiper-container,
+.swiper-container-initialized {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+}
+
+/* Hero carousel specific - remove all gaps */
+.hero-carousel-container {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.hero-carousel-swiper .swiper-wrapper {
+  margin: 0 !important;
+  padding: 0 !important;
+  gap: 0 !important;
+  width: 100% !important;
+}
+
+.hero-carousel-swiper .swiper-slide {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  min-width: 100% !important;
+  max-width: 100% !important;
+}
+
+@media (max-width: 639px) {
+  .hero-carousel-swiper .swiper-slide {
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
 /* Ensure proper spacing in navigation */
 .nav-cart-link {
   position: relative;
