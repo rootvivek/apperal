@@ -236,7 +236,7 @@ export default function OrderSummaryPage() {
             >
               {!user ? (
                 <button
-                  onClick={openLoginModal}
+                  onClick={() => openLoginModal()}
                   className="w-full bg-primary text-primary-foreground py-3 sm:py-4 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-sm sm:text-base"
                 >
                   <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -259,7 +259,7 @@ export default function OrderSummaryPage() {
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-50 p-3 sm:p-4 bg-background border-t border-border shadow-lg">
           {!user ? (
             <button
-              onClick={openLoginModal}
+              onClick={() => openLoginModal()}
               className="w-full bg-primary text-primary-foreground py-3 rounded-xl hover:opacity-90 transition-opacity flex items-center justify-center gap-2 text-sm sm:text-base"
             >
               <ShoppingCart className="w-4 h-4 sm:w-5 sm:h-5" />

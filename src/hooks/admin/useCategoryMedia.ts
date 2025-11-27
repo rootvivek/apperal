@@ -3,6 +3,7 @@
 import { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { uploadImageToSupabase, deleteImageFromSupabase } from '@/utils/imageUpload';
+import { generateUuid } from '@/utils/uuid';
 import { Category } from './useCategories';
 
 interface UseCategoryMediaProps {
@@ -71,7 +72,6 @@ export function useCategoryMedia({
     // Case 2: Creating new category/subcategory with temp ID
     if (isCreatingSubcategory) {
       if (!tempCategoryId) {
-        const { generateUuid } = await import('@/utils/uuid');
         const newId = generateUuid();
         imageFolder = newId;
       } else {
@@ -120,7 +120,6 @@ export function useCategoryMedia({
     }
     
     // Case 6: Generate new temp ID
-    const { generateUuid } = await import('@/utils/uuid');
     const categoryTempId = generateUuid();
     imageFolder = categoryTempId;
     imageBucket = 'category-images';
