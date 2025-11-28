@@ -58,7 +58,7 @@ export default function Navigation() {
             />
 
             {/* Search Bar - All Screen Sizes */}
-            <div className="flex flex-1 mx-1 sm:mx-2 md:mx-3 lg:mx-4">
+            <div className="flex flex-1 mx-2 sm:mx-3 md:mx-4 lg:mx-6">
               <SearchBar />
             </div>
 

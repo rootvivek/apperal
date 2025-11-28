@@ -39,10 +39,10 @@ export default function SearchBar({
       <input
         type="text"
         placeholder={placeholder}
-        className="w-full pl-10 sm:pl-11 md:pl-12 pr-4 py-2 sm:py-2.5 md:py-3 text-sm sm:text-sm md:text-base border border-gray-200 rounded-xl focus:outline-none focus:border-gray-300 transition-all bg-gray-50 focus:bg-white"
+        className="w-full pl-8 sm:pl-9 md:pl-10 pr-4 py-2 sm:py-2.5 md:py-3 text-xs sm:text-sm md:text-base border border-gray-200 rounded-full sm:rounded-xl focus:outline-none focus:border-gray-300 transition-all bg-gray-50 focus:bg-white"
         onKeyDown={handleKeyDown}
       />
-      <Search className="w-4 h-4 sm:w-4 md:w-5 text-gray-400 absolute left-3 sm:left-3.5 md:left-4 top-1/2 -translate-y-1/2 group-focus-within:text-gray-600 transition-colors" />
+      <Search className="w-4 h-4 sm:w-4 md:w-5 text-gray-400 absolute left-2.5 sm:left-3 md:left-3.5 top-1/2 -translate-y-1/2 group-focus-within:text-gray-600 transition-colors" />
     </div>
   );
 }

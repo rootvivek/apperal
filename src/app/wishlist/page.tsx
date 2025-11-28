@@ -34,14 +34,8 @@ function WishlistContent() {
 
   if (wishlist.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 py-16">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Header */}
-          <div className="mb-12">
-            <h1 className="text-gray-900 mb-2">My Wishlist</h1>
-            <p className="text-gray-600">Save your favorite items for later</p>
-          </div>
-
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto w-full">
           {/* Empty State */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -103,7 +97,7 @@ function WishlistContent() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link 
                 href="/products"
-                className="px-8 py-4 text-white rounded-xl hover:shadow-xl transition-all hover:scale-105 flex items-center gap-2"
+                className="w-full sm:w-[200px] px-8 py-4 text-white rounded-xl hover:shadow-xl transition-all hover:scale-105 flex items-center justify-center gap-2"
                 style={{ backgroundColor: '#D7882B' }}
               >
                 Discover Products
@@ -111,7 +105,7 @@ function WishlistContent() {
               </Link>
               <Link 
                 href="/cart"
-                className="px-8 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center gap-2"
+                className="w-full sm:w-[200px] px-8 py-4 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all flex items-center justify-center gap-2"
               >
                 <ShoppingCart className="w-5 h-5" />
                 View Cart
@@ -126,14 +120,6 @@ function WishlistContent() {
   return (
     <div className="min-h-screen bg-gray-50 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-12">
-          <h1 className="text-gray-900 mb-2">My Wishlist</h1>
-          <p className="text-gray-600">
-            {`You have ${wishlist.length} item${wishlist.length === 1 ? '' : 's'} in your wishlist.`}
-          </p>
-        </div>
-
         {/* Products Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
           {wishlist.map((product: any) => (

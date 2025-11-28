@@ -43,8 +43,8 @@
     --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-    --primary: 142 76% 36%;
-    --primary-foreground: 355.7 100% 97.3%;
+    --primary: 32 68% 51%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
     --muted: 210 40% 96.1%;
@@ -55,7 +55,7 @@
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
-    --ring: 142 76% 36%;
+    --ring: 32 68% 51%;
     --radius: 0.5rem;
   }
 }
@@ -127,7 +127,7 @@
 }
 
 .swiper-pagination-bullet-active {
-  background: rgb(37, 99, 235) !important;
+  background: #D7882B !important;
   opacity: 1 !important;
 }
 
@@ -464,12 +464,12 @@ html body nav.bg-brand-500 {
 
 /* Blinking cursor for search input */
 input[type="text"]:focus {
-  caret-color: #3b82f6; /* Blue cursor color */
+  caret-color: #D7882B; /* Brand color cursor */
 }
 
 /* Ensure cursor is visible and blinking */
 input[type="text"] {
-  caret-color: #3b82f6;
+  caret-color: #D7882B;
 }
 
 @keyframes blink {
@@ -485,7 +485,7 @@ input[type="text"] {
 .search-cursor::after {
   content: '|';
   animation: blink 1s infinite;
-  color: #3b82f6;
+  color: #D7882B;
   font-weight: bold;
 }
 

@@ -89,7 +89,7 @@ export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
     return (
       <div className="w-full h-[50vh] md:h-[70vh] flex items-center justify-center bg-white mb-0 pb-0 sm:pb-0">
         <div className="text-center">
-          <Spinner className="size-12 text-blue-600" />
+          <Spinner className="size-12 text-[#D7882B]" />
           <p className="mt-4 text-gray-600">Loading carousel...</p>
           <p className="mt-4 text-gray-600">Loading featured products...</p>
         </div>
@@ -138,7 +138,7 @@ export default function HeroCarousel({ className = '' }: HeroCarouselProps) {
         pagination={{
           clickable: true,
           bulletClass: 'swiper-pagination-bullet !bg-gray-400 !opacity-50',
-          bulletActiveClass: 'swiper-pagination-bullet-active !bg-blue-600 !opacity-100',
+          bulletActiveClass: 'swiper-pagination-bullet-active !bg-[#D7882B] !opacity-100',
         }}
         loop={products.length > 1}
         className="hero-carousel-swiper h-full w-full"
