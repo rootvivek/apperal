@@ -16,7 +16,6 @@ interface OrderItem {
   };
   quantity: number;
 }
-
 interface OrderConfirmationProps {
   orderNumber: string;
   orderId?: string;

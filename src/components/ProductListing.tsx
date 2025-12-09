@@ -161,110 +161,108 @@ export default function ProductListing({
 
   return (
     <>
+      {/* Desktop: Fixed Left Sidebar for Filters */}
+      {showFilter && filterType !== 'none' && (
+        <div className="hidden lg:block fixed top-16 lg:top-20 left-2 bg-white border border-gray-200 p-4 w-64 h-[calc(100vh-4rem)] lg:h-[calc(100vh-5rem)] overflow-y-auto z-40">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter By</h3>
+          <RadioGroup
+            value={selectedFilter}
+            onValueChange={setSelectedFilter}
+            className="space-y-0.5"
+          >
+            <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+              <RadioGroupItem value="all" id="filter-all" />
+              <Label
+                htmlFor="filter-all"
+                className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+              >
+                All Products ({products.length})
+              </Label>
+            </div>
+            {filterOptions.map((option) => {
+              const count = getFilterOptionCount(option);
+              const value = option.slug || option.name;
+              return (
+                <div
+                  key={option.id}
+                  className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer"
+                >
+                  <RadioGroupItem value={value} id={`filter-${option.id}`} />
+                  <Label
+                    htmlFor={`filter-${option.id}`}
+                    className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                  >
+                    {option.name} ({count})
+                  </Label>
+                </div>
+              );
+            })}
+          </RadioGroup>
+          
+          {/* Sort Options */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Sort By</h3>
+            <RadioGroup
+              value={sortBy}
+              onValueChange={setSortBy}
+              className="space-y-0.5"
+            >
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="featured" id="sort-featured" />
+                <Label
+                  htmlFor="sort-featured"
+                  className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                >
+                  Featured
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="price-low" id="sort-price-low" />
+                <Label
+                  htmlFor="sort-price-low"
+                  className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                >
+                  Price: Low to High
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="price-high" id="sort-price-high" />
+                <Label
+                  htmlFor="sort-price-high"
+                  className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                >
+                  Price: High to Low
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="newest" id="sort-newest" />
+                <Label
+                  htmlFor="sort-newest"
+                  className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                >
+                  Newest
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
+                <RadioGroupItem value="oldest" id="sort-oldest" />
+                <Label
+                  htmlFor="sort-oldest"
+                  className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
+                >
+                  Oldest
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+        </div>
+      )}
+
       {/* Products Grid */}
       <div className="min-h-screen bg-gray-50">
         <div className="w-full pt-0 pb-8 !mt-0">
-          <div className="flex flex-col lg:flex-row gap-2 lg:gap-3">
-            {/* Desktop: Fixed Left Sidebar for Filters */}
-            {showFilter && filterType !== 'none' && (
-              <div className="hidden lg:block w-64 flex-shrink-0">
-                <div className="fixed top-[120px] left-2 bg-white border border-gray-200 p-4 w-64 max-h-[calc(100vh-120px)] overflow-y-auto z-40">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter By</h3>
-                  <RadioGroup
-                    value={selectedFilter}
-                    onValueChange={setSelectedFilter}
-                    className="space-y-0.5"
-                  >
-                    <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                      <RadioGroupItem value="all" id="filter-all" />
-                      <Label
-                        htmlFor="filter-all"
-                        className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                      >
-                        All Products ({products.length})
-                      </Label>
-                    </div>
-                    {filterOptions.map((option) => {
-                      const count = getFilterOptionCount(option);
-                      const value = option.slug || option.name;
-                      return (
-                        <div
-                          key={option.id}
-                          className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer"
-                        >
-                          <RadioGroupItem value={value} id={`filter-${option.id}`} />
-                          <Label
-                            htmlFor={`filter-${option.id}`}
-                            className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                          >
-                            {option.name} ({count})
-                          </Label>
-                        </div>
-                      );
-                    })}
-                  </RadioGroup>
-                  
-                  {/* Sort Options */}
-                  <div className="mt-6 pt-6 border-t border-gray-200">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Sort By</h3>
-                    <RadioGroup
-                      value={sortBy}
-                      onValueChange={setSortBy}
-                      className="space-y-0.5"
-                    >
-                      <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="featured" id="sort-featured" />
-                        <Label
-                          htmlFor="sort-featured"
-                          className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                        >
-                          Featured
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="price-low" id="sort-price-low" />
-                        <Label
-                          htmlFor="sort-price-low"
-                          className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                        >
-                          Price: Low to High
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="price-high" id="sort-price-high" />
-                        <Label
-                          htmlFor="sort-price-high"
-                          className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                        >
-                          Price: High to Low
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="newest" id="sort-newest" />
-                        <Label
-                          htmlFor="sort-newest"
-                          className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                        >
-                          Newest
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2 px-3 py-1 rounded-md hover:bg-gray-50 cursor-pointer">
-                        <RadioGroupItem value="oldest" id="sort-oldest" />
-                        <Label
-                          htmlFor="sort-oldest"
-                          className="text-sm text-gray-700 font-normal cursor-pointer flex-1"
-                        >
-                          Oldest
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-                </div>
-              </div>
-            )}
-
+          <div className="flex flex-col lg:flex-row gap-2 lg:gap-[10px]">
             {/* Main Content Area */}
-            <div className="flex-1 pt-2 lg:pr-2 lg:pl-0 lg:ml-[272px]">
+            <div className="flex-1 pt-2 lg:pr-2 lg:pl-0 lg:ml-[274px]">
               {/* Desktop: Filter and Sort at Top (when no filter sidebar) */}
               {!hasFilterSidebar && (
                 <div className="hidden md:block mb-6">

@@ -190,8 +190,17 @@
 
 /* Hero carousel specific - remove all gaps */
 .hero-carousel-container {
-  margin: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
   padding: 0 !important;
+  height: 300px !important;
+}
+
+@media (min-width: 1024px) {
+  .hero-carousel-container {
+    height: 500px !important;
+  }
 }
 
 .hero-carousel-swiper .swiper-wrapper {
@@ -199,23 +208,36 @@
   padding: 0 !important;
   gap: 0 !important;
   width: 100% !important;
+  height: 100% !important;
+}
+
+.hero-carousel-swiper {
+  height: 100% !important;
 }
 
 .hero-carousel-swiper .swiper-slide {
   margin: 0 !important;
   padding: 0 !important;
-  width: 100% !important;
-  min-width: 100% !important;
-  max-width: 100% !important;
+  height: 100% !important;
 }
 
 @media (max-width: 639px) {
   .hero-carousel-swiper .swiper-slide {
     width: 100% !important;
-    min-width: 100% !important;
-    max-width: 100% !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
+  }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .hero-carousel-swiper .swiper-slide {
+    width: 50% !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .hero-carousel-swiper .swiper-slide {
+    width: 33.333333% !important;
   }
 }
 
