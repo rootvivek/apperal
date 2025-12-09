@@ -1,6 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserInfo } from '@/hooks/navigation/useUserInfo';
 
 interface AccountMenuItemsProps {
   onItemClick: () => void;
@@ -15,6 +17,9 @@ const menuItems = [
 ];
 
 export default function AccountMenuItems({ onItemClick, onLogout }: AccountMenuItemsProps) {
+  const { user } = useAuth();
+  const { isAdmin } = useUserInfo(user);
+
   return (
     <>
       {menuItems.map((item) => (
@@ -27,6 +32,18 @@ export default function AccountMenuItems({ onItemClick, onLogout }: AccountMenuI
           {item.label}
         </Link>
       ))}
+      {isAdmin && (
+        <>
+          <div className="border-t border-gray-100 my-2"></div>
+          <Link
+            href="/admin"
+            onClick={onItemClick}
+            className="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors font-medium"
+          >
+            Admin Panel
+          </Link>
+        </>
+      )}
       <div className="border-t border-gray-100 my-2"></div>
       <button
         onClick={onLogout}

@@ -50,17 +50,19 @@ export function useUserInfo(user: User | null) {
 
   // Listen for profile updates
   useEffect(() => {
-    const handleProfileUpdate = (event: CustomEvent) => {
-      // Re-check admin status when profile is updated
-      if (event.detail?.is_admin !== undefined) {
-        checkAdminStatus();
-      }
+    const handleProfileUpdate = () => {
+      // Always re-check admin status when profile is updated
+      // This ensures admin status is refreshed even if set via API
+      checkAdminStatus();
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('profileUpdated', handleProfileUpdate as EventListener);
+      // Also listen for admin status updates specifically
+      window.addEventListener('adminStatusUpdated', handleProfileUpdate as EventListener);
       return () => {
         window.removeEventListener('profileUpdated', handleProfileUpdate as EventListener);
+        window.removeEventListener('adminStatusUpdated', handleProfileUpdate as EventListener);
       };
     }
   }, [checkAdminStatus]);

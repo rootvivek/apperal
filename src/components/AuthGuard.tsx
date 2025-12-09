@@ -33,17 +33,22 @@ export default function AuthGuard({ children, redirectTo = '/login', roles = [] 
       setCheckingRole(true);
       try {
         if (roles.includes('admin')) {
-          const ADMIN_PHONE = process.env.NEXT_PUBLIC_ADMIN_PHONE;
-          if (!ADMIN_PHONE) {
+          // Check is_admin from user_profiles table (consistent with AdminGuard and server-side checks)
+          const { data: profile, error } = await supabase
+            .from('user_profiles')
+            .select('is_admin')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (error) {
             setHasRole(false);
             setCheckingRole(false);
             return;
           }
-          const { data: profile } = await supabase.from('user_profiles').select('phone').eq('id', user.id).maybeSingle();
-          const userPhone = profile?.phone || user.phone || user.user_metadata?.phone || '';
-          const normalizedUserPhone = userPhone.replace(/\D/g, '').slice(-10);
-          const normalizedAdminPhone = ADMIN_PHONE.replace(/\D/g, '').slice(-10);
-          setHasRole(normalizedUserPhone === normalizedAdminPhone && normalizedUserPhone.length === 10);
+
+          // Check is_admin field
+          const adminStatus = profile?.is_admin === true;
+          setHasRole(adminStatus);
         } else {
           setHasRole(false);
         }
